@@ -15,6 +15,8 @@ import {
   canRiderReceiveOffer,
   getEligibilityRejectReason,
   getRideEligibilityServiceType,
+  normalizeVehicleCategory,
+  getVehicleSupportedServices,
 } from "../utils/riderServiceEligibility.js";
 import {
   normalizeServicePreferencesInput,
@@ -28,12 +30,7 @@ import {
   notifyCustomerFoodDriverAssigned,
 } from "../utils/pushNotifications.js";
 import { getOnDutyRider } from "../utils/onDutyRidersRegistry.js";
-import {
-  normalizeVehicleCategory,
-  getVehicleSupportedServices,
-} from "../utils/riderServiceEligibility.js";
 import { filterRidesForRider } from "../utils/rideOfferBroadcast.js";
-import { getOnDutyRider } from "../utils/onDutyRidersRegistry.js";
 import {
   buildEarningsBreakdownForRide,
   buildEarningsBreakdownFromCommissionTxn,
