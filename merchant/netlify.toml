@@ -1,0 +1,9 @@
+# Monorepo: set Netlify "Base directory" (package directory) to `merchant`.
+# Do NOT set publish directory to `merchant` in the UI — this file sets it to `.next`.
+
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
