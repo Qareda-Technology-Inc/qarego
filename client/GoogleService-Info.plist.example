@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Placeholder — do not use this file in builds.
+
+  In Firebase Console:
+  1. Add an iOS app with bundle ID: com.qarego.client
+  2. Download GoogleService-Info.plist
+  3. Save as: client/GoogleService-Info.plist
+  4. npx expo run:ios
+-->
+<plist version="1.0">
+<dict>
+  <key>CLIENT_ID</key>
+  <string>REPLACE_FROM_FIREBASE</string>
+  <key>REVERSED_CLIENT_ID</key>
+  <string>REPLACE_FROM_FIREBASE</string>
+  <key>API_KEY</key>
+  <string>REPLACE_FROM_FIREBASE</string>
+  <key>GCM_SENDER_ID</key>
+  <string>REPLACE_FROM_FIREBASE</string>
+  <key>PLIST_VERSION</key>
+  <string>1</string>
+  <key>BUNDLE_ID</key>
+  <string>com.qarego.client</string>
+  <key>PROJECT_ID</key>
+  <string>YOUR_FIREBASE_PROJECT_ID</string>
+  <key>STORAGE_BUCKET</key>
+  <string>YOUR_FIREBASE_PROJECT_ID.appspot.com</string>
+  <key>IS_ADS_ENABLED</key>
+  <false/>
+  <key>IS_ANALYTICS_ENABLED</key>
+  <false/>
+  <key>IS_APPINVITE_ENABLED</key>
+  <true/>
+  <key>IS_GCM_ENABLED</key>
+  <true/>
+  <key>IS_SIGNIN_ENABLED</key>
+  <true/>
+  <key>GOOGLE_APP_ID</key>
+  <string>REPLACE_FROM_FIREBASE</string>
+</dict>
+</plist>

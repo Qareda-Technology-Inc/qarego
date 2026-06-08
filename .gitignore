@@ -1,0 +1,62 @@
+# Dependencies
+**/node_modules/
+
+# Expo / React Native (client)
+client/.expo/
+client/dist/
+client/web-build/
+client/expo-env.d.ts
+client/ios/
+client/android/
+
+# Next.js (admin, merchant)
+**/.next/
+**/out/
+**/build/
+**/.vercel/
+
+# Env & secrets — never commit
+**/.env
+**/.env.local
+**/.env.*.local
+!**/.env.example
+server/firebase-service-account.json
+client/google-services.json
+client/GoogleService-Info.plist
+
+# Keys & certs
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.pem
+
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Debug logs
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+**/.pnpm-debug.log*
+
+# TypeScript
+*.tsbuildinfo
+
+# Metro
+**/.metro-health-check*
+
+# EAS local
+client/.eas/
+
+# Large media (optional — remove if you need these in repo)
+*.mp4
+*.mov
+*.wav
+*.mp3
+
+# Misc
+*.orig.*
+client/app-example

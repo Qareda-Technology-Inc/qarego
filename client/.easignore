@@ -1,0 +1,19 @@
+# Dependencies & Caches
+node_modules/
+.expo/
+.eas/
+.git/
+
+# Native Folders (EAS generates these from scratch)
+ios/
+android/
+
+# Web builds
+web-build/
+dist/
+
+# Large media source assets (Move these to cloud storage if possible)
+*.mp4
+*.mov
+*.wav
+*.mp3

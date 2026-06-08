@@ -1,0 +1,50 @@
+# EAS uploads from the git repo root — only the client app is needed for mobile builds.
+
+# Other apps in this monorepo
+/admin/
+/merchant/
+/server/
+
+# Dependencies & caches (all packages)
+**/node_modules/
+**/.expo/
+**/.eas/
+**/.next/
+**/dist/
+**/web-build/
+**/.metro-health-check*
+
+# Native projects (EAS runs prebuild)
+/client/ios/
+/client/android/
+
+# Git
+.git/
+
+# Secrets & local env (Firebase files come from EAS file env vars)
+**/.env*.local
+/client/google-services.json
+/client/GoogleService-Info.plist
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.pem
+
+# macOS / debug
+.DS_Store
+**/.DS_Store
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# Large media
+*.mp4
+*.mov
+*.wav
+*.mp3
+
+# Misc
+*.tsbuildinfo
+*.orig.*
