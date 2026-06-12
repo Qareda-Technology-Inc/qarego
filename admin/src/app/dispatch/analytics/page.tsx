@@ -13,6 +13,7 @@ type ServiceRow = {
   label: string;
   total?: number;
   completed?: number;
+  completionRate?: number | null;
   offersAccepted?: number;
   offersDeclined?: number;
   offersSeen?: number;
