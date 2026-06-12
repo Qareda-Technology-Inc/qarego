@@ -9,8 +9,10 @@ import { getCommerceOrderCopy } from "@/lib/commerceOrderCopy";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
-import MerchantMap from "@/components/MerchantMap";
 import ImageUploadField from "@/components/ImageUploadField";
+import StoreLocationPicker, { type StoreLocation } from "@/components/StoreLocationPicker";
+import PageLoader from "@/components/ui/PageLoader";
+import { notify } from "@/lib/notify";
 import { Settings, Loader2, Save, Power, MapPin, Clock } from "lucide-react";
 
 type DayHours = { closed: boolean; open: string; close: string };
@@ -50,6 +52,7 @@ export default function SettingsPage() {
   const copy = getCommerceOrderCopy(restaurant?.vertical || activeRestaurant?.vertical);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingLocation, setSavingLocation] = useState(false);
   const [toggling, setToggling] = useState(false);
 
   const [form, setForm] = useState({
@@ -60,6 +63,8 @@ export default function SettingsPage() {
     minOrderAmount: "",
     estimatedPrepMinutes: "",
   });
+  const [storeAddress, setStoreAddress] = useState("");
+  const [storeLocation, setStoreLocation] = useState<StoreLocation | null>(null);
   const [hours, setHours] = useState<DayHours[]>(DEFAULT_HOURS);
   const [savingHours, setSavingHours] = useState(false);
 
@@ -80,6 +85,12 @@ export default function SettingsPage() {
         minOrderAmount: String(r.minOrderAmount ?? 0),
         estimatedPrepMinutes: String(r.estimatedPrepMinutes ?? 25),
       });
+      setStoreAddress(r.address || "");
+      setStoreLocation(
+        r.latitude != null && r.longitude != null
+          ? { lat: r.latitude, lng: r.longitude, address: r.address }
+          : null
+      );
       setHours(
         Array.isArray(r.openingHours) && r.openingHours.length === 7
           ? r.openingHours.map((d) => ({
@@ -116,11 +127,39 @@ export default function SettingsPage() {
         }),
       });
       await load();
-      alert("Saved");
+      notify.success("Profile saved");
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : "Save failed");
+      notify.error(err instanceof Error ? err.message : "Save failed");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const saveLocation = async () => {
+    if (!storeAddress.trim()) {
+      notify.warning("Address required", "Enter or select a store address.");
+      return;
+    }
+    if (!storeLocation) {
+      notify.warning("Location required", "Search for an address or tap the map to set the pin.");
+      return;
+    }
+    setSavingLocation(true);
+    try {
+      await fetcher("/merchant/restaurant", {
+        method: "PATCH",
+        body: JSON.stringify({
+          address: storeAddress.trim(),
+          latitude: storeLocation.lat,
+          longitude: storeLocation.lng,
+        }),
+      });
+      await load();
+      notify.success("Location saved");
+    } catch (err: unknown) {
+      notify.error(err instanceof Error ? err.message : "Could not save location");
+    } finally {
+      setSavingLocation(false);
     }
   };
 
@@ -141,9 +180,9 @@ export default function SettingsPage() {
         body: JSON.stringify({ openingHours: hours }),
       });
       await load();
-      alert("Opening hours saved");
+      notify.success("Opening hours saved");
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : "Could not save hours");
+      notify.error(err instanceof Error ? err.message : "Could not save hours");
     } finally {
       setSavingHours(false);
     }
@@ -159,21 +198,24 @@ export default function SettingsPage() {
       });
       await load();
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : "Update failed");
+      notify.error(err instanceof Error ? err.message : "Update failed");
     } finally {
       setToggling(false);
     }
   };
 
-  if (loading) return <p className="text-gray-500">Loading…</p>;
+  if (loading) return <PageLoader label="Loading store settings…" />;
   if (!restaurant) return <p className="text-gray-500">{copy.settingsNotFound}</p>;
 
   return (
     <div className="max-w-2xl">
-      <div className="flex items-center gap-3 mb-6">
+      <div className="flex items-center gap-3 mb-2">
         <Settings className="h-7 w-7 text-orange-500" />
-        <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
+        <h1 className="text-2xl font-bold text-gray-900">Store settings</h1>
       </div>
+      <p className="text-sm text-gray-500 mb-6">
+        {restaurant.name} — pickup location, hours, and how customers see your store.
+      </p>
 
       <div className="bg-white rounded-xl border p-5 mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
@@ -202,27 +244,43 @@ export default function SettingsPage() {
         </Button>
       </div>
 
-      {restaurant.latitude != null && restaurant.longitude != null && (
-        <div className="bg-white rounded-xl border p-5 mb-6">
-          <div className="flex items-center gap-2 mb-3">
-            <MapPin className="h-4 w-4 text-orange-500" />
-            <p className="font-medium text-gray-900">Location</p>
-          </div>
-          <MerchantMap
-            markers={[
-              {
-                position: { lat: restaurant.latitude, lng: restaurant.longitude },
-                title: restaurant.name,
-              },
-            ]}
-            height={240}
-            zoom={15}
-          />
-          <p className="text-xs text-gray-400 mt-2">
-            Location is set by the platform admin. Contact them to move your pin.
-          </p>
+      <div id="store-location" className="bg-white rounded-xl border p-5 mb-6">
+        <div className="flex items-center gap-2 mb-1">
+          <MapPin className="h-4 w-4 text-orange-500" />
+          <p className="font-medium text-gray-900">Pickup location</p>
         </div>
-      )}
+        <p className="text-sm text-gray-500 mb-4">
+          Riders use this pin for pickup. Search for your address or tap the map to move the pin.
+        </p>
+        <StoreLocationPicker
+          value={storeLocation}
+          address={storeAddress}
+          onLocationChange={(loc) => {
+            if (!loc) return;
+            setStoreLocation(loc);
+            if (loc.address) setStoreAddress(loc.address);
+          }}
+          onAddressChange={setStoreAddress}
+          mapHeight={280}
+        />
+        <div className="flex justify-end mt-4">
+          <Button
+            type="button"
+            onClick={saveLocation}
+            disabled={savingLocation}
+            className="bg-orange-500 hover:bg-orange-600"
+          >
+            {savingLocation ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <>
+                <Save className="h-4 w-4 mr-1 inline" />
+                Save location
+              </>
+            )}
+          </Button>
+        </div>
+      </div>
 
       <div className="bg-white rounded-xl border p-5 mb-6">
         <div className="flex items-center gap-2 mb-1">
@@ -286,19 +344,30 @@ export default function SettingsPage() {
 
         <div className="flex justify-end mt-4">
           <Button onClick={saveHours} disabled={savingHours} className="bg-orange-500 hover:bg-orange-600">
-            {savingHours ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Save className="h-4 w-4 mr-1 inline" /> Save hours</>}
+            {savingHours ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <>
+                <Save className="h-4 w-4 mr-1 inline" />
+                Save hours
+              </>
+            )}
           </Button>
         </div>
       </div>
 
       <form onSubmit={save} className="bg-white rounded-xl border p-5 space-y-4">
-        <h2 className="font-semibold text-gray-900">{restaurant.name}</h2>
-        <p className="text-sm text-gray-500 -mt-2">{restaurant.address}</p>
+        <h2 className="font-semibold text-gray-900">Store profile</h2>
+        <p className="text-sm text-gray-500 -mt-2">Photo, description, and prep time shown to customers.</p>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <Label htmlFor="emoji">Emoji</Label>
-            <Input id="emoji" value={form.imageEmoji} onChange={(e) => setForm({ ...form, imageEmoji: e.target.value })} />
+            <Input
+              id="emoji"
+              value={form.imageEmoji}
+              onChange={(e) => setForm({ ...form, imageEmoji: e.target.value })}
+            />
           </div>
           <div>
             <Label htmlFor="cuisine">Cuisine</Label>
@@ -345,12 +414,19 @@ export default function SettingsPage() {
         </div>
 
         <p className="text-xs text-gray-400">
-          Delivery fee ({formatCurrency(restaurant.deliveryFee)}) and address are managed by the platform admin.
+          Delivery fee ({formatCurrency(restaurant.deliveryFee)}) is set by the platform admin.
         </p>
 
         <div className="flex justify-end">
           <Button type="submit" disabled={saving} className="bg-orange-500 hover:bg-orange-600">
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Save className="h-4 w-4 mr-1 inline" /> Save changes</>}
+            {saving ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <>
+                <Save className="h-4 w-4 mr-1 inline" />
+                Save profile
+              </>
+            )}
           </Button>
         </div>
       </form>

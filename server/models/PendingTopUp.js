@@ -14,7 +14,6 @@ const pendingTopUpSchema = new Schema(
   { timestamps: true }
 );
 
-pendingTopUpSchema.index({ clientReference: 1 });
 pendingTopUpSchema.index({ driver: 1, status: 1 });
 
 const PendingTopUp = mongoose.model('PendingTopUp', pendingTopUpSchema);

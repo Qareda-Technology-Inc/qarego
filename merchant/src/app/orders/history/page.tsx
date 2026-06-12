@@ -9,6 +9,7 @@ import type { FoodOrderRow } from "@/lib/orderTypes";
 import { useAuth } from "@/context/AuthContext";
 import { getCommerceOrderCopy } from "@/lib/commerceOrderCopy";
 import { Button } from "@/components/ui/Button";
+import MerchantOrderTotals from "@/components/MerchantOrderTotals";
 import {
   History,
   Search,
@@ -245,7 +246,14 @@ export default function OrderHistoryPage() {
                   )}
                 </div>
                 <div className="text-right">
-                  <p className="font-semibold text-lg">{formatCurrency(order.total)}</p>
+                  <MerchantOrderTotals
+                    subtotal={order.subtotal}
+                    serviceFee={order.serviceFee}
+                    deliveryFee={order.deliveryFee}
+                    total={order.total}
+                    fulfillmentType={order.fulfillmentType}
+                    compact
+                  />
                   <p className="text-xs text-gray-400 mt-1">
                     {new Date(order.createdAt).toLocaleString()}
                   </p>

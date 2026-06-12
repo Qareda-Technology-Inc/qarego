@@ -11,6 +11,7 @@ import { stopNewOrderRing } from "@/lib/sound";
 import { useAuth } from "@/context/AuthContext";
 import { getCommerceOrderCopy } from "@/lib/commerceOrderCopy";
 import { Button } from "@/components/ui/Button";
+import MerchantOrderTotals from "@/components/MerchantOrderTotals";
 import MerchantMap from "@/components/MerchantMap";
 import { AssignRiderModal } from "@/components/AssignRiderModal";
 import {
@@ -322,7 +323,13 @@ export default function OrdersPage() {
                 {order.notes ? (
                   <p className="text-sm text-orange-700 mt-2">Note: {order.notes}</p>
                 ) : null}
-                <p className="font-semibold mt-3">{formatCurrency(order.total)} total</p>
+                <MerchantOrderTotals
+                  subtotal={order.subtotal}
+                  serviceFee={order.serviceFee}
+                  deliveryFee={order.deliveryFee}
+                  total={order.total}
+                  fulfillmentType={order.fulfillmentType}
+                />
                 <p className="text-xs text-gray-400 mt-1">
                   {new Date(order.createdAt).toLocaleString()}
                 </p>

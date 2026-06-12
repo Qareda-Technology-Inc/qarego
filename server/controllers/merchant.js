@@ -341,6 +341,23 @@ export const updateMyRestaurant = async (req, res) => {
     restaurant.openingHours = hours;
   }
 
+  if (req.body.address !== undefined) {
+    const addr = String(req.body.address).trim();
+    if (!addr) throw new BadRequestError("Address cannot be empty");
+    restaurant.address = addr;
+  }
+
+  if (req.body.latitude !== undefined || req.body.longitude !== undefined) {
+    if (req.body.latitude == null || req.body.longitude == null) {
+      throw new BadRequestError("Latitude and longitude are required");
+    }
+    restaurant.latitude = Number(req.body.latitude);
+    restaurant.longitude = Number(req.body.longitude);
+    if (!Number.isFinite(restaurant.latitude) || !Number.isFinite(restaurant.longitude)) {
+      throw new BadRequestError("Invalid latitude or longitude");
+    }
+  }
+
   await restaurant.save();
 
   res.status(StatusCodes.OK).json({ message: "Restaurant updated", restaurant });

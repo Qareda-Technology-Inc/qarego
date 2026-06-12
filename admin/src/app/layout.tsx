@@ -1,19 +1,8 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 import AppLayout from "@/components/layout/AppLayout";
-import AlertBridge from "@/components/ui/AlertBridge";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+import NotificationProvider from "@/components/ui/NotificationProvider";
 
 export const metadata: Metadata = {
   title: "qareGo Admin Portal",
@@ -27,11 +16,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
+      <body className="antialiased">
         <AuthProvider>
-          <AlertBridge />
+          <NotificationProvider />
           <AppLayout>{children}</AppLayout>
         </AuthProvider>
       </body>

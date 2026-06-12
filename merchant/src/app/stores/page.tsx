@@ -15,7 +15,7 @@ import {
   buildStoreCreatePayload,
   resolveFormVertical,
 } from "@/lib/storeForm";
-import { Store, Plus, CheckCircle2 } from "lucide-react";
+import { Store, Plus, CheckCircle2, MapPin, Settings2 } from "lucide-react";
 import { getCommerceOrderCopy } from "@/lib/commerceOrderCopy";
 
 interface StoreRow {
@@ -78,6 +78,15 @@ export default function StoresPage() {
     setModalOpen(true);
   };
 
+  const openStoreSettings = (storeId: string, section: "settings" | "location") => {
+    const path = section === "location" ? "/settings#store-location" : "/settings";
+    if (storeId !== activeRestaurantId) {
+      setActiveRestaurant(storeId, path);
+      return;
+    }
+    router.push(path);
+  };
+
   const create = async (e: React.FormEvent) => {
     e.preventDefault();
     const selectedVertical = resolveFormVertical(form, storeTypes);
@@ -120,7 +129,7 @@ export default function StoresPage() {
         </Button>
       </div>
       <p className="text-gray-600 mb-6">
-        Add a store, choose its module (Food & Restaurants, Groceries & Supermarket, or Pharmacy), then manage menu and orders.
+        Each store has its own menu, pickup location, and orders. Switch the active store in the sidebar, or open settings below.
       </p>
 
       {loading ? (
@@ -172,19 +181,39 @@ export default function StoresPage() {
                   </span>
                 </div>
 
-                <div className="mt-4">
+                <div className="mt-4 flex flex-col gap-2">
                   {isActive ? (
-                    <Button variant="outline" className="w-full" onClick={() => router.push("/")}>
+                    <Button variant="outline" className="w-full" onClick={() => router.push("/orders")}>
                       {getCommerceOrderCopy(s.vertical).openOrders}
                     </Button>
                   ) : (
                     <Button
                       className="w-full bg-orange-500 hover:bg-orange-600"
-                      onClick={() => setActiveRestaurant(s._id, "/")}
+                      onClick={() => setActiveRestaurant(s._id, "/orders")}
                     >
-                      Manage this store
+                      Switch to this store
                     </Button>
                   )}
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full text-sm"
+                      onClick={() => openStoreSettings(s._id, "settings")}
+                    >
+                      <Settings2 className="h-4 w-4 mr-1 inline shrink-0" />
+                      Settings
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full text-sm"
+                      onClick={() => openStoreSettings(s._id, "location")}
+                    >
+                      <MapPin className="h-4 w-4 mr-1 inline shrink-0" />
+                      Location
+                    </Button>
+                  </div>
                 </div>
               </div>
             );
