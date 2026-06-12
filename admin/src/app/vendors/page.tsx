@@ -349,6 +349,12 @@ export default function VendorsPage() {
                             {r.isActive ? "Active" : "Inactive"}
                           </button>
                           <Link
+                            href={`/restaurants/${r._id}#store-location`}
+                            className="inline-flex items-center text-indigo-600 hover:text-indigo-900 text-sm"
+                          >
+                            <MapPin className="h-4 w-4 mr-1" /> Edit location
+                          </Link>
+                          <Link
                             href={`/restaurants/${r._id}`}
                             className="inline-flex items-center text-indigo-600 hover:text-indigo-900 text-sm"
                           >

@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Modal } from "@/components/ui/Modal";
 import MenuCategoryField from "@/components/MenuCategoryField";
+import StoreLocationPicker, { type StoreLocation } from "@/components/StoreLocationPicker";
 import { ArrowLeft, Plus, Trash2, Edit2, Loader2, Save } from "lucide-react";
 
 interface Owner {
@@ -90,6 +91,14 @@ export default function RestaurantDetailPage({ params }: { params: Promise<{ id:
   const saveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!restaurant) return;
+    if (!restaurant.address?.trim()) {
+      alert("Enter or select a store address");
+      return;
+    }
+    if (restaurant.latitude == null || restaurant.longitude == null) {
+      alert("Search for an address or tap the map to set the store location");
+      return;
+    }
     setSavingProfile(true);
     try {
       await fetcher(`/admin/restaurants/${id}`, {
@@ -203,6 +212,15 @@ export default function RestaurantDetailPage({ params }: { params: Promise<{ id:
     return acc;
   }, {});
 
+  const storeLocation: StoreLocation | null =
+    restaurant.latitude != null && restaurant.longitude != null
+      ? {
+          lat: restaurant.latitude,
+          lng: restaurant.longitude,
+          address: restaurant.address,
+        }
+      : null;
+
   return (
     <div className="space-y-6">
       <div className="flex items-start gap-3 min-w-0">
@@ -222,6 +240,32 @@ export default function RestaurantDetailPage({ params }: { params: Promise<{ id:
           </p>
         </div>
       </div>
+
+      <Card id="store-location">
+        <CardHeader>
+          <CardTitle>Store location</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-gray-500 mb-4">
+            Search for an address or tap the map to pin the pickup location riders use for this store.
+          </p>
+          <StoreLocationPicker
+            value={storeLocation}
+            address={restaurant.address}
+            onLocationChange={(loc) => {
+              if (!loc) return;
+              setRestaurant({
+                ...restaurant,
+                latitude: loc.lat,
+                longitude: loc.lng,
+                address: loc.address || restaurant.address,
+              });
+            }}
+            onAddressChange={(addr) => setRestaurant({ ...restaurant, address: addr })}
+            mapHeight={320}
+          />
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Profile */}
@@ -263,19 +307,12 @@ export default function RestaurantDetailPage({ params }: { params: Promise<{ id:
                 <Label htmlFor="prep">Prep Time (min)</Label>
                 <Input id="prep" type="number" value={restaurant.estimatedPrepMinutes} onChange={(e) => setRestaurant({ ...restaurant, estimatedPrepMinutes: Number(e.target.value) })} />
               </div>
-              <div>
-                <Label htmlFor="address">Address</Label>
-                <Input id="address" value={restaurant.address} onChange={(e) => setRestaurant({ ...restaurant, address: e.target.value })} />
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <Label htmlFor="lat">Latitude</Label>
-                  <Input id="lat" type="number" value={restaurant.latitude} onChange={(e) => setRestaurant({ ...restaurant, latitude: Number(e.target.value) })} />
-                </div>
-                <div>
-                  <Label htmlFor="lng">Longitude</Label>
-                  <Input id="lng" type="number" value={restaurant.longitude} onChange={(e) => setRestaurant({ ...restaurant, longitude: Number(e.target.value) })} />
-                </div>
+              <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
+                <span className="font-medium text-gray-700">Address:</span>{" "}
+                {restaurant.address || "Not set — use the map above"}
+                {restaurant.latitude != null && restaurant.longitude != null
+                  ? ` (${restaurant.latitude.toFixed(5)}, ${restaurant.longitude.toFixed(5)})`
+                  : ""}
               </div>
               <div className="space-y-2 pt-1">
                 <label className="flex items-center gap-2 text-sm text-gray-700">
