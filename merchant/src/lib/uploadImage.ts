@@ -1,4 +1,5 @@
-import { getApiBaseUrl, logoutOn401 } from "./api";
+import { logoutOn401 } from "./api";
+import { resolveMediaUploadBaseUrl } from "./backendUrl";
 import { assertImageFileUnderLimit } from "./mediaLimits";
 
 export type UploadImageResult = {
@@ -8,34 +9,8 @@ export type UploadImageResult = {
   warning?: string;
 };
 
-const API_PORT = "2026";
-
-/**
- * Uploads must hit the API directly on port 2026 (not /api on 3001 — large files fail).
- * If you open merchant as http://192.168.x.x:3001, uploads must go to http://192.168.x.x:2026,
- * not 127.0.0.1 (that only works on the same computer as the API).
- */
 export function getMediaUploadBaseUrl(): string {
-  if (typeof window !== "undefined") {
-    const { protocol, hostname } = window.location;
-    const onLoopback = hostname === "localhost" || hostname === "127.0.0.1";
-    const envUrl = (
-      process.env.NEXT_PUBLIC_API_BASE_URL ||
-      process.env.NEXT_PUBLIC_SOCKET_URL
-    )?.trim();
-
-    if (!onLoopback) {
-      return `${protocol}//${hostname}:${API_PORT}`;
-    }
-    if (envUrl) return envUrl.replace(/\/$/, "");
-    return `${protocol}//${hostname}:${API_PORT}`;
-  }
-
-  const direct =
-    process.env.NEXT_PUBLIC_API_BASE_URL?.trim() ||
-    process.env.NEXT_PUBLIC_SOCKET_URL?.trim();
-  if (direct) return direct.replace(/\/$/, "");
-  return getApiBaseUrl();
+  return resolveMediaUploadBaseUrl();
 }
 
 /**
@@ -56,7 +31,8 @@ export async function uploadImageFile(file: File, folder = "stores"): Promise<Up
   formData.append("file", file);
   formData.append("folder", folder);
 
-  const uploadUrl = `${getMediaUploadBaseUrl()}/media/upload`;
+  const uploadBase = getMediaUploadBaseUrl();
+  const uploadUrl = `${uploadBase}/media/upload`;
   const timeoutMs = 90_000;
 
   let res: Response;
@@ -73,12 +49,14 @@ export async function uploadImageFile(file: File, folder = "stores"): Promise<Up
   } catch (err) {
     if (err instanceof Error && err.name === "TimeoutError") {
       throw new Error(
-        `Upload timed out after ${timeoutMs / 1000}s. Check the API is running at ${getMediaUploadBaseUrl()} and Cloudinary credentials in server/.env.`
+        `Upload timed out after ${timeoutMs / 1000}s. Check the API at ${uploadBase} and Cloudinary credentials in server/.env.`
       );
     }
-    throw new Error(
-      `Could not reach the API at ${getMediaUploadBaseUrl()}. Start the server (port ${API_PORT}) on the same machine, or open merchant at http://127.0.0.1:3001 if the API is local only.`
-    );
+    const hint =
+      uploadBase.includes("/api")
+        ? "Check API_PROXY_TARGET on Vercel points to your cloud server."
+        : "Start the API on port 2026, or set NEXT_PUBLIC_API_BASE_URL in merchant/.env.";
+    throw new Error(`Could not reach the API at ${uploadBase}. ${hint}`);
   }
 
   const data = await res.json().catch(() => ({}));
@@ -91,7 +69,7 @@ export async function uploadImageFile(file: File, folder = "stores"): Promise<Up
       data.message ||
       data.msg ||
       (res.status === 500
-        ? "Server error during upload. Restart the API (port 2026) and use an image under 500 KB."
+        ? "Server error during upload. Check Cloudinary credentials on the API server."
         : `Upload failed (${res.status})`);
     throw new Error(detail);
   }
