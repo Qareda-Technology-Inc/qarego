@@ -3,8 +3,6 @@ export type FoodOrderRow = {
   status: string;
   total: number;
   subtotal: number;
-  serviceFee?: number;
-  deliveryFee?: number;
   items: {
     name: string;
     quantity: number;
