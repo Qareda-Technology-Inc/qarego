@@ -3,8 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 3001",
-    "dev:clean": "rm -rf .next && next dev -p 3001",
+    "dev": "NEXT_PUBLIC_APP_ENV=development next dev -p 3001",
+    "dev:local": "NEXT_PUBLIC_APP_ENV=development next dev -p 3001",
+    "dev:cloud": "NEXT_PUBLIC_APP_ENV=production next dev -p 3001",
+    "dev:clean": "rm -rf .next && NEXT_PUBLIC_APP_ENV=development next dev -p 3001",
     "build": "next build",
     "start": "next start -p 3001",
     "lint": "eslint"

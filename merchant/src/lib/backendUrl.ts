@@ -1,13 +1,22 @@
 /**
  * Backend origin for sockets, uploads, and kitchen alert sounds.
- *
- * Local dev (localhost / LAN): direct API on port 2026 on the same host as the merchant app.
- * Deployed (Vercel, etc.): NEXT_PUBLIC_API_BASE_URL, or same-origin /api proxy for HTTP uploads.
  */
+
+import {
+  getProductionApiUrl,
+  isProductionApi,
+  LOCAL_API_URL,
+  resolveApiOrigin,
+} from "@/lib/appEnvironment";
 
 const API_PORT = "2026";
 
 function getEnvBackendUrl(): string | null {
+  if (isProductionApi()) {
+    const cloud = getProductionApiUrl();
+    if (cloud) return cloud;
+  }
+
   const url = (
     process.env.NEXT_PUBLIC_API_BASE_URL ||
     process.env.NEXT_PUBLIC_SOCKET_URL
@@ -70,11 +79,9 @@ export function resolveMediaUploadBaseUrl(): string {
     return `${origin}/api`;
   }
 
-  const serverTarget =
-    process.env.API_PROXY_TARGET?.trim() ||
-    process.env.NEXT_PUBLIC_API_BASE_URL?.trim();
+  const serverTarget = resolveApiOrigin();
   if (serverTarget) return serverTarget.replace(/\/$/, "");
-  return `http://127.0.0.1:${API_PORT}`;
+  return LOCAL_API_URL;
 }
 
 /** Rewrite localhost sound/upload URLs so LAN tablets can load them. */

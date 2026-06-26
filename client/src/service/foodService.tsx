@@ -15,6 +15,7 @@ export type Restaurant = {
   imageEmoji?: string;
   imageUrl?: string | null;
   rating?: number;
+  ratingCount?: number;
   deliveryFee: number;
   minOrderAmount?: number;
   estimatedPrepMinutes?: number;
@@ -26,6 +27,7 @@ export type Restaurant = {
   latitude?: number;
   longitude?: number;
   allowsPickup?: boolean;
+  createdAt?: string;
 };
 
 export type FoodPromoBanner = {
@@ -81,6 +83,7 @@ export type FoodOrder = {
   serviceFee?: number;
   deliveryFee: number;
   driverFee: number;
+  deliveryDistanceKm?: number | null;
   total: number;
   delivery: { address: string; latitude: number; longitude: number };
   paymentMethod: string;
@@ -91,7 +94,19 @@ export type FoodOrder = {
   fulfillmentType?: "DELIVERY" | "PICKUP" | "SCHEDULED";
   restaurantRating?: number | null;
   restaurantReview?: string | null;
-  ride?: { _id: string; status?: string; otp?: string; rider?: unknown } | null;
+  ride?: {
+    _id: string;
+    status?: string;
+    vehicle?: string;
+    otp?: string;
+    fare?: number;
+    distance?: number;
+    rider?: unknown;
+    pickup?: { address?: string; latitude?: number; longitude?: number };
+    drop?: { address?: string; latitude?: number; longitude?: number };
+    serviceType?: string;
+    storeVertical?: string;
+  } | null;
   createdAt?: string;
 };
 

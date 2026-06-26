@@ -136,6 +136,12 @@ export function getHeroStatusLabel(
     return { title: c.trackingCourierToStore, subtitle: c.trackingCourierAtStore };
   }
   if (ride?.status === "SEARCHING_FOR_RIDER") {
+    if (orderStatus === "PREPARING") {
+      return {
+        title: "Preparing your order",
+        subtitle: "Finding a courier while the store cooks",
+      };
+    }
     return { title: "Finding a courier", subtitle: "Hang tight — matching a driver" };
   }
   if (orderStatus === "READY_FOR_PICKUP") {
@@ -144,5 +150,161 @@ export function getHeroStatusLabel(
   if (orderStatus === "PREPARING") {
     return { title: c.trackingStoreCooking, subtitle: c.trackingPreparingHero };
   }
+  if (orderStatus === "PLACED" || orderStatus === "CONFIRMED") {
+    return { title: "Confirming order", subtitle: "Waiting for the store to accept" };
+  }
   return { title: c.trackingWaitingStore, subtitle: "They will confirm your order soon" };
+}
+
+export type FoodOrderMapPoint = {
+  latitude: number;
+  longitude: number;
+  address?: string;
+};
+
+/** Pickup (store) and drop (customer) coordinates for the tracking map. */
+export function resolveFoodOrderMapPoints(order: {
+  restaurantName: string;
+  restaurant?: {
+    address?: string;
+    latitude?: number;
+    longitude?: number;
+  } | null;
+  delivery: { address: string; latitude: number; longitude: number };
+  ride?: {
+    pickup?: { address?: string; latitude?: number; longitude?: number };
+    drop?: { address?: string; latitude?: number; longitude?: number };
+  } | null;
+}): { pickup: FoodOrderMapPoint | null; drop: FoodOrderMapPoint | null } {
+  const ridePickup = order.ride?.pickup;
+  const store = order.restaurant;
+
+  const pickup =
+    toMapPoint(ridePickup?.latitude, ridePickup?.longitude, ridePickup?.address) ??
+    toMapPoint(store?.latitude, store?.longitude, store?.address || order.restaurantName);
+
+  const rideDrop = order.ride?.drop;
+  const drop =
+    toMapPoint(
+      rideDrop?.latitude,
+      rideDrop?.longitude,
+      rideDrop?.address || order.delivery.address
+    ) ??
+    toMapPoint(
+      order.delivery.latitude,
+      order.delivery.longitude,
+      order.delivery.address
+    );
+
+  return { pickup, drop };
+}
+
+function toMapPoint(
+  lat: unknown,
+  lon: unknown,
+  address?: string
+): FoodOrderMapPoint | null {
+  const latitude = Number(lat);
+  const longitude = Number(lon);
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+  if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) return null;
+  return { latitude, longitude, address };
+}
+
+export function hasFoodOrderMap(
+  order: Parameters<typeof resolveFoodOrderMapPoints>[0]
+): boolean {
+  const { pickup, drop } = resolveFoodOrderMapPoints(order);
+  return !!pickup && !!drop;
+}
+
+/** Map from store accept → courier en route; hidden while waiting or after delivery. */
+export function shouldShowFoodOrderMap(
+  order: Parameters<typeof hasFoodOrderMap>[0] & {
+    status: FoodOrderStatus;
+    fulfillmentType?: string;
+    ride?: { status?: string } | null;
+  }
+): boolean {
+  if (order.fulfillmentType === "PICKUP") return false;
+  if (!hasFoodOrderMap(order)) return false;
+  if (order.status === "PLACED") return false;
+  if (order.status === "DELIVERED" || order.status === "CANCELLED") return false;
+  if (order.ride?.status === "COMPLETED") return false;
+  return true;
+}
+
+/** ETA window label e.g. "30–55 min" for the status card. */
+export function getFoodOrderEtaWindow(order: {
+  status: FoodOrderStatus;
+  restaurant?: { estimatedPrepMinutes?: number } | null;
+  ride?: { status?: string } | null;
+}): string | null {
+  if (order.status === "DELIVERED" || order.status === "CANCELLED") return null;
+  if (order.ride?.status === "IN_PROGRESS") return "Arriving soon";
+  if (order.ride?.status === "START" || order.ride?.status === "ARRIVED") {
+    return "Courier at store";
+  }
+  const prep = order.restaurant?.estimatedPrepMinutes;
+  const base = Math.max(15, prep ?? 30);
+  const high = base + 25;
+  return `${base}–${high} min`;
+}
+
+const LIVE_COURIER_STATUSES = new Set([
+  "SEARCHING_FOR_RIDER",
+  "START",
+  "ARRIVED",
+  "IN_PROGRESS",
+]);
+
+export function isLiveFoodCourierTracking(
+  orderStatus: FoodOrderStatus,
+  ride?: { status?: string; _id?: string } | null
+): boolean {
+  if (!ride?._id) return false;
+  if (orderStatus === "CANCELLED" || orderStatus === "DELIVERED") return false;
+  return LIVE_COURIER_STATUSES.has(ride.status ?? "");
+}
+
+/** Distance (km) used for the delivery fee quote. */
+export function getOrderDeliveryDistanceKm(order: {
+  deliveryDistanceKm?: number | null;
+  ride?: { distance?: number } | null;
+}): number | null {
+  if (order.deliveryDistanceKm != null && order.deliveryDistanceKm > 0) {
+    return order.deliveryDistanceKm;
+  }
+  if (order.ride?.distance != null && order.ride.distance > 0) {
+    return order.ride.distance;
+  }
+  return null;
+}
+
+type CourierRider = {
+  driverDetails?: { vehicle?: { category?: string } };
+};
+
+/** Ride vehicle, or courier profile category, default motorcycle. */
+export function resolveCourierVehicle(order: {
+  ride?: { vehicle?: string; rider?: unknown } | null;
+}): string {
+  if (order.ride?.vehicle) return order.ride.vehicle;
+  const rider = order.ride?.rider as CourierRider | undefined;
+  const category = rider?.driverDetails?.vehicle?.category;
+  return category || "motorcycle";
+}
+
+export function getCourierDisplayName(order: {
+  ride?: { rider?: unknown } | null;
+}): string | null {
+  const rider = order.ride?.rider as { name?: string } | undefined;
+  return rider?.name?.trim() || null;
+}
+
+export function getCourierRating(order: {
+  ride?: { rider?: unknown } | null;
+}): number | null {
+  const rider = order.ride?.rider as { averageRating?: number } | undefined;
+  return rider?.averageRating ?? null;
 }

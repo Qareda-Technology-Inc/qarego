@@ -10,6 +10,7 @@ import { MessageProvider } from "@/context/MessageContext";
 import { installAlertOverride } from "@/utils/installAlertOverride";
 import { PushNotificationBootstrap } from "@/components/shared/PushNotificationBootstrap";
 import { DevApiLogger } from "@/components/shared/DevApiLogger";
+import { DevToolsBar } from "@/components/shared/DevToolsBar";
 import { ApiBootstrap } from "@/components/shared/ApiBootstrap";
 
 installAlertOverride();
@@ -31,6 +32,7 @@ export default function RootLayout() {
         <ApiBootstrap>
           <WSProvider>
             <DevApiLogger />
+            <DevToolsBar />
             <PushNotificationBootstrap />
             <Stack screenOptions={{ headerShown: false }}>
               <Stack.Screen name="index" />

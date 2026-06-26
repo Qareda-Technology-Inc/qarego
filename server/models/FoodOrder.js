@@ -34,6 +34,8 @@ const foodOrderSchema = new Schema(
     serviceFee: { type: Number, required: true, min: 0, default: 0 },
     deliveryFee: { type: Number, required: true, min: 0 },
     driverFee: { type: Number, required: true, min: 0 },
+    /** Store → customer distance (km) when the order was quoted. */
+    deliveryDistanceKm: { type: Number, default: null, min: 0 },
     total: { type: Number, required: true, min: 0 },
     delivery: {
       address: { type: String, required: true },
@@ -67,6 +69,12 @@ const foodOrderSchema = new Schema(
       default: "PLACED",
     },
     ride: { type: Schema.Types.ObjectId, ref: "Ride", default: null },
+    /** When the store started preparing (accept). */
+    preparingStartedAt: { type: Date, default: null },
+    /** Scheduled time to broadcast courier offers (half prep or 5 min before ready, whichever is later). */
+    courierBroadcastAt: { type: Date, default: null },
+    /** True after early courier broadcast has been sent (or ride created on ready). */
+    courierBroadcastSent: { type: Boolean, default: false },
     /** 4-digit code — customer shares with courier at delivery (mirrors linked ride OTP) */
     deliveryCode: { type: String, default: null },
     cancelReason: { type: String, default: null },

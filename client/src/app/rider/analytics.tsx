@@ -1,6 +1,5 @@
 import {
   View,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   StyleSheet,
@@ -10,6 +9,7 @@ import {
 import React, { useCallback, useState } from "react";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { commonStyles } from "@/styles/commonStyles";
 import CustomText from "@/components/shared/CustomText";
 import { Colors, formatCurrency } from "@/utils/Constants";
@@ -35,10 +35,14 @@ function pct(v: number | null | undefined) {
 }
 
 export default function RiderAnalyticsScreen() {
+  const insets = useSafeAreaInsets();
   const [days, setDays] = useState(30);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [lifetime, setLifetime] = useState<{ services: ServiceMetric[]; totals: ServiceMetric & { offersSeen?: number } } | null>(null);
+  const [lifetime, setLifetime] = useState<{
+    services: ServiceMetric[];
+    totals: ServiceMetric & { offersSeen?: number };
+  } | null>(null);
   const [period, setPeriod] = useState<{
     services: ServiceMetric[];
     totals: { trips: number; grossFare: number; netEarning: number };
@@ -64,7 +68,7 @@ export default function RiderAnalyticsScreen() {
 
   if (loading) {
     return (
-      <View style={[commonStyles.container, styles.centered]}>
+      <View style={[commonStyles.container, styles.centered, { paddingTop: insets.top }]}>
         <ActivityIndicator size="large" color={Colors.primary} />
       </View>
     );
@@ -72,14 +76,18 @@ export default function RiderAnalyticsScreen() {
 
   return (
     <View style={commonStyles.container}>
-      <SafeAreaView style={{ backgroundColor: "#fff" }} />
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.backBtn}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
           <Ionicons name="arrow-back" size={24} color={Colors.text} />
         </TouchableOpacity>
-        <CustomText variant="h5" fontFamily="SemiBold">
+        <CustomText variant="h5" fontFamily="SemiBold" style={styles.headerTitle}>
           Performance
         </CustomText>
+        <View style={styles.headerSide} />
       </View>
 
       <View style={styles.dayRow}>
@@ -101,7 +109,9 @@ export default function RiderAnalyticsScreen() {
       </View>
 
       <ScrollView
-        contentContainerStyle={styles.scroll}
+        style={styles.scrollView}
+        contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 24 }]}
+        showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -116,14 +126,14 @@ export default function RiderAnalyticsScreen() {
           <CustomText fontFamily="SemiBold" fontSize={14}>
             Last {days} days
           </CustomText>
-          <CustomText fontSize={28} fontFamily="Bold" style={{ marginTop: 8 }}>
+          <CustomText fontSize={28} fontFamily="Bold" style={styles.summaryTrips}>
             {period?.totals.trips ?? 0} trips
           </CustomText>
-          <CustomText fontSize={13} color="#666" style={{ marginTop: 4 }}>
+          <CustomText fontSize={13} color="#666">
             Net {formatCurrency(period?.totals.netEarning ?? 0)} · Gross{" "}
             {formatCurrency(period?.totals.grossFare ?? 0)}
           </CustomText>
-          <CustomText fontSize={12} color="#888" style={{ marginTop: 8 }}>
+          <CustomText fontSize={12} color="#888" style={styles.summaryMeta}>
             Lifetime offer acceptance: {pct(lifetime?.totals?.acceptanceRate)}
             {lifetime?.totals?.offersSeen
               ? ` (${lifetime.totals.offersSeen} offers)`
@@ -140,7 +150,7 @@ export default function RiderAnalyticsScreen() {
           return (
             <View key={row.serviceType} style={styles.serviceCard}>
               <View style={styles.serviceHeader}>
-                <CustomText fontFamily="SemiBold" fontSize={15}>
+                <CustomText fontFamily="SemiBold" fontSize={15} style={styles.serviceLabel}>
                   {row.label}
                 </CustomText>
                 <CustomText fontSize={12} color={Colors.primary}>
@@ -149,26 +159,26 @@ export default function RiderAnalyticsScreen() {
               </View>
               <View style={styles.statRow}>
                 <View style={styles.stat}>
-                  <CustomText fontSize={11} color="#888">
+                  <CustomText fontSize={11} color="#888" numberOfLines={1}>
                     Trips ({days}d)
                   </CustomText>
-                  <CustomText fontFamily="SemiBold" fontSize={16}>
+                  <CustomText fontFamily="SemiBold" fontSize={16} style={styles.statValue}>
                     {row.trips ?? 0}
                   </CustomText>
                 </View>
                 <View style={styles.stat}>
-                  <CustomText fontSize={11} color="#888">
+                  <CustomText fontSize={11} color="#888" numberOfLines={1}>
                     Net earned
                   </CustomText>
-                  <CustomText fontFamily="SemiBold" fontSize={16}>
+                  <CustomText fontFamily="SemiBold" fontSize={16} style={styles.statValue} numberOfLines={1}>
                     {formatCurrency(row.netEarning ?? 0)}
                   </CustomText>
                 </View>
                 <View style={styles.stat}>
-                  <CustomText fontSize={11} color="#888">
-                    Missed offers
+                  <CustomText fontSize={11} color="#888" numberOfLines={1}>
+                    Missed
                   </CustomText>
-                  <CustomText fontFamily="SemiBold" fontSize={16}>
+                  <CustomText fontFamily="SemiBold" fontSize={16} style={styles.statValue}>
                     {life?.offersDeclined ?? 0}
                   </CustomText>
                 </View>
@@ -180,9 +190,10 @@ export default function RiderAnalyticsScreen() {
         <TouchableOpacity
           style={styles.linkRow}
           onPress={() => router.push("/rider/reliability")}
+          activeOpacity={0.85}
         >
           <Ionicons name="shield-outline" size={20} color={Colors.primary} />
-          <CustomText fontSize={13} style={{ flex: 1, marginLeft: 10 }}>
+          <CustomText fontSize={13} style={styles.linkText}>
             Strikes & service pauses
           </CustomText>
           <Ionicons name="chevron-forward" size={18} color="#999" />
@@ -196,32 +207,57 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingBottom: 12,
     borderBottomWidth: 1,
     borderBottomColor: "#eee",
     backgroundColor: "#fff",
   },
-  backBtn: { marginRight: 12 },
+  backBtn: {
+    width: 40,
+    height: 40,
+    alignItems: "flex-start",
+    justifyContent: "center",
+  },
+  headerSide: {
+    width: 40,
+  },
+  headerTitle: {
+    flex: 1,
+    textAlign: "center",
+  },
   dayRow: {
     flexDirection: "row",
-    gap: 8,
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingVertical: 12,
     backgroundColor: "#fff",
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f0f0",
   },
   dayChip: {
     paddingHorizontal: 14,
-    paddingVertical: 6,
+    paddingVertical: 7,
     borderRadius: 20,
     borderWidth: 1,
     borderColor: "#ddd",
+    marginRight: 8,
   },
   dayChipActive: {
     backgroundColor: Colors.primary,
     borderColor: Colors.primary,
   },
-  scroll: { padding: 16, paddingBottom: 40 },
-  centered: { flex: 1, justifyContent: "center", alignItems: "center" },
+  scrollView: {
+    flex: 1,
+  },
+  scroll: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+  },
+  centered: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
   summaryCard: {
     backgroundColor: "#f0fdf4",
     borderRadius: 12,
@@ -230,7 +266,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#bbf7d0",
   },
-  sectionTitle: { marginBottom: 10 },
+  summaryTrips: {
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  summaryMeta: {
+    marginTop: 8,
+  },
+  sectionTitle: {
+    marginBottom: 10,
+  },
   serviceCard: {
     borderWidth: 1,
     borderColor: "#eee",
@@ -244,9 +289,23 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 12,
+    gap: 8,
   },
-  statRow: { flexDirection: "row", justifyContent: "space-between" },
-  stat: { flex: 1 },
+  serviceLabel: {
+    flex: 1,
+  },
+  statRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+  },
+  stat: {
+    flex: 1,
+    minWidth: 0,
+    paddingRight: 6,
+  },
+  statValue: {
+    marginTop: 4,
+  },
   linkRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -255,5 +314,10 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: "#e5e7eb",
+    backgroundColor: "#fff",
+  },
+  linkText: {
+    flex: 1,
+    marginLeft: 10,
   },
 });

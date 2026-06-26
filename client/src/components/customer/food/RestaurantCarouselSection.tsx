@@ -3,7 +3,7 @@ import React, { FC } from "react";
 import CustomText from "@/components/shared/CustomText";
 import { Restaurant } from "@/service/foodService";
 import RestaurantCard from "./RestaurantCard";
-import { FOOD_THEME } from "@/styles/foodStyles";
+import { CAROUSEL_LIST_PAD, FOOD_THEME } from "@/styles/foodStyles";
 
 type Props = {
   title: string;
@@ -12,6 +12,7 @@ type Props = {
   onPressRestaurant: (id: string) => void;
   badge?: (r: Restaurant) => string | null;
   deliveryAmount?: (r: Restaurant) => number | undefined;
+  compact?: boolean;
 };
 
 const RestaurantCarouselSection: FC<Props> = ({
@@ -21,22 +22,21 @@ const RestaurantCarouselSection: FC<Props> = ({
   onPressRestaurant,
   badge,
   deliveryAmount,
+  compact = true,
 }) => {
   if (data.length === 0) return null;
 
   return (
     <View style={styles.section}>
       <View style={styles.header}>
-        <View style={{ flex: 1 }}>
-          <CustomText fontFamily="SemiBold" fontSize={18} style={styles.title}>
-            {title}
+        <CustomText fontFamily="SemiBold" fontSize={14} style={styles.title}>
+          {title}
+        </CustomText>
+        {subtitle && !compact ? (
+          <CustomText fontSize={11} color={FOOD_THEME.textLight} style={styles.subtitle}>
+            {subtitle}
           </CustomText>
-          {subtitle ? (
-            <CustomText fontSize={12} color={FOOD_THEME.textLight} style={{ marginTop: 2 }}>
-              {subtitle}
-            </CustomText>
-          ) : null}
-        </View>
+        ) : null}
       </View>
       <FlatList
         horizontal
@@ -47,7 +47,7 @@ const RestaurantCarouselSection: FC<Props> = ({
         renderItem={({ item }) => (
           <RestaurantCard
             restaurant={item}
-            variant="carousel"
+            variant={compact ? "carouselQuick" : "carousel"}
             onPress={() => onPressRestaurant(item._id)}
             badgeLabel={badge?.(item) ?? undefined}
             deliveryAmount={deliveryAmount?.(item)}
@@ -60,20 +60,23 @@ const RestaurantCarouselSection: FC<Props> = ({
 
 const styles = StyleSheet.create({
   section: {
-    marginBottom: 24,
+    marginTop: 6,
+    marginBottom: 20,
   },
   header: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    marginBottom: 12,
+    paddingHorizontal: CAROUSEL_LIST_PAD,
+    marginBottom: 10,
   },
   title: {
     color: FOOD_THEME.text,
   },
+  subtitle: {
+    marginTop: 2,
+  },
   list: {
-    paddingHorizontal: 16,
-    paddingRight: 8,
+    paddingHorizontal: CAROUSEL_LIST_PAD,
+    paddingRight: CAROUSEL_LIST_PAD - 4,
+    gap: 12,
   },
 });
 

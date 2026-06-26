@@ -12,11 +12,11 @@ import { FoodPromoBanner } from "@/service/foodService";
 import { resolveMediaUrl } from "@/utils/mediaUrl";
 const { width: SCREEN_W } = Dimensions.get("window");
 const H_PAD = 16;
-const CARD_GAP = 14;
+const CARD_GAP = 12;
 const CARD_W = SCREEN_W - H_PAD * 2 - CARD_GAP;
 const SNAP_STEP = CARD_W + CARD_GAP;
-/** ~2.4:1 — keep in sync with admin upload guidance (1080×450) */
-const CARD_H = Math.round(CARD_W / 2.4);
+/** ~3:1 promo strip — capped so banners don't dominate the screen */
+const CARD_H = Math.min(Math.round(CARD_W / 3), 120);
 /** Time each slide stays visible before auto-advance */
 const AUTO_MS = 5500;
 
@@ -99,8 +99,8 @@ export default function FoodPromoCarousel({ banners, accent }: Props) {
 
 const styles = StyleSheet.create({
   wrap: {
-    marginTop: 12,
-    marginBottom: 10,
+    marginTop: 8,
+    marginBottom: 6,
   },
   list: {
     paddingHorizontal: H_PAD,
@@ -113,7 +113,7 @@ const styles = StyleSheet.create({
   card: {
     width: CARD_W,
     height: CARD_H,
-    borderRadius: 14,
+    borderRadius: 12,
     overflow: "hidden",
     backgroundColor: "#fff",
     borderWidth: 1.5,

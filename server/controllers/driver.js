@@ -51,6 +51,123 @@ function pickUrl(preferred, fallback) {
   return preferred || fallback || null;
 }
 
+function isCourierOnboarding(driver) {
+  const status = driver.driverDetails?.status;
+  return !status || status === 'pending';
+}
+
+function bodyHasValue(value) {
+  return value !== undefined && value !== null && value !== '';
+}
+
+function assertNoAdminOnlyFields(body, fields) {
+  const blocked = fields.filter((key) => bodyHasValue(body[key]));
+  if (blocked.length > 0) {
+    throw new BadRequestError(
+      `Only admin can update: ${blocked.join(', ')}. Contact support if you need changes.`
+    );
+  }
+}
+
+async function applyProfileImage(driver, urls, profileFile) {
+  if (urls.profileImage) driver.driverDetails.profileImage = urls.profileImage;
+  else if (profileFile) {
+    driver.driverDetails.profileImage = await persistMulterFile(profileFile, 'drivers/profile');
+  }
+}
+
+async function applyLicenseAndIdDocs(driver, urls, files) {
+  const { licenseFrontFile, licenseBackFile, nationalIdFile } = files;
+  if (urls.licenseFront) driver.driverDetails.licenseFront = urls.licenseFront;
+  else if (licenseFrontFile) {
+    driver.driverDetails.licenseFront = await persistMulterFile(
+      licenseFrontFile,
+      'drivers/license'
+    );
+  }
+  if (urls.licenseBack) driver.driverDetails.licenseBack = urls.licenseBack;
+  else if (licenseBackFile) {
+    driver.driverDetails.licenseBack = await persistMulterFile(
+      licenseBackFile,
+      'drivers/license'
+    );
+  }
+  if (urls.nationalId) driver.driverDetails.nationalId = urls.nationalId;
+  else if (nationalIdFile) {
+    driver.driverDetails.nationalId = await persistMulterFile(
+      nationalIdFile,
+      'drivers/documents'
+    );
+  }
+}
+
+async function applyVehicleRegistrationDocs(driver, urls, files) {
+  const { registrationFile, insuranceFile } = files;
+  if (!driver.driverDetails.vehicle) driver.driverDetails.vehicle = {};
+  if (urls.registrationDoc) {
+    driver.driverDetails.vehicle.registrationDoc = urls.registrationDoc;
+  } else if (registrationFile) {
+    driver.driverDetails.vehicle.registrationDoc = await persistMulterFile(
+      registrationFile,
+      'drivers/vehicle'
+    );
+  }
+  if (urls.insuranceDoc) {
+    driver.driverDetails.vehicle.insuranceDoc = urls.insuranceDoc;
+  } else if (insuranceFile) {
+    driver.driverDetails.vehicle.insuranceDoc = await persistMulterFile(
+      insuranceFile,
+      'drivers/vehicle'
+    );
+  }
+}
+
+function applyVehicleFields(driver, body) {
+  const { makeModel, year, plateNumber, color, make, model } = body;
+  if (!driver.driverDetails.vehicle) driver.driverDetails.vehicle = {};
+
+  if (make) driver.driverDetails.vehicle.make = make;
+  if (model) driver.driverDetails.vehicle.model = model;
+
+  if (makeModel) {
+    let vehicleMake = 'Unknown';
+    let vehicleModel = 'Unknown';
+    if (typeof makeModel === 'string') {
+      const parts = makeModel.trim().split(' ');
+      if (parts.length > 0) {
+        vehicleMake = parts[0];
+        vehicleModel = parts.slice(1).join(' ') || parts[0];
+      }
+    }
+    driver.driverDetails.vehicle.make = vehicleMake;
+    driver.driverDetails.vehicle.model = vehicleModel;
+  }
+  if (year) driver.driverDetails.vehicle.year = year;
+  if (plateNumber) driver.driverDetails.vehicle.plateNumber = plateNumber;
+  if (color) driver.driverDetails.vehicle.color = color;
+}
+
+function courierAttemptedOnboardingFields(body, files) {
+  return (
+    bodyHasValue(body.make) ||
+    bodyHasValue(body.model) ||
+    bodyHasValue(body.makeModel) ||
+    bodyHasValue(body.year) ||
+    bodyHasValue(body.plateNumber) ||
+    bodyHasValue(body.color) ||
+    bodyHasValue(body.licenseFrontUrl) ||
+    bodyHasValue(body.licenseBackUrl) ||
+    bodyHasValue(body.nationalIdUrl) ||
+    bodyHasValue(body.registrationDocUrl) ||
+    bodyHasValue(body.insuranceDocUrl) ||
+    files.licenseFrontFile ||
+    files.licenseBackFile ||
+    files.nationalIdFile ||
+    files.registrationFile ||
+    files.insuranceFile
+  );
+}
+
 async function buildDriverDetailsFromBody(req) {
   const {
     dob,
@@ -228,6 +345,72 @@ export const updateDriver = async (req, res) => {
     throw new UnauthenticatedError('Not authorized to update this profile');
   }
 
+  const driver = await User.findOne({ _id: id, role: 'rider' });
+  if (!driver) {
+    throw new NotFoundError(`No driver found with id ${id}`);
+  }
+
+  if (!driver.driverDetails) driver.driverDetails = {};
+
+  const urls = documentUrlsFromBody(req.body);
+  const profileFile = getFile(req, 'profileImage');
+  const licenseFrontFile =
+    getFile(req, 'licenseFront') || getFile(req, 'license', 0);
+  const licenseBackFile = getFile(req, 'licenseBack') || getFile(req, 'license', 1);
+  const nationalIdFile = getFile(req, 'nationalId');
+  const policeClearanceFile = getFile(req, 'policeClearance');
+  const registrationFile = getFile(req, 'registration');
+  const insuranceFile = getFile(req, 'insurance');
+  const files = {
+    licenseFrontFile,
+    licenseBackFile,
+    nationalIdFile,
+    policeClearanceFile,
+    registrationFile,
+    insuranceFile,
+  };
+
+  if (!isAdmin) {
+    assertNoAdminOnlyFields(req.body, [
+      'status',
+      'category',
+      'phone',
+      'dob',
+      'gender',
+      'policeClearanceUrl',
+    ]);
+
+    if (policeClearanceFile || bodyHasValue(urls.policeClearance)) {
+      throw new BadRequestError(
+        'Police clearance is uploaded by admin during verification.'
+      );
+    }
+
+    const onboarding = isCourierOnboarding(driver);
+    if (!onboarding && courierAttemptedOnboardingFields(req.body, files)) {
+      throw new BadRequestError(
+        'Vehicle and compliance documents can only be updated while your account is pending approval. Contact admin for changes.'
+      );
+    }
+
+    const { name, email } = req.body;
+    if (name) driver.name = name;
+    if (email) driver.email = email;
+    await applyProfileImage(driver, urls, profileFile);
+
+    if (onboarding) {
+      applyVehicleFields(driver, req.body);
+      await applyLicenseAndIdDocs(driver, urls, files);
+      await applyVehicleRegistrationDocs(driver, urls, files);
+    }
+
+    driver.markModified('driverDetails');
+    await driver.save();
+    return res
+      .status(StatusCodes.OK)
+      .json({ driver: withResolvedDriverMedia(driver, req) });
+  }
+
   const {
     name,
     phone: rawPhone,
@@ -244,57 +427,18 @@ export const updateDriver = async (req, res) => {
     model,
   } = req.body;
 
-  const driver = await User.findOne({ _id: id, role: 'rider' });
-  if (!driver) {
-    throw new NotFoundError(`No driver found with id ${id}`);
-  }
-
   if (name) driver.name = name;
   if (rawPhone) driver.phone = normalizePhone(rawPhone);
   if (email) driver.email = email;
-
-  if (!driver.driverDetails) driver.driverDetails = {};
 
   if (dob) driver.driverDetails.dob = dob;
   if (gender) driver.driverDetails.gender = gender;
   const validStatuses = ['active', 'pending', 'suspended', 'suspended_debt'];
   if (status && validStatuses.includes(status)) driver.driverDetails.status = status;
 
-  const urls = documentUrlsFromBody(req.body);
-  const profileFile = getFile(req, 'profileImage');
-  const licenseFrontFile =
-    getFile(req, 'licenseFront') || getFile(req, 'license', 0);
-  const licenseBackFile = getFile(req, 'licenseBack') || getFile(req, 'license', 1);
-  const nationalIdFile = getFile(req, 'nationalId');
-  const policeClearanceFile = getFile(req, 'policeClearance');
-  const registrationFile = getFile(req, 'registration');
-  const insuranceFile = getFile(req, 'insurance');
+  await applyProfileImage(driver, urls, profileFile);
+  await applyLicenseAndIdDocs(driver, urls, files);
 
-  if (urls.profileImage) driver.driverDetails.profileImage = urls.profileImage;
-  else if (profileFile) {
-    driver.driverDetails.profileImage = await persistMulterFile(profileFile, 'drivers/profile');
-  }
-  if (urls.licenseFront) driver.driverDetails.licenseFront = urls.licenseFront;
-  else if (licenseFrontFile) {
-    driver.driverDetails.licenseFront = await persistMulterFile(
-      licenseFrontFile,
-      'drivers/license'
-    );
-  }
-  if (urls.licenseBack) driver.driverDetails.licenseBack = urls.licenseBack;
-  else if (licenseBackFile) {
-    driver.driverDetails.licenseBack = await persistMulterFile(
-      licenseBackFile,
-      'drivers/license'
-    );
-  }
-  if (urls.nationalId) driver.driverDetails.nationalId = urls.nationalId;
-  else if (nationalIdFile) {
-    driver.driverDetails.nationalId = await persistMulterFile(
-      nationalIdFile,
-      'drivers/documents'
-    );
-  }
   if (urls.policeClearance) driver.driverDetails.policeClearance = urls.policeClearance;
   else if (policeClearanceFile) {
     driver.driverDetails.policeClearance = await persistMulterFile(
@@ -303,48 +447,14 @@ export const updateDriver = async (req, res) => {
     );
   }
 
-  if (!driver.driverDetails.vehicle) driver.driverDetails.vehicle = {};
-
-  if (make) driver.driverDetails.vehicle.make = make;
-  if (model) driver.driverDetails.vehicle.model = model;
-
-  if (makeModel) {
-    let vehicleMake = 'Unknown';
-    let vehicleModel = 'Unknown';
-    if (typeof makeModel === 'string') {
-      const parts = makeModel.trim().split(' ');
-      if (parts.length > 0) {
-        vehicleMake = parts[0];
-        vehicleModel = parts.slice(1).join(' ') || parts[0];
-      }
-    }
-    driver.driverDetails.vehicle.make = vehicleMake;
-    driver.driverDetails.vehicle.model = vehicleModel;
-  }
-  if (year) driver.driverDetails.vehicle.year = year;
-  if (plateNumber) driver.driverDetails.vehicle.plateNumber = plateNumber;
-  if (color) driver.driverDetails.vehicle.color = color;
+  applyVehicleFields(driver, { makeModel, year, plateNumber, color, make, model });
   const validCategories = ['motorcycle', 'pragya', 'comfort'];
   if (category && validCategories.includes(category)) {
+    if (!driver.driverDetails.vehicle) driver.driverDetails.vehicle = {};
     driver.driverDetails.vehicle.category = category;
   }
 
-  if (urls.registrationDoc) {
-    driver.driverDetails.vehicle.registrationDoc = urls.registrationDoc;
-  } else if (registrationFile) {
-    driver.driverDetails.vehicle.registrationDoc = await persistMulterFile(
-      registrationFile,
-      'drivers/vehicle'
-    );
-  }
-  if (urls.insuranceDoc) {
-    driver.driverDetails.vehicle.insuranceDoc = urls.insuranceDoc;
-  } else if (insuranceFile) {
-    driver.driverDetails.vehicle.insuranceDoc = await persistMulterFile(
-      insuranceFile,
-      'drivers/vehicle'
-    );
-  }
+  await applyVehicleRegistrationDocs(driver, urls, files);
 
   driver.markModified('driverDetails');
   await driver.save();
@@ -355,9 +465,8 @@ export const updateDriver = async (req, res) => {
 export const deleteDriver = async (req, res) => {
   const { id } = req.params;
 
-  const isAdmin = req.user.role === 'admin';
-  if (!isAdmin && req.user.id !== id) {
-    throw new UnauthenticatedError('Not authorized to delete this profile');
+  if (req.user.role !== 'admin') {
+    throw new UnauthenticatedError('Only admin can remove driver accounts');
   }
 
   const driver = await User.findOneAndDelete({ _id: id, role: 'rider' });

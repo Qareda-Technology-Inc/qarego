@@ -23,6 +23,7 @@ export type StoreVerticalConfig = {
   discoverTitle: string;
   discoverSubtitle: string;
   quickTitle: string;
+  newTitle: string;
   accent: string;
   accentDark: string;
   heroBg: string;
@@ -35,13 +36,14 @@ export const STORE_VERTICAL_CONFIG: Record<StoreVertical, StoreVerticalConfig> =
   FOOD: {
     title: "Food & Restaurants",
     filterLabel: "Food & Restaurants",
-    allTitle: "Explore all restaurants",
+    allTitle: "Explore all stores",
     searchPlaceholder: "Search food and restaurants",
     subtitle: "Meals from restaurants near you",
     emptyDescription: "No restaurants are available yet. Check back shortly.",
     discoverTitle: "Top picks for you",
     discoverSubtitle: "Highest rated near you",
     quickTitle: "Quick delivery",
+    newTitle: "New on QareGO",
     accent: "#f97316",
     accentDark: "#ea580c",
     heroBg: "#c2410c",
@@ -59,6 +61,7 @@ export const STORE_VERTICAL_CONFIG: Record<StoreVertical, StoreVerticalConfig> =
     discoverTitle: "Popular supermarkets",
     discoverSubtitle: "Top rated stores near you",
     quickTitle: "Fast grocery delivery",
+    newTitle: "New on QareGO",
     accent: "#0ea5e9",
     accentDark: "#0284c7",
     heroBg: "#0369a1",
@@ -76,6 +79,7 @@ export const STORE_VERTICAL_CONFIG: Record<StoreVertical, StoreVerticalConfig> =
     discoverTitle: "Trusted pharmacies",
     discoverSubtitle: "Top rated pharmacies near you",
     quickTitle: "Fast pharmacy delivery",
+    newTitle: "New on QareGO",
     accent: "#ef4444",
     accentDark: "#dc2626",
     heroBg: "#b91c1c",

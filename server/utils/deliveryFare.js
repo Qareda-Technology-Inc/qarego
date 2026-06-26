@@ -29,6 +29,32 @@ function roundDistance(km) {
 }
 
 /**
+ * Courier ride pricing for a food order — matches customer delivery quote (no minimum fare).
+ * @returns {{ distanceKm: number, driverFee: number }}
+ */
+export function resolveFoodCourierRidePricing(foodOrder, restaurant, fareRates) {
+  let distanceKm = Number(foodOrder?.deliveryDistanceKm);
+  if (!Number.isFinite(distanceKm) || distanceKm <= 0) {
+    const { lat: storeLat, lon: storeLon } = assertStoreCoordinates(restaurant);
+    distanceKm = roundDistance(
+      calculateDistance(
+        storeLat,
+        storeLon,
+        parseCoord(foodOrder.delivery.latitude, "delivery latitude"),
+        parseCoord(foodOrder.delivery.longitude, "delivery longitude")
+      )
+    );
+  }
+
+  let driverFee = Number(foodOrder?.driverFee);
+  if (!Number.isFinite(driverFee) || driverFee <= 0) {
+    driverFee = roundMoney(calculateFoodDeliveryFee(distanceKm, fareRates));
+  }
+
+  return { distanceKm, driverFee };
+}
+
+/**
  * Distance-based food delivery fee (base + per-km, motorcycle rates).
  * @returns {{ distanceKm: number, deliveryFee: number }}
  */

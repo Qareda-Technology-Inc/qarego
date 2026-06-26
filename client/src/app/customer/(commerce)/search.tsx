@@ -20,7 +20,7 @@ import RestaurantCard from "@/components/customer/food/RestaurantCard";
 import StoreTypeFilterRow, {
   STORE_TYPE_FILTERS,
 } from "@/components/customer/food/StoreTypeFilterRow";
-import { COMMERCE_SEARCH_HINT, FOOD_THEME } from "@/styles/foodStyles";
+import { COMMERCE_SEARCH_HINT, FOOD_THEME, GRID_H_PAD } from "@/styles/foodStyles";
 import { DS } from "@/theme/designSystem";
 import {
   STORE_VERTICAL_CONFIG,
@@ -260,13 +260,13 @@ const CustomerSearch = () => {
         <FlatList
           data={filtered}
           keyExtractor={(item) => item._id}
-          numColumns={2}
-          columnWrapperStyle={styles.gridRow}
           contentContainerStyle={{
             paddingBottom: tabBarHeight + 16,
+            paddingHorizontal: GRID_H_PAD,
             flexGrow: 1,
           }}
           keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
           ListHeaderComponent={
             <Text style={styles.resultCount}>
               {filtered.length} result{filtered.length !== 1 ? "s" : ""}
@@ -283,8 +283,12 @@ const CustomerSearch = () => {
             />
           }
           renderItem={({ item }) => (
-            <View style={styles.gridItem}>
-              <RestaurantCard restaurant={item} variant="grid" onPress={() => openStore(item)} />
+            <View style={styles.resultCardWrap}>
+              <RestaurantCard
+                restaurant={item}
+                variant="fullWidth"
+                onPress={() => openStore(item)}
+              />
             </View>
           )}
           ListEmptyComponent={
@@ -372,9 +376,8 @@ const styles = StyleSheet.create({
     fontWeight: "400",
   },
   resultCount: {
-    paddingHorizontal: 16,
     paddingTop: 10,
-    paddingBottom: 6,
+    paddingBottom: 10,
     fontSize: 12,
     color: FOOD_THEME.textLight,
   },
@@ -382,13 +385,8 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "500",
   },
-  gridRow: {
-    paddingHorizontal: 16,
-    gap: 12,
-  },
-  gridItem: {
-    flex: 1,
-    minWidth: 0,
+  resultCardWrap: {
+    marginBottom: 16,
   },
   center: {
     flex: 1,

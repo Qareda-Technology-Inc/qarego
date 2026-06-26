@@ -21,8 +21,8 @@ export function getCustomerParcelStatus(
       };
     }
     return {
-      title: "Courier heading to you",
-      subtitle: "They'll pick up your parcel from you",
+      title: "Courier heading to pickup",
+      subtitle: "They are coming to collect your parcel",
     };
   }
 
@@ -104,4 +104,74 @@ export function getCustomerRouteLabels(ride?: TrackingRide | null) {
     };
   }
   return { pickupLabel: "Pickup", dropLabel: "Destination" };
+}
+
+export type CustomerParcelPhase = {
+  step: number;
+  totalSteps: number;
+  label: string;
+  hint: string;
+  color: string;
+};
+
+export function getCustomerParcelPhase(
+  mode: ParcelMode,
+  status?: string,
+  recipientName?: string
+): CustomerParcelPhase {
+  if (status === "START") {
+    return {
+      step: 1,
+      totalSteps: 3,
+      label: mode === "RECEIVE" ? "Collection in progress" : "Courier coming for pickup",
+      hint:
+        mode === "RECEIVE"
+          ? "Courier is collecting your parcel from the sender location."
+          : "Courier is on the way to collect your parcel from you.",
+      color: "#7c3aed",
+    };
+  }
+  if (status === "ARRIVED") {
+    return {
+      step: 2,
+      totalSteps: 3,
+      label: "Parcel collected",
+      hint:
+        mode === "RECEIVE"
+          ? "Your parcel has been collected and is moving to your address."
+          : recipientName
+            ? `Courier is preparing to deliver to ${recipientName}.`
+            : "Courier is preparing for drop-off.",
+      color: "#0ea5e9",
+    };
+  }
+  if (status === "IN_PROGRESS") {
+    return {
+      step: 3,
+      totalSteps: 3,
+      label: mode === "RECEIVE" ? "Out for delivery to you" : "Out for delivery",
+      hint:
+        mode === "RECEIVE"
+          ? "Keep your delivery code ready for handoff."
+          : "Share the delivery code with the recipient for handoff.",
+      color: "#16a34a",
+    };
+  }
+  if (status === "COMPLETED") {
+    return {
+      step: 3,
+      totalSteps: 3,
+      label: "Parcel delivered",
+      hint: "Delivery completed successfully.",
+      color: "#16a34a",
+    };
+  }
+
+  return {
+    step: 1,
+    totalSteps: 3,
+    label: "Parcel delivery",
+    hint: "Tracking updates will appear here.",
+    color: "#64748b",
+  };
 }

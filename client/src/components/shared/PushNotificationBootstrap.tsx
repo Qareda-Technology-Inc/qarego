@@ -13,12 +13,16 @@ export function PushNotificationBootstrap() {
     if (!isNativePushModuleAvailable()) return;
 
     const token = tokenStorage.getString("access_token");
-    if (!token || registered.current) return;
+    if (!token) return;
 
     registered.current = true;
     void refreshPushRegistration().catch(() => {
       registered.current = false;
     });
+
+    return () => {
+      registered.current = false;
+    };
   }, []);
 
   return null;

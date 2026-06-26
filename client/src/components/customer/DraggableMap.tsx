@@ -1,15 +1,11 @@
-import { View, Image, TouchableOpacity, Alert, Linking, StyleSheet } from "react-native";
+import { View } from "react-native";
 import React, { FC, memo, useEffect, useRef, useState } from "react";
 import { useIsFocused } from "@react-navigation/native";
-import MapView, { Marker, Region } from "react-native-maps";
+import MapView, { Marker } from "react-native-maps";
 import { useUserStore } from "@/store/userStore";
-import { customMapStyle, indiaIntialRegion } from "@/utils/CustomMap";
+import { indiaIntialRegion } from "@/utils/CustomMap";
 import { reverseGeocode } from "@/utils/mapUtils";
 import { getCurrentLocationAsync } from "@/utils/locationUtils";
-import haversine from "haversine-distance";
-import { mapStyles } from "@/styles/mapStyles";
-import { FontAwesome6, MaterialCommunityIcons } from "@expo/vector-icons";
-import { RFValue } from "react-native-responsive-fontsize";
 import NearbyVehicleMarker, {
   type NearbyVehicleType,
 } from "@/components/customer/NearbyVehicleMarker";
@@ -27,9 +23,26 @@ type NearbyMarker = {
 const DraggableMap: FC<{ height: number }> = ({ height }) => {
   const isFocused = useIsFocused();
   const [markers, setMarkers] = useState<NearbyMarker[]>([]);
+  const [mapReady, setMapReady] = useState(false);
   const mapRef = useRef<MapView>(null);
-  const { setLocation, location, outOfRange, setOutOfRange } = useUserStore();
-  const MAX_DISTANCE_THRESHOLD = 10000;
+  const pendingFocusRef = useRef<{ latitude: number; longitude: number } | null>(null);
+  const { setLocation, location } = useUserStore();
+
+  const focusUserRegion = (latitude: number, longitude: number) => {
+    if (!mapReady || !mapRef.current) {
+      pendingFocusRef.current = { latitude, longitude };
+      return;
+    }
+    mapRef.current?.animateToRegion(
+      {
+        latitude,
+        longitude,
+        latitudeDelta: 0.008,
+        longitudeDelta: 0.008,
+      },
+      550
+    );
+  };
 
   useEffect(() => {
     (async () => {
@@ -37,23 +50,35 @@ const DraggableMap: FC<{ height: number }> = ({ height }) => {
       const result = await getCurrentLocationAsync();
       if (result.ok) {
         const { latitude, longitude } = result;
-        mapRef.current?.fitToCoordinates([{ latitude, longitude }], {
-          edgePadding: { top: 50, right: 50, bottom: 50, left: 50 },
-          animated: true,
-        });
-        const newRegion = {
-          latitude,
-          longitude,
-          latitudeDelta: 0.05,
-          longitudeDelta: 0.05,
-        };
-        handleRegionChangeComplete(newRegion);
+        focusUserRegion(latitude, longitude);
+        try {
+          const address = await reverseGeocode(latitude, longitude);
+          setLocation({ latitude, longitude, address });
+        } catch {
+          setLocation({ latitude, longitude, address: "" });
+        }
       }
     })();
-  }, [mapRef, isFocused]);
+  }, [mapRef, isFocused, setLocation, mapReady]);
+
+  useEffect(() => {
+    if (!mapReady) return;
+    const pending = pendingFocusRef.current;
+    if (!pending) return;
+    pendingFocusRef.current = null;
+    mapRef.current?.animateToRegion(
+      {
+        latitude: pending.latitude,
+        longitude: pending.longitude,
+        latitudeDelta: 0.008,
+        longitudeDelta: 0.008,
+      },
+      550
+    );
+  }, [mapReady]);
 
   const generateRandomMarkers = () => {
-    if (!location?.latitude || !location?.longitude || outOfRange) return;
+    if (!location?.latitude || !location?.longitude) return;
 
     const types: NearbyVehicleType[] = ["bike", "auto", "cab"];
     const newMarkers: NearbyMarker[] = Array.from({ length: 14 }, (_, index) => {
@@ -74,86 +99,26 @@ const DraggableMap: FC<{ height: number }> = ({ height }) => {
 
   useEffect(() => {
     generateRandomMarkers();
-  }, [location, outOfRange]);
-
-  const handleRegionChangeComplete = async (newRegion: Region) => {
-    try {
-      const address = await reverseGeocode(
-        newRegion.latitude,
-        newRegion.longitude
-      );
-
-      const currentLocation = location;
-      setLocation({
-        latitude: newRegion.latitude,
-        longitude: newRegion.longitude,
-        address: address,
-      });
-
-      if (currentLocation?.latitude && currentLocation?.longitude) {
-        const newLocation = {
-          latitude: newRegion.latitude,
-          longitude: newRegion.longitude,
-        };
-        const distance = haversine(
-          { latitude: currentLocation.latitude, longitude: currentLocation.longitude },
-          newLocation
-        );
-        setOutOfRange(distance > MAX_DISTANCE_THRESHOLD);
-      }
-    } catch (error) {
-      console.error("Error in handleRegionChangeComplete:", error);
-    }
-  };
-
-  const handleGpsButtonPress = async () => {
-    const result = await getCurrentLocationAsync();
-    if (!result.ok) {
-      Alert.alert(
-        "Location unavailable",
-        result.message,
-        result.canOpenSettings
-          ? [
-              { text: "Cancel", style: "cancel" },
-              { text: "Open Settings", onPress: () => Linking.openSettings() },
-            ]
-          : [{ text: "OK" }]
-      );
-      return;
-    }
-    const { latitude, longitude } = result;
-    mapRef.current?.fitToCoordinates([{ latitude, longitude }], {
-      edgePadding: { top: 50, right: 50, bottom: 50, left: 50 },
-      animated: true,
-    });
-    try {
-      const address = await reverseGeocode(latitude, longitude);
-      setLocation({ latitude, longitude, address });
-    } catch {
-      setLocation({ latitude, longitude, address: "" });
-    }
-  };
+  }, [location]);
 
   return (
     <View style={{ height, width: "100%", backgroundColor: T.surfaceMuted }}>
       <MapView
         ref={mapRef}
-        maxZoomLevel={16}
-        minZoomLevel={12}
         pitchEnabled={false}
-        onRegionChangeComplete={handleRegionChangeComplete}
         style={{ flex: 1, width: "100%", height: "100%" }}
         initialRegion={indiaIntialRegion}
         provider="google"
+        followsUserLocation={false}
+        onMapReady={() => setMapReady(true)}
         showsMyLocationButton={false}
         showsCompass={false}
         showsIndoors={false}
         showsIndoorLevelPicker={false}
         showsTraffic={false}
         showsScale={false}
-        showsBuildings={false}
-        showsPointsOfInterest={false}
-        customMapStyle={customMapStyle}
+        showsBuildings
+        showsPointsOfInterest
         showsUserLocation
       >
         {markers
@@ -174,80 +139,8 @@ const DraggableMap: FC<{ height: number }> = ({ height }) => {
             </Marker>
           ))}
       </MapView>
-
-      <View style={mapStyles.centerMarkerContainer} pointerEvents="none">
-        <View style={styles.pickupPin}>
-          <View style={styles.pickupPinStem} />
-          <View style={styles.pickupPinHead}>
-            <View style={styles.pickupPinDot} />
-          </View>
-        </View>
-      </View>
-
-      <TouchableOpacity
-        style={[mapStyles.gpsButton, styles.gpsButton]}
-        onPress={handleGpsButtonPress}
-        activeOpacity={0.88}
-      >
-        <MaterialCommunityIcons
-          name="crosshairs-gps"
-          size={RFValue(18)}
-          color={T.ink}
-        />
-      </TouchableOpacity>
-
-      {outOfRange ? (
-        <View style={[mapStyles.outOfRange, styles.outOfRange]}>
-          <FontAwesome6 name="road-circle-exclamation" size={22} color={T.danger} />
-        </View>
-      ) : null}
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  pickupPin: {
-    alignItems: "center",
-    marginTop: -28,
-    marginLeft: -1,
-  },
-  pickupPinHead: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: T.ink,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 3,
-    borderColor: "#fff",
-    ...T.shadow.card,
-  },
-  pickupPinDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: T.accent,
-  },
-  pickupPinStem: {
-    width: 3,
-    height: 10,
-    backgroundColor: T.ink,
-    borderRadius: 2,
-    marginBottom: -2,
-  },
-  gpsButton: {
-    width: 44,
-    height: 44,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: T.border,
-    ...T.shadow.float,
-  },
-  outOfRange: {
-    borderWidth: 1,
-    borderColor: T.border,
-  },
-});
 
 export default memo(DraggableMap);

@@ -1,5 +1,6 @@
 import { StyleSheet, View } from "react-native";
 import { ScrollView } from "react-native-gesture-handler";
+import { MENU_ROW_CARD_GAP, MENU_ROW_H_PAD, MENU_ROW_IMAGE_SIZE, MENU_ROW_TEXT_HEIGHT } from "@/styles/foodStyles";
 import { MenuItem } from "@/service/foodService";
 import MenuItemCard from "@/components/customer/food/MenuItemCard";
 
@@ -45,11 +46,12 @@ const styles = StyleSheet.create({
   },
   list: {
     flexGrow: 0,
-    minHeight: 200,
+    minHeight: MENU_ROW_IMAGE_SIZE + MENU_ROW_TEXT_HEIGHT + 16,
   },
   content: {
-    paddingHorizontal: 16,
-    paddingBottom: 8,
+    paddingHorizontal: MENU_ROW_H_PAD,
+    paddingBottom: 6,
     alignItems: "flex-start",
+    gap: MENU_ROW_CARD_GAP,
   },
 });

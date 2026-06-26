@@ -2,11 +2,8 @@ import React, { FC, useEffect, useState } from "react";
 import {
   View,
   StyleSheet,
-  Modal,
   TextInput,
   TouchableOpacity,
-  KeyboardAvoidingView,
-  Platform,
   Alert,
   ScrollView,
 } from "react-native";
@@ -17,6 +14,7 @@ import { Ionicons } from "@expo/vector-icons";
 import CustomButton from "@/components/shared/CustomButton";
 import { rateFoodOrder } from "@/service/foodService";
 import { FOOD_THEME } from "@/styles/foodStyles";
+import { CenteredFormModal } from "@/components/shared/CenteredFormModal";
 
 const POSITIVE_TAGS = [
   "Great food",
@@ -100,117 +98,90 @@ const RestaurantRatingModal: FC<Props> = ({
   const tagsToShow = rating >= 3 ? POSITIVE_TAGS : NEGATIVE_TAGS;
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={styles.container}>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          style={styles.keyboardView}
-        >
-          <View style={styles.modalContent}>
-            <View style={styles.header}>
-              <CustomText fontFamily="Bold" style={styles.title}>
-                Rate {restaurantName}
-              </CustomText>
-              <CustomText fontSize={13} color="#666" style={{ marginTop: 6, textAlign: "center" }}>
-                How was your order?
-              </CustomText>
-            </View>
-
-            <View style={styles.starsContainer}>
-              {[1, 2, 3, 4, 5].map((star) => (
-                <TouchableOpacity key={star} onPress={() => setRating(star)} activeOpacity={0.7}>
-                  <Ionicons
-                    name={star <= rating ? "star" : "star-outline"}
-                    size={40}
-                    color={FOOD_THEME.orange}
-                    style={styles.star}
-                  />
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            {rating > 0 ? (
-              <View style={styles.tagsContainer}>
-                <CustomText fontFamily="Medium" style={styles.label}>
-                  {rating >= 3 ? "What went well?" : "What could be improved?"}
-                </CustomText>
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.tagsScroll}
-                >
-                  {tagsToShow.map((tag) => (
-                    <TouchableOpacity
-                      key={tag}
-                      onPress={() => toggleTag(tag)}
-                      style={[styles.tag, selectedTags.includes(tag) && styles.tagSelected]}
-                    >
-                      <CustomText
-                        fontSize={11}
-                        style={{ color: selectedTags.includes(tag) ? "#fff" : Colors.text }}
-                      >
-                        {tag}
-                      </CustomText>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
-            ) : null}
-
-            <View style={styles.reviewContainer}>
-              <CustomText fontFamily="Medium" style={styles.label}>
-                {requiresFeedback ? "Additional feedback (required)" : "Comments (optional)"}
-              </CustomText>
-              <TextInput
-                style={styles.input}
-                placeholder={
-                  requiresFeedback ? "Tell us what went wrong…" : "Share more about your meal…"
-                }
-                multiline
-                numberOfLines={3}
-                value={review}
-                onChangeText={setReview}
-                textAlignVertical="top"
-              />
-            </View>
-
-            <View style={styles.buttonContainer}>
-              <CustomButton
-                title="Submit rating"
-                onPress={handleSubmit}
-                loading={loading}
-                disabled={loading}
-              />
-              {!requiresFeedback ? (
-                <TouchableOpacity style={styles.skipButton} onPress={onSuccess} disabled={loading}>
-                  <CustomText style={styles.skipText}>Skip</CustomText>
-                </TouchableOpacity>
-              ) : null}
-            </View>
-          </View>
-        </KeyboardAvoidingView>
+    <CenteredFormModal visible={visible} onRequestClose={onClose}>
+      <View style={styles.header}>
+        <CustomText fontFamily="Bold" style={styles.title}>
+          Rate {restaurantName}
+        </CustomText>
+        <CustomText fontSize={13} color="#666" style={styles.subtitle}>
+          How was your order?
+        </CustomText>
       </View>
-    </Modal>
+
+      <View style={styles.starsContainer}>
+        {[1, 2, 3, 4, 5].map((star) => (
+          <TouchableOpacity key={star} onPress={() => setRating(star)} activeOpacity={0.7}>
+            <Ionicons
+              name={star <= rating ? "star" : "star-outline"}
+              size={40}
+              color={FOOD_THEME.orange}
+              style={styles.star}
+            />
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {rating > 0 ? (
+        <View style={styles.tagsContainer}>
+          <CustomText fontFamily="Medium" style={styles.label}>
+            {rating >= 3 ? "What went well?" : "What could be improved?"}
+          </CustomText>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.tagsScroll}
+          >
+            {tagsToShow.map((tag) => (
+              <TouchableOpacity
+                key={tag}
+                onPress={() => toggleTag(tag)}
+                style={[styles.tag, selectedTags.includes(tag) && styles.tagSelected]}
+              >
+                <CustomText
+                  fontSize={11}
+                  style={{ color: selectedTags.includes(tag) ? "#fff" : Colors.text }}
+                >
+                  {tag}
+                </CustomText>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      ) : null}
+
+      <View style={styles.reviewContainer}>
+        <CustomText fontFamily="Medium" style={styles.label}>
+          {requiresFeedback ? "Additional feedback (required)" : "Comments (optional)"}
+        </CustomText>
+        <TextInput
+          style={styles.input}
+          placeholder={
+            requiresFeedback ? "Tell us what went wrong…" : "Share more about your meal…"
+          }
+          multiline
+          numberOfLines={3}
+          value={review}
+          onChangeText={setReview}
+          textAlignVertical="top"
+        />
+      </View>
+
+      <View style={styles.buttonContainer}>
+        <CustomButton title="Submit rating" onPress={handleSubmit} loading={loading} disabled={loading} />
+        {!requiresFeedback ? (
+          <TouchableOpacity style={styles.skipButton} onPress={onSuccess} disabled={loading}>
+            <CustomText style={styles.skipText}>Skip</CustomText>
+          </TouchableOpacity>
+        ) : null}
+      </View>
+    </CenteredFormModal>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  keyboardView: { width: "100%", alignItems: "center" },
-  modalContent: {
-    width: "90%",
-    backgroundColor: "white",
-    borderRadius: 20,
-    padding: 20,
-    alignItems: "center",
-  },
-  header: { marginBottom: 16 },
+  header: { marginBottom: 16, width: "100%" },
   title: { fontSize: RFValue(18), textAlign: "center" },
+  subtitle: { marginTop: 6, textAlign: "center" },
   starsContainer: {
     flexDirection: "row",
     justifyContent: "center",
@@ -241,6 +212,7 @@ const styles = StyleSheet.create({
     padding: 10,
     height: 90,
     backgroundColor: "#f9f9f9",
+    width: "100%",
   },
   buttonContainer: { width: "100%", gap: 8 },
   skipButton: { padding: 10, alignItems: "center" },

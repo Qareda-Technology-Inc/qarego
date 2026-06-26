@@ -24,7 +24,9 @@ export const homeStyles = StyleSheet.create({
   },
   sheetView: {
     backgroundColor: "#fff",
+    flex: 1,
     paddingHorizontal: 20,
-    paddingBottom: 4,
+    paddingTop: 8,
+    paddingBottom: 8,
   },
 });

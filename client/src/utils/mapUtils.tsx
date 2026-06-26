@@ -343,4 +343,28 @@ export function getVehicleForApi(vehicle: string | undefined): VehicleType {
     const v = legacyVehicleToNew[vehicle ?? ""] ?? vehicle ?? "motorcycle";
     return (v === "motorcycle" || v === "pragya" || v === "comfort" ? v : "motorcycle") as VehicleType;
 }
+
+export type VehicleMarkerType = "bike" | "auto" | "cab";
+
+const vehicleToMarkerType: Record<VehicleType, VehicleMarkerType> = {
+    motorcycle: "bike",
+    pragya: "auto",
+    comfort: "cab",
+};
+
+/** Top-down map puck type for live courier/rider markers. */
+export function getVehicleMarkerType(vehicle: string | undefined): VehicleMarkerType {
+    const normalized = getVehicleForApi(vehicle);
+    return vehicleToMarkerType[normalized] ?? "bike";
+}
+
+const vehicleMarkerImages: Record<VehicleMarkerType, ReturnType<typeof require>> = {
+    bike: require("@/assets/icons/bike_marker.png"),
+    auto: require("@/assets/icons/auto_marker.png"),
+    cab: require("@/assets/icons/cab_marker.png"),
+};
+
+export function getVehicleMarkerImage(vehicle: string | undefined) {
+    return vehicleMarkerImages[getVehicleMarkerType(vehicle)];
+}
   

@@ -29,7 +29,7 @@ const CuisineCarousel: FC<Props> = ({ cuisines, selected, onSelect, vertical = "
           activeOpacity={0.8}
         >
           <View style={[styles.circle, active && styles.circleActive]}>
-            <CustomText fontSize={26}>{verticalTagEmoji(c, vertical)}</CustomText>
+            <CustomText fontSize={22}>{verticalTagEmoji(c, vertical)}</CustomText>
           </View>
           <CustomText
             fontFamily={active ? "SemiBold" : "Regular"}
@@ -56,13 +56,13 @@ const styles = StyleSheet.create({
   },
   item: {
     alignItems: "center",
-    width: 80,
-    marginRight: 4,
+    width: 68,
+    marginRight: 2,
   },
   circle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     backgroundColor: FOOD_THEME.searchBg,
     alignItems: "center",
     justifyContent: "center",
@@ -74,7 +74,7 @@ const styles = StyleSheet.create({
     borderColor: FOOD_THEME.orange,
   },
   label: {
-    marginTop: 6,
+    marginTop: 4,
     color: FOOD_THEME.textMuted,
     textAlign: "center",
   },

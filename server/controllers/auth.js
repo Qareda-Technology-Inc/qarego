@@ -236,7 +236,7 @@ export const refreshToken = async (req, res) => {
 };
 
 export const updateUser = async (req, res) => {
-  const { id, name, email, vehicle, profileImageUrl } = req.body;
+  const { id, name, email, profileImageUrl } = req.body;
   const normalizedId = id != null ? String(id) : null;
 
   if (!normalizedId) {
@@ -271,20 +271,6 @@ export const updateUser = async (req, res) => {
       };
       user.markModified("driverDetails");
     }
-  }
-
-  // Update vehicle details if provided and user is a rider
-  if (vehicle && typeof vehicle === "object" && user.role === "rider") {
-    if (!user.driverDetails) user.driverDetails = {};
-    if (!user.driverDetails.vehicle) user.driverDetails.vehicle = {};
-    const allowed = ["make", "model", "year", "plateNumber", "color", "category"];
-    for (const key of allowed) {
-      if (vehicle[key] !== undefined) user.driverDetails.vehicle[key] = vehicle[key];
-    }
-    if (user.driverDetails.vehicle.category && !["basic", "xl", "lux"].includes(user.driverDetails.vehicle.category)) {
-      delete user.driverDetails.vehicle.category;
-    }
-    user.markModified("driverDetails");
   }
 
   await user.save();

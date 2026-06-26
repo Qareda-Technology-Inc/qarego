@@ -1,4 +1,4 @@
-import { View, Text, Image } from "react-native";
+import { View, Image, StyleSheet } from "react-native";
 import { TouchableOpacity } from "@gorhom/bottom-sheet";
 import React, { FC, useState } from "react";
 import { useWS } from "@/service/WSProvider";
@@ -15,10 +15,12 @@ import { formatCurrency, Colors } from "@/utils/Constants";
 import DeliveryCodeCard from "@/components/customer/food/DeliveryCodeCard";
 import { parseRideParcelMode, parcelModeLabels } from "@/utils/parcelMode";
 import {
+  getCustomerParcelPhase,
   getCustomerParcelStatus,
   getCustomerRouteLabels,
 } from "@/utils/customerCourierUi";
 import { getCommerceOrderCopy, resolveOrderVertical } from "@/utils/commerceOrderCopy";
+import { ParcelTheme } from "@/styles/parcelTheme";
 
 interface RideItem {
   _id: string;
@@ -57,6 +59,7 @@ const LiveTrackingSheet: FC<{
   const parcelMode = parseRideParcelMode(item);
   const parcelLabels = parcelModeLabels(parcelMode);
   const routeLabels = getCustomerRouteLabels(item);
+  const parcelPhase = getCustomerParcelPhase(parcelMode, item?.status, item?.recipientName);
   const parcelStatus =
     isParcel && item?.status
       ? getCustomerParcelStatus(parcelMode, item.status, item.recipientName)
@@ -70,12 +73,19 @@ const LiveTrackingSheet: FC<{
   return (
     <View>
       <View style={rideStyles?.headerContainer}>
-        <View style={commonStyles.flexRowGap}>
+        <View style={[commonStyles.flexRowGap, { flex: 1, minWidth: 0, marginRight: 8 }]}>
           <Image
             source={getVehicleIconSource(item.vehicle ?? "motorcycle")}
             style={rideStyles.rideIcon}
           />
-          <View>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            {isParcel ? (
+              <View style={[styles.phaseChip, { backgroundColor: `${parcelPhase.color}1a` }]}>
+                <CustomText fontSize={10} fontFamily="SemiBold" style={{ color: parcelPhase.color }}>
+                  Step {parcelPhase.step} of {parcelPhase.totalSteps}
+                </CustomText>
+              </View>
+            ) : null}
             <CustomText fontSize={10}>
               {isCompleted
                 ? isFood
@@ -96,7 +106,7 @@ const LiveTrackingSheet: FC<{
                               : item?.status === "ARRIVED"
                                 ? "Rider arrived"
                                 : item?.status === "IN_PROGRESS"
-                                  ? "On your way"
+                                  ? "On the way"
                                   : "On the way"}
             </CustomText>
 
@@ -125,6 +135,11 @@ const LiveTrackingSheet: FC<{
                           ? "Parcel delivery"
                           : getVehicleLabel(item.vehicle ?? "motorcycle")}
             </CustomText>
+            {isParcel ? (
+              <CustomText fontSize={10} color="#64748b" style={{ marginTop: 4 }}>
+                {parcelPhase.hint}
+              </CustomText>
+            ) : null}
           </View>
         </View>
 
@@ -173,10 +188,10 @@ const LiveTrackingSheet: FC<{
         </CustomText>
 
         {isParcel && (item?.recipientName || item?.recipientPhone) ? (
-          <View style={{ marginTop: 8, marginBottom: 4 }}>
+          <View style={styles.parcelMetaCard}>
             {item.recipientName ? (
               <CustomText fontSize={11} fontFamily="Medium">
-                {parcelMode === "RECEIVE" ? "Deliver to" : "Recipient"}: {item.recipientName}
+                {parcelMode === "RECEIVE" ? "Customer" : "Recipient"}: {item.recipientName}
               </CustomText>
             ) : null}
             {item.recipientPhone ? (
@@ -198,12 +213,11 @@ const LiveTrackingSheet: FC<{
           </CustomText>
         ) : null}
 
-        <View
-          style={[
-            commonStyles.flexRowGap,
-            { marginVertical: 15, width: "90%" },
-          ]}
-        >
+        <View style={[commonStyles.flexRowGap, styles.routeRow]}>
+          <Image
+            source={require("@/assets/icons/marker.png")}
+            style={rideStyles.pinIcon}
+          />
           <View style={{ flex: 1 }}>
             {isParcel ? (
               <CustomText fontSize={9} fontFamily="SemiBold" style={{ color: "#888", marginBottom: 2 }}>
@@ -216,7 +230,7 @@ const LiveTrackingSheet: FC<{
           </View>
         </View>
 
-        <View style={[commonStyles.flexRowGap, { width: "90%" }]}>
+        <View style={[commonStyles.flexRowGap, styles.routeRow]}>
           <Image
             source={require("@/assets/icons/drop_marker.png")}
             style={rideStyles.pinIcon}
@@ -326,3 +340,26 @@ const LiveTrackingSheet: FC<{
 };
 
 export default LiveTrackingSheet;
+
+const styles = StyleSheet.create({
+  phaseChip: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 20,
+    marginBottom: 6,
+  },
+  parcelMetaCard: {
+    marginTop: 8,
+    marginBottom: 6,
+    borderWidth: 1,
+    borderColor: "#ddd6fe",
+    backgroundColor: "#f5f3ff",
+    borderRadius: 12,
+    padding: 10,
+  },
+  routeRow: {
+    width: "90%",
+    marginTop: 14,
+  },
+});

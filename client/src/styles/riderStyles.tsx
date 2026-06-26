@@ -62,7 +62,7 @@ export const orderStyles = StyleSheet.create({
     flexRowBase: {
         gap: 10,
         flexDirection: 'row',
-        alignItems: 'baseline',
+        alignItems: 'flex-start',
         marginVertical: 5
     },
 

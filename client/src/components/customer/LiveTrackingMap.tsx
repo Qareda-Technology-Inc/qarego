@@ -6,12 +6,14 @@ import MapDrivingRoute, {
   parseMapCoord,
   riderNearRoute,
 } from "@/components/shared/MapDrivingRoute";
+import NearbyVehicleMarker from "@/components/customer/NearbyVehicleMarker";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { RFValue } from "react-native-responsive-fontsize";
 import { mapStyles } from "@/styles/mapStyles";
 import CustomText from "../shared/CustomText";
 import { parseRideParcelMode } from "@/utils/parcelMode";
-import { getCustomerRiderMapStatus } from "@/utils/customerCourierUi";
+import { getCustomerRiderMapStatus, getCustomerRouteLabels } from "@/utils/customerCourierUi";
+import { getVehicleMarkerType } from "@/utils/mapUtils";
 
 const ACTIVE_STATUSES = new Set(["START", "ARRIVED", "IN_PROGRESS"]);
 
@@ -25,6 +27,7 @@ const LiveTrackingMap: FC<{
   parcelMode?: string;
   storeVertical?: string;
   courierRevision?: number;
+  vehicle?: string;
 }> = ({
   drop,
   status,
@@ -35,6 +38,7 @@ const LiveTrackingMap: FC<{
   parcelMode,
   storeVertical,
   courierRevision = 0,
+  vehicle = "motorcycle",
 }) => {
   const isParcel = serviceType === "DELIVERY";
   const riderMapStatus = getCustomerRiderMapStatus(
@@ -43,6 +47,7 @@ const LiveTrackingMap: FC<{
     serviceType,
     storeVertical
   );
+  const routeLabels = getCustomerRouteLabels({ serviceType, parcelMode });
   const mapRef = useRef<MapView>(null);
   const fitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasFittedRef = useRef(false);
@@ -54,6 +59,7 @@ const LiveTrackingMap: FC<{
   const showRiderOnMap = riderNearRoute(riderCoord, pickupCoord, dropCoord);
   const isActiveRide = ACTIVE_STATUSES.has(status);
   const showRiderMarker = isActiveRide && !!riderCoord;
+  const vehicleMarkerType = getVehicleMarkerType(vehicle);
 
   const fitToMarkers = useCallback(async () => {
     if (isUserInteracting) return;
@@ -186,8 +192,8 @@ const LiveTrackingMap: FC<{
             anchor={{ x: 0.5, y: 1 }}
             zIndex={1}
             tracksViewChanges={false}
-            title="Drop Location"
-            description={drop?.address || "Drop location"}
+            title={routeLabels.dropLabel}
+            description={drop?.address || routeLabels.dropLabel}
           >
             <Image
               source={require("@/assets/icons/drop_marker.png")}
@@ -196,10 +202,10 @@ const LiveTrackingMap: FC<{
             <Callout tooltip>
               <View style={{ padding: 10, maxWidth: 220, backgroundColor: "white", borderRadius: 8 }}>
                 <CustomText fontFamily="SemiBold" fontSize={13} style={{ marginBottom: 6, color: "#333" }}>
-                  Drop Location
+                  {routeLabels.dropLabel}
                 </CustomText>
                 <CustomText fontSize={11} numberOfLines={3} style={{ color: "#666" }}>
-                  {drop?.address || "Drop location"}
+                  {drop?.address || routeLabels.dropLabel}
                 </CustomText>
               </View>
             </Callout>
@@ -212,8 +218,8 @@ const LiveTrackingMap: FC<{
             anchor={{ x: 0.5, y: 1 }}
             zIndex={2}
             tracksViewChanges={false}
-            title="Pickup Location"
-            description={pickup?.address || "Pickup location"}
+            title={routeLabels.pickupLabel}
+            description={pickup?.address || routeLabels.pickupLabel}
           >
             <Image
               source={require("@/assets/icons/marker.png")}
@@ -222,10 +228,10 @@ const LiveTrackingMap: FC<{
             <Callout tooltip>
               <View style={{ padding: 10, maxWidth: 220, backgroundColor: "white", borderRadius: 8 }}>
                 <CustomText fontFamily="SemiBold" fontSize={13} style={{ marginBottom: 6, color: "#333" }}>
-                  Pickup Location
+                  {routeLabels.pickupLabel}
                 </CustomText>
                 <CustomText fontSize={11} numberOfLines={3} style={{ color: "#666" }}>
-                  {pickup?.address || "Pickup location"}
+                  {pickup?.address || routeLabels.pickupLabel}
                 </CustomText>
               </View>
             </Callout>
@@ -238,12 +244,15 @@ const LiveTrackingMap: FC<{
             coordinate={riderCoord}
             anchor={{ x: 0.5, y: 0.5 }}
             zIndex={3}
-            flat
-            rotation={rider?.heading || 0}
-            image={require("@/assets/icons/cab_marker.png")}
             title={isParcel ? "Your courier" : "Your rider"}
             description={riderMapStatus}
-          />
+            tracksViewChanges={false}
+          >
+            <NearbyVehicleMarker
+              type={vehicleMarkerType}
+              rotation={rider?.heading || 0}
+            />
+          </Marker>
         ) : null}
       </MapView>
 

@@ -27,14 +27,16 @@ import { useUserStore } from "@/store/userStore";
 import DeliverToBar from "@/components/customer/food/DeliverToBar";
 import CuisineCarousel from "@/components/customer/food/CuisineCarousel";
 import RestaurantCarouselSection from "@/components/customer/food/RestaurantCarouselSection";
+import RestaurantCard from "@/components/customer/food/RestaurantCard";
 import FoodPromoCarousel from "@/components/customer/food/FoodPromoCarousel";
 import CommerceModuleLinks from "@/components/customer/food/CommerceModuleLinks";
 import CommerceTopBar from "@/components/customer/food/CommerceTopBar";
-import { COMMERCE_SEARCH_HINT, FOOD_THEME } from "@/styles/foodStyles";
+import { COMMERCE_SEARCH_HINT, FOOD_THEME, GRID_H_PAD } from "@/styles/foodStyles";
 import { DS } from "@/theme/designSystem";
 import {
   STORE_VERTICAL_CONFIG,
   isRestaurantStore,
+  resolveStoreVertical,
 } from "@/utils/storeVertical";
 import {
   browseFilterTags,
@@ -129,6 +131,31 @@ const CommerceHome = () => {
         .slice(0, 6),
     [filtered]
   );
+
+  const newOnQarego = useMemo(
+    () =>
+      [...filtered]
+        .sort((a, b) => {
+          const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return bTime - aTime;
+        })
+        .slice(0, 6),
+    [filtered]
+  );
+
+  const exploreAllStores = useMemo(
+    () => [...restaurants].sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0)),
+    [restaurants]
+  );
+
+  const openStore = (item: Restaurant) => {
+    const vertical = resolveStoreVertical(item);
+    router.push({
+      pathname: "/customer/stores/[id]",
+      params: { id: item._id, vertical },
+    });
+  };
 
   const openRestaurant = (id: string) => {
     router.push({
@@ -230,7 +257,6 @@ const CommerceHome = () => {
 
           <RestaurantCarouselSection
             title={verticalConfig.discoverTitle}
-            subtitle={verticalConfig.discoverSubtitle}
             data={topPicks}
             onPressRestaurant={openRestaurant}
             badge={offerBadge}
@@ -238,22 +264,34 @@ const CommerceHome = () => {
           />
           <RestaurantCarouselSection
             title={verticalConfig.quickTitle}
-            subtitle="Ready sooner"
             data={quickDelivery}
             onPressRestaurant={openRestaurant}
             badge={() => "Fast prep"}
             deliveryAmount={deliveryAmount}
           />
+          <RestaurantCarouselSection
+            title={verticalConfig.newTitle}
+            data={newOnQarego}
+            onPressRestaurant={openRestaurant}
+            badge={() => "New"}
+            deliveryAmount={deliveryAmount}
+          />
 
-          <TouchableOpacity
-            style={[styles.exploreBtn, { borderColor: verticalConfig.accent }]}
-            onPress={() => router.push("/customer/restaurants")}
-          >
-            <CustomText fontFamily="SemiBold" fontSize={15} style={{ color: verticalConfig.accent }}>
-              {verticalConfig.allTitle}
+          <View style={styles.exploreSection}>
+            <CustomText fontFamily="Bold" fontSize={15} style={styles.exploreTitle}>
+              Explore All
             </CustomText>
-            <Ionicons name="arrow-forward" size={18} color={verticalConfig.accent} />
-          </TouchableOpacity>
+            {exploreAllStores.map((store) => (
+              <View key={store._id} style={styles.exploreCardWrap}>
+                <RestaurantCard
+                  restaurant={store}
+                  variant="fullWidth"
+                  onPress={() => openStore(store)}
+                  deliveryAmount={deliveryAmount(store)}
+                />
+              </View>
+            ))}
+          </View>
         </ScrollView>
       )}
     </View>
@@ -296,17 +334,17 @@ const styles = StyleSheet.create({
     color: FOOD_THEME.searchHint,
     fontWeight: "400",
   },
-  exploreBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginHorizontal: 16,
-    marginTop: 8,
+  exploreSection: {
+    marginTop: 12,
     marginBottom: 8,
-    padding: 16,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    backgroundColor: "#fff",
+    paddingHorizontal: GRID_H_PAD,
+  },
+  exploreTitle: {
+    color: FOOD_THEME.text,
+    marginBottom: 12,
+  },
+  exploreCardWrap: {
+    marginBottom: 16,
   },
   loadingWrap: { flex: 1, alignItems: "center", justifyContent: "center" },
 });

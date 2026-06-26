@@ -2,17 +2,86 @@ import Ride from "../models/Ride.js";
 import FoodOrder from "../models/FoodOrder.js";
 import Restaurant from "../models/Restaurant.js";
 import User from "../models/User.js";
-import { calculateDistance, calculateFare, generateOTP } from "./mapUtils.js";
+import { generateOTP } from "./mapUtils.js";
 import { getSettings } from "./tripSettlement.js";
+import { resolveFoodCourierRidePricing } from "./deliveryFare.js";
 import { emitRideOfferToEligibleRiders } from "./rideOfferBroadcast.js";
 import {
   notifyCustomerFoodOrderPush,
   notifyRiderAssignedFoodDelivery,
 } from "./pushNotifications.js";
+import { cancelCourierRideForOrder } from "./releaseCourierRide.js";
 import {
   canRiderReceiveOffer,
   getEligibilityRejectReason,
 } from "./riderServiceEligibility.js";
+
+const DEFAULT_PREP_MINUTES = 25;
+const MIN_PREP_MINUTES = 5;
+/** Do not broadcast couriers more than this many minutes before estimated ready. */
+const COURIER_BROADCAST_BEFORE_READY_MIN = 5;
+
+/** Restaurant estimated prep time used for early courier broadcast scheduling. */
+export function getEstimatedPrepMinutes(restaurant) {
+  const raw = Number(restaurant?.estimatedPrepMinutes);
+  if (!Number.isFinite(raw) || raw < MIN_PREP_MINUTES) return DEFAULT_PREP_MINUTES;
+  return raw;
+}
+
+/**
+ * Minutes after accept to broadcast couriers.
+ * Uses the later of halfway through prep or (prep − 5 min), so short orders still
+ * get an early rider search while long preps only dispatch ~5 min before ready.
+ */
+export function getCourierBroadcastDelayMinutes(prepMinutes) {
+  const prep = getEstimatedPrepMinutes({ estimatedPrepMinutes: prepMinutes });
+  const halfPrep = prep / 2;
+  const beforeReady = Math.max(0, prep - COURIER_BROADCAST_BEFORE_READY_MIN);
+  return Math.max(halfPrep, beforeReady);
+}
+
+export function getCourierBroadcastAt(acceptedAt, prepMinutes) {
+  const base = acceptedAt instanceof Date ? acceptedAt.getTime() : Date.now();
+  const delayMs = getCourierBroadcastDelayMinutes(prepMinutes) * 60 * 1000;
+  return new Date(base + delayMs);
+}
+
+export function scheduleCourierBroadcast(foodOrder, restaurant) {
+  if (foodOrder.fulfillmentType === "PICKUP") return;
+
+  const acceptedAt = new Date();
+  foodOrder.preparingStartedAt = acceptedAt;
+  foodOrder.courierBroadcastAt = getCourierBroadcastAt(
+    acceptedAt,
+    getEstimatedPrepMinutes(restaurant)
+  );
+  foodOrder.courierBroadcastSent = false;
+}
+
+export async function emitFoodOrderUpdated(io, orderId) {
+  const populated = await FoodOrder.findById(orderId)
+    .populate(
+      "restaurant",
+      "name cuisine imageEmoji address latitude longitude vertical estimatedPrepMinutes"
+    )
+    .populate("ride")
+    .lean();
+  if (!populated) return null;
+
+  if (io) {
+    io.to(`food_order_${orderId}`).emit("foodOrderUpdated", populated);
+    io.to(`customer_${populated.customer}`).emit("foodOrderUpdated", populated);
+    io.to(`restaurant_${populated.restaurant?._id || populated.restaurant}`).emit(
+      "foodOrderUpdated",
+      populated
+    );
+  }
+
+  const customerId =
+    populated.customer?._id?.toString?.() || String(populated.customer);
+  notifyCustomerFoodOrderPush(customerId, populated);
+  return populated;
+}
 
 /** Broadcast new food delivery ride to eligible on-duty drivers */
 export async function broadcastRideToDrivers(io, ride) {
@@ -47,9 +116,19 @@ export async function createCourierRideForOrder(foodOrder, restaurant, io, optio
   if (foodOrder.ride) {
     const existing = await Ride.findById(foodOrder.ride);
     if (existing) {
+      const settings = await getSettings();
+      const { distanceKm, driverFee } = resolveFoodCourierRidePricing(
+        foodOrder,
+        restaurant,
+        settings.fareRates || undefined
+      );
+      if (existing.fare !== driverFee || existing.distance !== distanceKm) {
+        existing.fare = driverFee;
+        existing.distance = distanceKm;
+        await existing.save();
+      }
       if (driverId && existing.status === "SEARCHING_FOR_RIDER" && !existing.rider) {
         const driver = await User.findById(driverId).select("role driverDetails");
-        const settings = await getSettings();
         if (!canRiderReceiveOffer(driver, existing, settings)) {
           throw new Error(
             getEligibilityRejectReason(driver, existing, settings) || "driver_ineligible"
@@ -64,16 +143,19 @@ export async function createCourierRideForOrder(foodOrder, restaurant, io, optio
     }
   }
 
-  const distance = calculateDistance(
-    restaurant.latitude,
-    restaurant.longitude,
-    foodOrder.delivery.latitude,
-    foodOrder.delivery.longitude
+  const settings = await getSettings();
+  const { distanceKm, driverFee } = resolveFoodCourierRidePricing(
+    foodOrder,
+    restaurant,
+    settings.fareRates || undefined
   );
 
-  const settings = await getSettings();
-  const fareResult = calculateFare(distance, settings.fareRates || undefined);
-  const driverFee = fareResult.motorcycle;
+  if (!foodOrder.deliveryDistanceKm) {
+    foodOrder.deliveryDistanceKm = distanceKm;
+  }
+  if (!foodOrder.driverFee) {
+    foodOrder.driverFee = driverFee;
+  }
 
   const itemSummary = foodOrder.items.map((i) => `${i.quantity}x ${i.name}`).join(", ");
   const deliveryCode = generateOTP();
@@ -81,7 +163,7 @@ export async function createCourierRideForOrder(foodOrder, restaurant, io, optio
   const ride = await Ride.create({
     serviceType: "FOOD",
     vehicle: "motorcycle",
-    distance,
+    distance: distanceKm,
     fare: driverFee,
     pickup: {
       address: `${restaurant.name} — ${restaurant.address}`,
@@ -136,11 +218,13 @@ export async function applyRestaurantAction(orderId, action, io, options = {}) {
     case "accept":
       if (foodOrder.status !== "PLACED") return { error: "invalid_transition" };
       foodOrder.status = "PREPARING";
+      scheduleCourierBroadcast(foodOrder, restaurant);
       break;
     case "reject":
       if (!["PLACED", "CONFIRMED", "PREPARING"].includes(foodOrder.status)) {
         return { error: "invalid_transition" };
       }
+      await cancelCourierRideForOrder(foodOrder, io);
       foodOrder.status = "CANCELLED";
       if (options.cancelReason) foodOrder.cancelReason = options.cancelReason;
       break;
@@ -151,10 +235,13 @@ export async function applyRestaurantAction(orderId, action, io, options = {}) {
       foodOrder.status = "READY_FOR_PICKUP";
       if (foodOrder.fulfillmentType !== "PICKUP") {
         const assignId = options.driverId || null;
-        await createCourierRideForOrder(foodOrder, restaurant, io, {
-          driverId: assignId,
-          broadcast: !assignId,
-        });
+        if (!foodOrder.ride) {
+          await createCourierRideForOrder(foodOrder, restaurant, io, {
+            driverId: assignId,
+            broadcast: !assignId,
+          });
+        }
+        foodOrder.courierBroadcastSent = true;
       }
       break;
     }
@@ -185,6 +272,7 @@ export async function applyRestaurantAction(orderId, action, io, options = {}) {
           driverId,
           broadcast: false,
         });
+        foodOrder.courierBroadcastSent = true;
       }
       break;
     }
@@ -193,19 +281,6 @@ export async function applyRestaurantAction(orderId, action, io, options = {}) {
   }
 
   await foodOrder.save();
-  const populated = await FoodOrder.findById(orderId)
-    .populate("restaurant", "name cuisine imageEmoji address")
-    .populate("ride")
-    .lean();
-
-  if (io) {
-    io.to(`food_order_${orderId}`).emit("foodOrderUpdated", populated);
-    io.to(`customer_${foodOrder.customer}`).emit("foodOrderUpdated", populated);
-    io.to(`restaurant_${foodOrder.restaurant}`).emit("foodOrderUpdated", populated);
-  }
-
-  const customerId = foodOrder.customer?._id?.toString?.() || String(foodOrder.customer);
-  notifyCustomerFoodOrderPush(customerId, populated);
-
+  const populated = await emitFoodOrderUpdated(io, orderId);
   return { order: populated };
 }

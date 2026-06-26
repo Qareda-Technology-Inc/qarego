@@ -215,6 +215,7 @@ export const createFoodOrder = async (req, res) => {
   const settings = await getSettings();
   let driverFee = 0;
   let deliveryFee = 0;
+  let deliveryDistanceKm = null;
   if (fulfillmentType === "DELIVERY" || fulfillmentType === "SCHEDULED") {
     const { lat: storeLat, lon: storeLon } = assertStoreCoordinates(restaurant);
     let quote;
@@ -231,6 +232,7 @@ export const createFoodOrder = async (req, res) => {
     }
     driverFee = quote.deliveryFee;
     deliveryFee = quote.deliveryFee;
+    deliveryDistanceKm = quote.distanceKm;
   }
   const serviceFee = computeFoodServiceFee(subtotal, settings);
   const total = subtotal + serviceFee + deliveryFee;
@@ -248,6 +250,7 @@ export const createFoodOrder = async (req, res) => {
     serviceFee,
     deliveryFee,
     driverFee,
+    deliveryDistanceKm,
     total,
     delivery: {
       address: deliveryAddress,
@@ -263,7 +266,10 @@ export const createFoodOrder = async (req, res) => {
   });
 
   const populated = await FoodOrder.findById(foodOrder._id)
-    .populate("restaurant", "name cuisine imageEmoji address latitude longitude vertical")
+    .populate(
+      "restaurant",
+      "name cuisine imageEmoji address latitude longitude vertical estimatedPrepMinutes"
+    )
     .populate("customer", "name phone")
     .lean();
 
@@ -390,7 +396,7 @@ export const rateFoodOrder = async (req, res) => {
 /** GET /food/orders/:id */
 export const getFoodOrder = async (req, res) => {
   const order = await FoodOrder.findById(req.params.id)
-    .populate("restaurant", "name cuisine imageEmoji address latitude longitude vertical")
+    .populate("restaurant", "name cuisine imageEmoji address latitude longitude vertical estimatedPrepMinutes")
     .populate("ride")
     .lean();
 
@@ -424,7 +430,7 @@ export const getActiveFoodOrder = async (req, res) => {
     status: { $nin: terminal },
   })
     .sort({ createdAt: -1 })
-    .populate("restaurant", "name cuisine imageEmoji address vertical")
+    .populate("restaurant", "name cuisine imageEmoji address latitude longitude vertical estimatedPrepMinutes")
     .populate("ride")
     .lean();
 

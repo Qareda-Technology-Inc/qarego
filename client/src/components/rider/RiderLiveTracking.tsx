@@ -1,4 +1,4 @@
-import { View, Text, TouchableOpacity, Image, Linking, Platform, Alert } from "react-native";
+import { View, TouchableOpacity, Image, Linking, Platform, Alert } from "react-native";
 import React, { FC, memo, useEffect, useRef, useState } from "react";
 import MapView, { Marker, Polyline, Callout } from "react-native-maps";
 import { customMapStyle, indiaIntialRegion } from "@/utils/CustomMap";
@@ -7,7 +7,8 @@ import { FontAwesome6, MaterialCommunityIcons } from "@expo/vector-icons";
 import { RFValue } from "react-native-responsive-fontsize";
 import { mapStyles } from "@/styles/mapStyles";
 import { Colors } from "@/utils/Constants";
-import { getPoints } from "@/utils/mapUtils";
+import { getPoints, getVehicleMarkerType } from "@/utils/mapUtils";
+import NearbyVehicleMarker from "@/components/customer/NearbyVehicleMarker";
 import {
   getRiderDropLabel,
   getRiderPickupLabel,
@@ -25,18 +26,20 @@ const RiderLiveTracking: FC<{
   pickup: any;
   rider: any;
   status: string;
+  vehicle?: string;
   serviceType?: RiderOfferRide["serviceType"];
   parcelMode?: RiderOfferRide["parcelMode"];
   restaurantName?: string;
   storeVertical?: RiderOfferRide["storeVertical"];
   foodOrderSummary?: string;
-}> = ({ drop, status, pickup, rider, serviceType, parcelMode, restaurantName, storeVertical, foodOrderSummary }) => {
+}> = ({ drop, status, pickup, rider, vehicle, serviceType, parcelMode, restaurantName, storeVertical, foodOrderSummary }) => {
   const rideMeta: RiderOfferRide = { serviceType, parcelMode, storeVertical, restaurantName, foodOrderSummary };
   const food = isFoodDelivery(rideMeta);
   const isParcel = serviceType === "DELIVERY";
   const receiveParcel = isParcel && parseRideParcelMode(rideMeta) === "RECEIVE";
   const pickupLabel = getRiderPickupLabel(rideMeta);
   const dropLabel = getRiderDropLabel(rideMeta);
+  const vehicleMarkerType = getVehicleMarkerType(vehicle ?? "motorcycle");
   const mapRef = useRef<MapView>(null);
   const [isUserInteracting, setIsUserInteracting] = useState(false);
 
@@ -205,8 +208,8 @@ const RiderLiveTracking: FC<{
             anchor={{ x: 0.5, y: 1 }}
             zIndex={1}
             tracksViewChanges={false}
-            title={dropLabel}
-            description={drop?.address || dropLabel}
+            title={`End · ${dropLabel}`}
+            description={drop?.address || "Drop location"}
           >
             <Image
               source={require("@/assets/icons/drop_marker.png")}
@@ -215,7 +218,7 @@ const RiderLiveTracking: FC<{
             <Callout tooltip>
               <View style={{ padding: 10, maxWidth: 220, backgroundColor: "white", borderRadius: 8 }}>
                 <CustomText fontFamily="SemiBold" fontSize={13} style={{ marginBottom: 6, color: "#333" }}>
-                  {dropLabel}
+                  End point · {dropLabel}
                 </CustomText>
                 <CustomText fontSize={11} numberOfLines={3} style={{ color: "#666" }}>
                   {drop?.address || "Drop location"}
@@ -231,8 +234,8 @@ const RiderLiveTracking: FC<{
             anchor={{ x: 0.5, y: 1 }}
             zIndex={2}
             tracksViewChanges={false}
-            title={pickupLabel}
-            description={pickup?.address || pickupLabel}
+            title={`Start · ${pickupLabel}`}
+            description={pickup?.address || "Pickup location"}
           >
             <Image
               source={require("@/assets/icons/marker.png")}
@@ -241,7 +244,7 @@ const RiderLiveTracking: FC<{
             <Callout tooltip>
               <View style={{ padding: 10, maxWidth: 220, backgroundColor: "white", borderRadius: 8 }}>
                 <CustomText fontFamily="SemiBold" fontSize={13} style={{ marginBottom: 6, color: "#333" }}>
-                  {pickupLabel}
+                  Start point · {pickupLabel}
                 </CustomText>
                 <CustomText fontSize={11} numberOfLines={3} style={{ color: "#666" }}>
                   {pickup?.address || "Pickup location"}
@@ -256,26 +259,9 @@ const RiderLiveTracking: FC<{
             coordinate={riderCoord}
             anchor={{ x: 0.5, y: 0.5 }}
             zIndex={3}
+            tracksViewChanges={false}
           >
-            <View style={{ transform: [{ rotate: `${rider?.heading || 0}deg` }] }}>
-              <View
-                style={{
-                  backgroundColor: "#4CAF50",
-                  borderRadius: 20,
-                  padding: 4,
-                  shadowColor: "#000",
-                  shadowOffset: { width: 0, height: 2 },
-                  shadowOpacity: 0.3,
-                  shadowRadius: 4,
-                  elevation: 5,
-                }}
-              >
-                <Image
-                  source={require("@/assets/icons/cab_marker.png")}
-                  style={{ height: 36, width: 36, resizeMode: "contain" }}
-                />
-              </View>
-            </View>
+            <NearbyVehicleMarker type={vehicleMarkerType} rotation={rider?.heading || 0} />
             <Callout>
               <View style={{ padding: 8, maxWidth: 150 }}>
                 <CustomText fontFamily="SemiBold" fontSize={12} style={{ marginBottom: 4 }}>

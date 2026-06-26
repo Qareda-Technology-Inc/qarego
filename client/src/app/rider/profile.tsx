@@ -11,6 +11,14 @@ import { updateDriverProfile } from "@/service/userService";
 import { uploadMediaUri, resolveMediaUrl } from "@/service/mediaUpload";
 import { pickProfileImage } from "@/utils/pickProfileImage";
 import { formatActiveModeLabel, getEffectivePreferencesFromUser } from "@/utils/riderServiceSettings";
+import {
+  canCourierEditDocuments,
+  canCourierEditVehicle,
+  driverStatusLabel,
+  getDriverAccountStatus,
+  isDriverPendingApproval,
+  vehicleCategoryLabel,
+} from "@/utils/driverProfileAccess";
 
 const isStoredMedia = (uri: string | null) =>
   !!uri && (uri.startsWith("http") || uri.startsWith("/"));
@@ -31,9 +39,16 @@ const RiderProfile = () => {
   const [licenseFront, setLicenseFront] = useState<string | null>(null);
   const [licenseBack, setLicenseBack] = useState<string | null>(null);
   const [nationalId, setNationalId] = useState<string | null>(null);
+  const [registrationDoc, setRegistrationDoc] = useState<string | null>(null);
+  const [insuranceDoc, setInsuranceDoc] = useState<string | null>(null);
   const [profileImage, setProfileImage] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(false);
+  const driverStatus = getDriverAccountStatus(user);
+  const isOnboarding = isDriverPendingApproval(user);
+  const canEditVehicle = canCourierEditVehicle(user);
+  const canEditDocuments = canCourierEditDocuments(user);
+  const vehicleCategory = user?.driverDetails?.vehicle?.category;
 
   useEffect(() => {
     if (user) {
@@ -53,6 +68,8 @@ const RiderProfile = () => {
         setLicenseFront(user.driverDetails.licenseFront || null);
         setLicenseBack(user.driverDetails.licenseBack || null);
         setNationalId(user.driverDetails.nationalId || null);
+        setRegistrationDoc(user.driverDetails.vehicle?.registrationDoc || null);
+        setInsuranceDoc(user.driverDetails.vehicle?.insuranceDoc || null);
         setProfileImage(user.driverDetails.profileImage || null);
       }
     }
@@ -87,26 +104,31 @@ const RiderProfile = () => {
         licenseFrontUrl,
         licenseBackUrl,
         nationalIdUrl,
+        registrationDocUrl,
+        insuranceDocUrl,
       ] = await Promise.all([
         uploadIfLocal(profileImage, "drivers/profile"),
-        uploadIfLocal(licenseFront, "drivers/license"),
-        uploadIfLocal(licenseBack, "drivers/license"),
-        uploadIfLocal(nationalId, "drivers/documents"),
+        canEditDocuments ? uploadIfLocal(licenseFront, "drivers/license") : Promise.resolve(undefined),
+        canEditDocuments ? uploadIfLocal(licenseBack, "drivers/license") : Promise.resolve(undefined),
+        canEditDocuments ? uploadIfLocal(nationalId, "drivers/documents") : Promise.resolve(undefined),
+        canEditDocuments ? uploadIfLocal(registrationDoc, "drivers/vehicle") : Promise.resolve(undefined),
+        canEditDocuments ? uploadIfLocal(insuranceDoc, "drivers/vehicle") : Promise.resolve(undefined),
       ]);
 
-      const payload: Record<string, string> = {
-        name,
-        email,
-        make: vehicleMake,
-        model: vehicleModel,
-        year: vehicleYear,
-        plateNumber: vehiclePlate,
-        color: vehicleColor,
-      };
+      const payload: Record<string, string> = { name, email };
+      if (canEditVehicle) {
+        payload.make = vehicleMake;
+        payload.model = vehicleModel;
+        payload.year = vehicleYear;
+        payload.plateNumber = vehiclePlate;
+        payload.color = vehicleColor;
+      }
       if (profileImageUrl) payload.profileImageUrl = profileImageUrl;
       if (licenseFrontUrl) payload.licenseFrontUrl = licenseFrontUrl;
       if (licenseBackUrl) payload.licenseBackUrl = licenseBackUrl;
       if (nationalIdUrl) payload.nationalIdUrl = nationalIdUrl;
+      if (registrationDocUrl) payload.registrationDocUrl = registrationDocUrl;
+      if (insuranceDocUrl) payload.insuranceDocUrl = insuranceDocUrl;
 
       const updatedUser = await updateDriverProfile(user._id || user.id, payload);
       // The updateDriverProfile returns the driver object which should be compatible with user store
@@ -139,6 +161,37 @@ const RiderProfile = () => {
 
   const isProfileIncomplete = !user?.name || !user?.email;
 
+  const renderReadOnlyField = (label: string, value: string) => (
+    <View style={styles.inputGroup}>
+      <CustomText fontSize={14} color="#666" style={{ marginBottom: 5 }}>
+        {label}
+      </CustomText>
+      <View style={[styles.input, styles.readOnlyInput]}>
+        <CustomText color={value ? Colors.text : "#999"}>
+          {value || "—"}
+        </CustomText>
+      </View>
+    </View>
+  );
+
+  const renderDocStatus = (label: string, uri: string | null) => (
+    <View style={styles.inputGroup}>
+      <CustomText fontSize={14} color="#666" style={{ marginBottom: 5 }}>
+        {label}
+      </CustomText>
+      <View style={[styles.uploadButton, styles.readOnlyDoc]}>
+        {resolveMediaUrl(uri) ? (
+          <View style={{ flexDirection: "row", alignItems: "center" }}>
+            <Ionicons name="checkmark-circle" size={18} color="green" />
+            <CustomText style={{ marginLeft: 8 }}>Uploaded</CustomText>
+          </View>
+        ) : (
+          <CustomText color="#999">Not uploaded</CustomText>
+        )}
+      </View>
+    </View>
+  );
+
   return (
     <View style={commonStyles.container}>
       <SafeAreaView style={{ backgroundColor: '#fff' }} />
@@ -150,10 +203,44 @@ const RiderProfile = () => {
         >
             <Ionicons name="arrow-back" size={24} color={Colors.text} />
         </TouchableOpacity>
-        <CustomText variant="h5" fontFamily="SemiBold">Personal Info</CustomText>
+        <CustomText variant="h5" fontFamily="SemiBold">
+          {isOnboarding ? "Complete profile" : "Profile"}
+        </CustomText>
       </View>
 
       <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: 40 }}>
+        <View style={styles.statusPill}>
+          <CustomText fontSize={12} fontFamily="SemiBold" color={Colors.primary}>
+            Account: {driverStatusLabel(driverStatus)}
+          </CustomText>
+        </View>
+
+        {isOnboarding ? (
+          <View style={styles.noticeContainer}>
+            <Ionicons name="time-outline" size={20} color={Colors.primary} />
+            <View style={{ flex: 1, marginLeft: 10 }}>
+              <CustomText fontFamily="SemiBold" fontSize={14} style={{ marginBottom: 2 }}>
+                Awaiting admin approval
+              </CustomText>
+              <CustomText fontSize={12} color="#666">
+                Submit your vehicle and documents below. Admin will verify and assign your vehicle type before you can go on duty.
+              </CustomText>
+            </View>
+          </View>
+        ) : (
+          <View style={[styles.noticeContainer, styles.lockedNotice]}>
+            <Ionicons name="lock-closed-outline" size={20} color="#666" />
+            <View style={{ flex: 1, marginLeft: 10 }}>
+              <CustomText fontFamily="SemiBold" fontSize={14} style={{ marginBottom: 2 }}>
+                Vehicle & documents managed by admin
+              </CustomText>
+              <CustomText fontSize={12} color="#666">
+                Contact support if you need to update your vehicle, plate, or compliance documents.
+              </CustomText>
+            </View>
+          </View>
+        )}
+
         {/* Incomplete Profile Notice */}
         {isProfileIncomplete && (
           <View style={styles.noticeContainer}>
@@ -223,64 +310,80 @@ const RiderProfile = () => {
         
         <CustomText fontSize={16} fontFamily="SemiBold" style={{ marginTop: 10, marginBottom: 15 }}>Vehicle Details</CustomText>
 
-        <View style={commonStyles.flexRowBetween}>
-            <View style={[styles.inputGroup, { width: '48%' }]}>
+        {!canEditVehicle && renderReadOnlyField("Vehicle type", vehicleCategoryLabel(vehicleCategory))}
+
+        {canEditVehicle ? (
+          <>
+            <View style={commonStyles.flexRowBetween}>
+              <View style={[styles.inputGroup, { width: "48%" }]}>
                 <CustomText fontSize={14} color="#666" style={{ marginBottom: 5 }}>Make</CustomText>
-                <TextInput 
-                    style={styles.input}
-                    value={vehicleMake}
-                    onChangeText={setVehicleMake}
-                    placeholder="Toyota"
-                    placeholderTextColor="#999"
+                <TextInput
+                  style={styles.input}
+                  value={vehicleMake}
+                  onChangeText={setVehicleMake}
+                  placeholder="Toyota"
+                  placeholderTextColor="#999"
                 />
-            </View>
-            <View style={[styles.inputGroup, { width: '48%' }]}>
+              </View>
+              <View style={[styles.inputGroup, { width: "48%" }]}>
                 <CustomText fontSize={14} color="#666" style={{ marginBottom: 5 }}>Model</CustomText>
-                <TextInput 
-                    style={styles.input}
-                    value={vehicleModel}
-                    onChangeText={setVehicleModel}
-                    placeholder="Prius"
-                    placeholderTextColor="#999"
+                <TextInput
+                  style={styles.input}
+                  value={vehicleModel}
+                  onChangeText={setVehicleModel}
+                  placeholder="Prius"
+                  placeholderTextColor="#999"
                 />
+              </View>
             </View>
-        </View>
 
-        <View style={commonStyles.flexRowBetween}>
-            <View style={[styles.inputGroup, { width: '48%' }]}>
+            <View style={commonStyles.flexRowBetween}>
+              <View style={[styles.inputGroup, { width: "48%" }]}>
                 <CustomText fontSize={14} color="#666" style={{ marginBottom: 5 }}>Year</CustomText>
-                <TextInput 
-                    style={styles.input}
-                    value={vehicleYear}
-                    onChangeText={setVehicleYear}
-                    placeholder="2020"
-                    placeholderTextColor="#999"
-                    keyboardType="numeric"
+                <TextInput
+                  style={styles.input}
+                  value={vehicleYear}
+                  onChangeText={setVehicleYear}
+                  placeholder="2020"
+                  placeholderTextColor="#999"
+                  keyboardType="numeric"
                 />
-            </View>
-             <View style={[styles.inputGroup, { width: '48%' }]}>
+              </View>
+              <View style={[styles.inputGroup, { width: "48%" }]}>
                 <CustomText fontSize={14} color="#666" style={{ marginBottom: 5 }}>Color</CustomText>
-                <TextInput 
-                    style={styles.input}
-                    value={vehicleColor}
-                    onChangeText={setVehicleColor}
-                    placeholder="White"
-                    placeholderTextColor="#999"
+                <TextInput
+                  style={styles.input}
+                  value={vehicleColor}
+                  onChangeText={setVehicleColor}
+                  placeholder="White"
+                  placeholderTextColor="#999"
                 />
+              </View>
             </View>
-        </View>
 
-        <View style={styles.inputGroup}>
-            <CustomText fontSize={14} color="#666" style={{ marginBottom: 5 }}>Plate Number</CustomText>
-            <TextInput 
+            <View style={styles.inputGroup}>
+              <CustomText fontSize={14} color="#666" style={{ marginBottom: 5 }}>Plate Number</CustomText>
+              <TextInput
                 style={styles.input}
                 value={vehiclePlate}
                 onChangeText={setVehiclePlate}
                 placeholder="KBA 123A"
                 placeholderTextColor="#999"
                 autoCapitalize="characters"
-            />
-        </View>
+              />
+            </View>
+          </>
+        ) : (
+          <>
+            {renderReadOnlyField("Make", vehicleMake)}
+            {renderReadOnlyField("Model", vehicleModel)}
+            <View style={commonStyles.flexRowBetween}>
+              <View style={{ width: "48%" }}>{renderReadOnlyField("Year", vehicleYear)}</View>
+              <View style={{ width: "48%" }}>{renderReadOnlyField("Color", vehicleColor)}</View>
+            </View>
+            {renderReadOnlyField("Plate number", vehiclePlate)}
+          </>
+        )}
 
         <View style={styles.divider} />
         
@@ -305,30 +408,71 @@ const RiderProfile = () => {
             </TouchableOpacity>
         </View>
 
-        <View style={commonStyles.flexRowBetween}>
-             <View style={[styles.inputGroup, { width: '48%' }]}>
+        {canEditDocuments ? (
+          <>
+            <View style={commonStyles.flexRowBetween}>
+              <View style={[styles.inputGroup, { width: "48%" }]}>
                 <CustomText fontSize={14} color="#666" style={{ marginBottom: 5 }}>License Front</CustomText>
                 <TouchableOpacity onPress={() => pickImage(setLicenseFront)} style={styles.uploadButton}>
-                    <CustomText color={Colors.primary}>{licenseFront && !isStoredMedia(licenseFront) ? "Changed" : (licenseFront ? "Update" : "Upload")}</CustomText>
+                  <CustomText color={Colors.primary}>
+                    {licenseFront && !isStoredMedia(licenseFront) ? "Changed" : licenseFront ? "Update" : "Upload"}
+                  </CustomText>
                 </TouchableOpacity>
-            </View>
-            <View style={[styles.inputGroup, { width: '48%' }]}>
+              </View>
+              <View style={[styles.inputGroup, { width: "48%" }]}>
                 <CustomText fontSize={14} color="#666" style={{ marginBottom: 5 }}>License Back</CustomText>
-                 <TouchableOpacity onPress={() => pickImage(setLicenseBack)} style={styles.uploadButton}>
-                    <CustomText color={Colors.primary}>{licenseBack && !isStoredMedia(licenseBack) ? "Changed" : (licenseBack ? "Update" : "Upload")}</CustomText>
+                <TouchableOpacity onPress={() => pickImage(setLicenseBack)} style={styles.uploadButton}>
+                  <CustomText color={Colors.primary}>
+                    {licenseBack && !isStoredMedia(licenseBack) ? "Changed" : licenseBack ? "Update" : "Upload"}
+                  </CustomText>
                 </TouchableOpacity>
+              </View>
             </View>
-        </View>
-        
-        <View style={styles.inputGroup}>
-            <CustomText fontSize={14} color="#666" style={{ marginBottom: 5 }}>National ID</CustomText>
-             <TouchableOpacity onPress={() => pickImage(setNationalId)} style={styles.uploadButton}>
-                 <View style={{flexDirection: 'row', alignItems: 'center'}}>
-                    <Ionicons name="card-outline" size={20} color={Colors.primary} />
-                    <CustomText style={{marginLeft: 10}} color={Colors.primary}>{nationalId && !isStoredMedia(nationalId) ? "Image Selected" : (nationalId ? "Change ID" : "Upload ID")}</CustomText>
-                 </View>
-            </TouchableOpacity>
-        </View>
+
+            <View style={styles.inputGroup}>
+              <CustomText fontSize={14} color="#666" style={{ marginBottom: 5 }}>National ID</CustomText>
+              <TouchableOpacity onPress={() => pickImage(setNationalId)} style={styles.uploadButton}>
+                <View style={{ flexDirection: "row", alignItems: "center" }}>
+                  <Ionicons name="card-outline" size={20} color={Colors.primary} />
+                  <CustomText style={{ marginLeft: 10 }} color={Colors.primary}>
+                    {nationalId && !isStoredMedia(nationalId) ? "Image Selected" : nationalId ? "Change ID" : "Upload ID"}
+                  </CustomText>
+                </View>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <CustomText fontSize={14} color="#666" style={{ marginBottom: 5 }}>Vehicle registration / logbook</CustomText>
+              <TouchableOpacity onPress={() => pickImage(setRegistrationDoc)} style={styles.uploadButton}>
+                <CustomText color={Colors.primary}>
+                  {registrationDoc && !isStoredMedia(registrationDoc) ? "Changed" : registrationDoc ? "Update" : "Upload"}
+                </CustomText>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <CustomText fontSize={14} color="#666" style={{ marginBottom: 5 }}>Insurance</CustomText>
+              <TouchableOpacity onPress={() => pickImage(setInsuranceDoc)} style={styles.uploadButton}>
+                <CustomText color={Colors.primary}>
+                  {insuranceDoc && !isStoredMedia(insuranceDoc) ? "Changed" : insuranceDoc ? "Update" : "Upload"}
+                </CustomText>
+              </TouchableOpacity>
+            </View>
+
+            <CustomText fontSize={12} color="#999" style={{ marginBottom: 12 }}>
+              Police clearance is verified and uploaded by admin.
+            </CustomText>
+          </>
+        ) : (
+          <>
+            {renderDocStatus("Driver's license (front)", licenseFront)}
+            {renderDocStatus("Driver's license (back)", licenseBack)}
+            {renderDocStatus("National ID", nationalId)}
+            {renderDocStatus("Vehicle registration", registrationDoc)}
+            {renderDocStatus("Insurance", insuranceDoc)}
+            {renderDocStatus("Police clearance", user?.driverDetails?.policeClearance ?? null)}
+          </>
+        )}
 
         {/* Rating Display */}
         {user?.averageRating && (
@@ -357,7 +501,7 @@ const RiderProfile = () => {
 
         <View style={{ marginTop: 40 }}>
             <CustomButton 
-                title="Save Changes"
+                title={isOnboarding ? "Submit for review" : "Save Changes"}
                 onPress={handleSave}
                 loading={loading}
                 disabled={loading}
@@ -406,6 +550,27 @@ const styles = StyleSheet.create({
         borderColor: '#ffe082',
         alignItems: 'center',
         marginBottom: 20
+    },
+    lockedNotice: {
+        backgroundColor: '#f8fafc',
+        borderColor: '#e2e8f0',
+    },
+    statusPill: {
+        alignSelf: 'flex-start',
+        backgroundColor: '#f0f7ff',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 20,
+        marginBottom: 12,
+    },
+    readOnlyInput: {
+        backgroundColor: '#f5f5f5',
+        borderColor: '#eee',
+    },
+    readOnlyDoc: {
+        borderStyle: 'solid',
+        borderColor: '#eee',
+        backgroundColor: '#fafafa',
     },
     ratingContainer: {
         marginBottom: 20

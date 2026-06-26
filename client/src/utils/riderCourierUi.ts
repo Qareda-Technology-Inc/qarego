@@ -49,7 +49,7 @@ export function getRiderCourierUi(ride?: CourierRide | null): RiderCourierUi {
       return {
         meetLabel:
           mode === "RECEIVE"
-            ? "Collect parcel at pickup"
+            ? "Collect parcel from sender"
             : "Collect from sender",
         contactPhone: ride?.customer?.phone,
         ...labels,
@@ -96,20 +96,91 @@ export function getRiderSwipeTitle(ride?: CourierRide | null): string {
   const isParcel = ride?.serviceType === "DELIVERY";
 
   if (status === "START") {
-    if (isFood) return "PICKED UP";
-    if (isParcel) return "COLLECTED";
-    return "ARRIVED";
+    if (isFood) return "Confirm pickup";
+    if (isParcel) return "Confirm collection";
+    return "Confirm arrival";
   }
   if (status === "ARRIVED") {
-    if (isFood) return "HEADING TO CUSTOMER";
-    if (isParcel) return "START DELIVERY";
-    return "START RIDE";
+    if (isFood) return "Start delivery";
+    if (isParcel) return "Start delivery";
+    return "Start ride";
   }
   if (status === "IN_PROGRESS") {
-    if (isFood || isParcel) return "DELIVERED";
-    return "COMPLETED";
+    if (isFood || isParcel) return "Confirm delivery";
+    return "Complete ride";
   }
-  return "SUCCESS";
+  return "Continue";
+}
+
+export type RiderDeliveryPhase = {
+  step: number;
+  totalSteps: number;
+  phaseLabel: string;
+  phaseHint: string;
+  accentColor: string;
+  swipeColor: string;
+};
+
+export function getRiderDeliveryPhase(ride?: CourierRide | null): RiderDeliveryPhase {
+  const status = ride?.status;
+  const isFood = isFoodDelivery(ride);
+  const isParcel = ride?.serviceType === "DELIVERY";
+  const parcelMode = parseRideParcelMode(ride);
+
+  if (status === "START") {
+    return {
+      step: 1,
+      totalSteps: 3,
+      phaseLabel: isFood ? "Collect order" : isParcel ? "Collect parcel" : "Go to pickup",
+      phaseHint: isFood ? "Head to the restaurant and confirm when you have the order" : "Navigate to the pickup point",
+      accentColor: "#f97316",
+      swipeColor: "#ea580c",
+    };
+  }
+  if (status === "ARRIVED") {
+    return {
+      step: 2,
+      totalSteps: 3,
+      phaseLabel: isFood
+        ? "Deliver to customer"
+        : isParcel
+          ? parcelMode === "RECEIVE"
+            ? "Heading to customer"
+            : "Heading to recipient"
+          : "Passenger pickup",
+      phaseHint: isFood
+        ? "Start heading to the customer's address"
+        : isParcel
+          ? parcelMode === "RECEIVE"
+            ? "Start heading to the customer address"
+            : "Start heading to the recipient address"
+          : "Begin the trip with your passenger",
+      accentColor: "#0ea5e9",
+      swipeColor: "#0284c7",
+    };
+  }
+  if (status === "IN_PROGRESS") {
+    return {
+      step: 3,
+      totalSteps: 3,
+      phaseLabel: isFood || isParcel ? "Complete delivery" : "Finish trip",
+      phaseHint: isFood
+        ? "Ask the customer for their 4-digit code before handing over"
+        : isParcel
+          ? "Enter the recipient's delivery code to finish"
+          : "Swipe when you've reached the destination",
+      accentColor: "#16a34a",
+      swipeColor: "#15803d",
+    };
+  }
+  return {
+    step: 1,
+    totalSteps: 3,
+    phaseLabel: "Delivery",
+    phaseHint: "Loading trip details…",
+    accentColor: "#64748b",
+    swipeColor: "#475569",
+  };
 }
 
 export function getRiderParcelCollectedAlert(mode: ParcelMode): { title: string; message: string } {

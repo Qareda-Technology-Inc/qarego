@@ -9,17 +9,27 @@ type Props = {
   steps: TrackingStep[];
 };
 
+const STEP_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
+  placed: "receipt-outline",
+  accepted: "checkmark-circle-outline",
+  preparing: "restaurant-outline",
+  ready: "bag-check-outline",
+  courier: "bicycle-outline",
+  delivery: "navigate-outline",
+  done: "home-outline",
+  cancelled: "close-circle-outline",
+};
+
 const OrderStatusTimeline: FC<Props> = ({ steps }) => (
   <View style={styles.wrap}>
     {steps.map((step, index) => {
       const isLast = index === steps.length - 1;
-      const dotColor =
-        step.state === "done"
-          ? FOOD_THEME.orange
-          : step.state === "active"
-            ? FOOD_THEME.orange
-            : "#e2e8f0";
-      const lineColor = step.state === "done" ? FOOD_THEME.orange : "#e2e8f0";
+      const isDone = step.state === "done";
+      const isActive = step.state === "active";
+      const iconName = STEP_ICONS[step.id] ?? "ellipse-outline";
+      const dotColor = isDone || isActive ? FOOD_THEME.accentTeal : "#e2e8f0";
+      const lineColor = isDone ? FOOD_THEME.accentTeal : "#e8ebeb";
+      const iconColor = isDone || isActive ? "#fff" : FOOD_THEME.textLight;
 
       return (
         <View key={step.id} style={styles.row}>
@@ -27,30 +37,28 @@ const OrderStatusTimeline: FC<Props> = ({ steps }) => (
             <View
               style={[
                 styles.dot,
-                { backgroundColor: dotColor, borderColor: dotColor },
-                step.state === "active" && styles.dotActive,
+                { backgroundColor: isActive || isDone ? dotColor : "#fff", borderColor: dotColor },
+                isActive && styles.dotActive,
               ]}
             >
-              {step.state === "done" ? (
+              {isDone ? (
                 <Ionicons name="checkmark" size={14} color="#fff" />
-              ) : step.state === "active" ? (
-                <View style={styles.dotPulse} />
-              ) : null}
+              ) : (
+                <Ionicons name={iconName} size={isActive ? 14 : 12} color={iconColor} />
+              )}
             </View>
             {!isLast ? <View style={[styles.line, { backgroundColor: lineColor }]} /> : null}
           </View>
           <View style={[styles.content, isLast && { paddingBottom: 0 }]}>
             <CustomText
-              fontFamily={step.state === "active" ? "SemiBold" : "Medium"}
+              fontFamily={isActive ? "SemiBold" : "Medium"}
               fontSize={14}
-              style={{
-                color: step.state === "pending" ? FOOD_THEME.textLight : FOOD_THEME.text,
-              }}
+              style={{ color: step.state === "pending" ? FOOD_THEME.textLight : FOOD_THEME.text }}
             >
               {step.label}
             </CustomText>
             {step.subtitle ? (
-              <CustomText fontSize={12} color={FOOD_THEME.textMuted} style={{ marginTop: 2 }}>
+              <CustomText fontSize={12} color={FOOD_THEME.textMuted} style={{ marginTop: 3 }}>
                 {step.subtitle}
               </CustomText>
             ) : null}
@@ -63,47 +71,43 @@ const OrderStatusTimeline: FC<Props> = ({ steps }) => (
 
 const styles = StyleSheet.create({
   wrap: {
-    paddingVertical: 8,
+    paddingVertical: 4,
   },
   row: {
     flexDirection: "row",
-    minHeight: 52,
+    minHeight: 56,
   },
   rail: {
-    width: 28,
+    width: 32,
     alignItems: "center",
   },
   dot: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     borderWidth: 2,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#fff",
   },
   dotActive: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    borderWidth: 3,
-    borderColor: FOOD_THEME.orangeLight,
-  },
-  dotPulse: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: "#fff",
+    shadowColor: FOOD_THEME.accentTeal,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.35,
+    shadowRadius: 6,
+    elevation: 3,
   },
   line: {
     flex: 1,
     width: 2,
     marginVertical: 4,
+    borderRadius: 1,
   },
   content: {
     flex: 1,
-    paddingBottom: 16,
-    paddingLeft: 8,
+    paddingBottom: 18,
+    paddingLeft: 10,
+    paddingTop: 2,
   },
 });
 

@@ -39,6 +39,7 @@ import {
 import { customerRatesRiderForRide } from "@/utils/ratingFlow";
 import { buildLiveRideSnapPoints } from "@/utils/bottomSheetSnapPoints";
 import { router } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const ACTIVE_RIDE_STATUSES = new Set(["START", "ARRIVED", "IN_PROGRESS"]);
 const LIVE_MAP_STATUSES = new Set(["START", "ARRIVED", "IN_PROGRESS"]);
@@ -56,6 +57,7 @@ function isRideSearchFatalError(message: string): boolean {
 
 const LiveRide = () => {
   const { height: windowHeight } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const isFocused = useIsFocused();
   const { emit, on, off, connectNonce } = useWS();
   const [rideData, setRideData] = useState<any>(null);
@@ -296,6 +298,7 @@ const LiveRide = () => {
             serviceType={rideData?.serviceType}
             parcelMode={rideData?.parcelMode}
             storeVertical={rideData?.storeVertical}
+            vehicle={rideData?.vehicle}
             drop={drop}
             pickup={pickup}
             rider={rider}
@@ -313,7 +316,7 @@ const LiveRide = () => {
           />
           {rideData?.status === "COMPLETED" && customerRatesRiderForRide(rideData) ? (
             <TouchableOpacity
-              style={styles.rateButton}
+              style={[styles.rateButton, { top: insets.top + 12 }]}
               onPress={handleRequestRate}
               activeOpacity={0.85}
             >
@@ -392,7 +395,6 @@ const LiveRide = () => {
 const styles = StyleSheet.create({
   rateButton: {
     position: "absolute",
-    top: 50,
     left: 16,
     right: 16,
     backgroundColor: "orange",

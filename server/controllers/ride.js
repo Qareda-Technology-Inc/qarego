@@ -46,6 +46,7 @@ import {
 } from "../utils/dispatchAnalytics.js";
 import { resolveRiderAlertSoundUrl } from "../utils/platformAlertSound.js";
 import { riderHasActiveRide } from "../utils/riderActiveRide.js";
+import { cleanupStaleFoodCourierRide } from "../utils/releaseCourierRide.js";
 
 const VALID_VEHICLES = ["motorcycle", "pragya", "comfort"];
 const VALID_SERVICE_TYPES = ["RIDE", "DELIVERY"];
@@ -237,6 +238,14 @@ export const getRideById = async (req, res) => {
     if (customerId !== userId && riderId !== userId) {
       throw new NotFoundError("Ride not found");
     }
+
+    if (ride.serviceType === "FOOD") {
+      const cleaned = await cleanupStaleFoodCourierRide(ride, req.io);
+      if (!cleaned) {
+        throw new NotFoundError("Ride not found");
+      }
+    }
+
     res.status(StatusCodes.OK).json({ ride });
   } catch (error) {
     if (error instanceof NotFoundError || error instanceof BadRequestError) throw error;
@@ -423,6 +432,9 @@ export const updateRideStatus = async (req, res) => {
     });
   } catch (error) {
     console.error("Error updating ride status:", error);
+    if (error instanceof BadRequestError || error instanceof NotFoundError) {
+      throw error;
+    }
     throw new BadRequestError("Failed to update ride status");
   }
 };
@@ -627,6 +639,18 @@ export const getMyRides = async (req, res) => {
       .populate("rider", "name phone averageRating totalRatings")
       .sort({ createdAt: -1 })
       .lean();
+
+    if (user?.role === "rider" && rides.length) {
+      const kept = [];
+      for (const ride of rides) {
+        const next =
+          ride.serviceType === "FOOD"
+            ? await cleanupStaleFoodCourierRide(ride, req.io)
+            : ride;
+        if (next) kept.push(next);
+      }
+      rides = kept;
+    }
 
     if (userId && rides.length) {
       if (user?.role === "rider") {

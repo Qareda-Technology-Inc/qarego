@@ -75,7 +75,7 @@ export function getRiderPickupLabel(ride?: RiderOfferRide | null): string {
 export function getRiderDropLabel(ride?: RiderOfferRide | null): string {
   if (isFoodDelivery(ride)) return "Customer";
   if (ride?.serviceType === "DELIVERY") {
-    return ride.parcelMode === "RECEIVE" ? "Deliver to customer" : "Recipient";
+    return ride.parcelMode === "RECEIVE" ? "Customer" : "Recipient";
   }
   return "Drop";
 }

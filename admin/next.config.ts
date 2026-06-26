@@ -1,8 +1,7 @@
 import type { NextConfig } from "next";
+import { resolveApiOrigin } from "./src/lib/appEnvironment";
 
-/** Backend URL for Next.js rewrites (server-side proxy). */
-const API_TARGET =
-  process.env.API_PROXY_TARGET?.replace(/\/$/, "") || "http://127.0.0.1:2026";
+const API_TARGET = resolveApiOrigin();
 
 const nextConfig: NextConfig = {
   async rewrites() {

@@ -14,6 +14,12 @@ import {
   getPushRebuildInstructions,
 } from "@/service/pushNotifications";
 import { sendTestPushNotification } from "@/service/testPush";
+import {
+  canCourierGoOnDuty,
+  driverStatusLabel,
+  getDriverAccountStatus,
+  isDriverPendingApproval,
+} from "@/utils/driverProfileAccess";
 
 const RiderAccount = () => {
   const { user } = useRiderStore();
@@ -47,10 +53,12 @@ const RiderAccount = () => {
     ]);
   };
 
+  const driverStatus = getDriverAccountStatus(user);
+  const isPending = isDriverPendingApproval(user);
+  const canGoOnDuty = canCourierGoOnDuty(user);
+
   const menuItems = [
-    { icon: "person-outline", label: "Personal Info", library: Ionicons, onPress: () => router.push('/rider/profile') },
-    { icon: "car-sport-outline", label: "Vehicle Info", library: Ionicons, onPress: () => router.push('/rider/profile') },
-    { icon: "document-text-outline", label: "Documents", library: Ionicons, onPress: () => router.push('/rider/profile') },
+    { icon: "person-outline", label: "Profile", library: Ionicons, onPress: () => router.push('/rider/profile') },
     { icon: "wallet-outline", label: "Earnings & Payment", library: Ionicons, onPress: () => router.push('/rider/earnings') },
     { icon: "options-outline", label: "Work mode", library: Ionicons, onPress: () => router.push('/rider/services') },
     { icon: "shield-outline", label: "Reliability", library: Ionicons, onPress: () => router.push('/rider/reliability') },
@@ -69,6 +77,39 @@ const RiderAccount = () => {
       <SafeAreaView style={{ backgroundColor: '#fff' }} />
       
       <ScrollView contentContainerStyle={{ paddingBottom: 100 }}>
+        {isPending ? (
+          <TouchableOpacity
+            style={styles.noticeContainer}
+            onPress={() => router.push("/rider/profile")}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="time-outline" size={20} color={Colors.primary} />
+            <View style={{ flex: 1, marginLeft: 10 }}>
+              <CustomText fontFamily="SemiBold" fontSize={14} style={{ marginBottom: 2 }}>
+                Account pending approval
+              </CustomText>
+              <CustomText fontSize={12} color="#666">
+                Complete your profile and documents. You cannot go on duty until admin activates your account.
+              </CustomText>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="#999" />
+          </TouchableOpacity>
+        ) : !canGoOnDuty ? (
+          <View style={[styles.noticeContainer, styles.warningNotice]}>
+            <Ionicons name="alert-circle-outline" size={20} color="#b45309" />
+            <View style={{ flex: 1, marginLeft: 10 }}>
+              <CustomText fontFamily="SemiBold" fontSize={14} style={{ marginBottom: 2 }}>
+                {driverStatusLabel(driverStatus)}
+              </CustomText>
+              <CustomText fontSize={12} color="#666">
+                {driverStatus === "suspended_debt"
+                  ? "Clear your commission balance before going on duty."
+                  : "Contact admin to restore your account."}
+              </CustomText>
+            </View>
+          </View>
+        ) : null}
+
         {/* Incomplete Profile Notice */}
         {user && (!user.name || !user.email) && (
           <View style={styles.noticeContainer}>
@@ -105,6 +146,9 @@ const RiderAccount = () => {
                         </CustomText>
                     </View>
                     <CustomText fontSize={12} color="#666">{user?.phone || "+1234567890"}</CustomText>
+                    <CustomText fontSize={11} color={Colors.primary} style={{ marginTop: 4 }}>
+                      {driverStatusLabel(driverStatus)}
+                    </CustomText>
                 </View>
             </View>
         </View>
@@ -245,7 +289,11 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: '#ffe082',
         alignItems: 'center'
-    }
+    },
+    warningNotice: {
+        backgroundColor: '#fff7ed',
+        borderColor: '#fdba74',
+    },
 });
 
 export default RiderAccount;

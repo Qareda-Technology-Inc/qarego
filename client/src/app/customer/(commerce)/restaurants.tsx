@@ -21,7 +21,7 @@ import {
 import { useUserStore } from "@/store/userStore";
 import RestaurantCard from "@/components/customer/food/RestaurantCard";
 import CuisineCarousel from "@/components/customer/food/CuisineCarousel";
-import { FOOD_THEME } from "@/styles/foodStyles";
+import { GRID_CARD_WIDTH, GRID_H_PAD, FOOD_THEME } from "@/styles/foodStyles";
 import EmptyStateCard from "@/components/shared/EmptyStateCard";
 import { DS } from "@/theme/designSystem";
 import { STORE_VERTICAL_CONFIG, isRestaurantStore } from "@/utils/storeVertical";
@@ -116,7 +116,7 @@ const RestaurantsBrowse = () => {
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <CustomText fontFamily="Bold" fontSize={20} style={styles.title}>
-            {FOOD_CONFIG.allTitle}
+            All restaurants
           </CustomText>
           <CustomText fontSize={13} color={FOOD_THEME.textLight} style={{ marginTop: 2 }}>
             Filter by cuisine and browse every restaurant
@@ -134,7 +134,7 @@ const RestaurantsBrowse = () => {
           keyExtractor={(item) => item._id}
           numColumns={2}
           columnWrapperStyle={styles.gridRow}
-          contentContainerStyle={{ paddingBottom: tabBarHeight + 16 }}
+          contentContainerStyle={{ paddingBottom: tabBarHeight + 16, paddingHorizontal: GRID_H_PAD }}
           ListHeaderComponent={
             <View>
               <CuisineCarousel
@@ -151,7 +151,7 @@ const RestaurantsBrowse = () => {
             </View>
           }
           renderItem={({ item }) => (
-            <View style={styles.gridItem}>
+            <View style={styles.gridCell}>
               <RestaurantCard
                 restaurant={item}
                 variant="grid"
@@ -213,9 +213,9 @@ const styles = StyleSheet.create({
   },
   iconBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   title: { color: FOOD_THEME.text },
-  gridRow: { paddingHorizontal: 16, gap: 12 },
-  gridItem: { flex: 1, minWidth: 0 },
-  countRow: { paddingHorizontal: 16, paddingBottom: 12 },
+  gridRow: { justifyContent: "space-between", marginBottom: 14 },
+  gridCell: { width: GRID_CARD_WIDTH },
+  countRow: { paddingBottom: 10 },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   empty: { paddingTop: 48, paddingHorizontal: 32, alignItems: "center" },
   resetBtn: { marginTop: 16 },

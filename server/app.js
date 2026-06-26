@@ -27,6 +27,7 @@ import { initCloudinary, isCloudinaryConfigured } from './utils/cloudinary.js';
 import { isFirebaseConfigured } from './utils/firebaseAdmin.js';
 import { clearDemoFoodSeed } from './seedFood.js';
 import { ensureDefaultStoreTypes } from './utils/commerceStoreTypes.js';
+import { startFoodCourierBroadcastScheduler } from './utils/foodCourierBroadcastScheduler.js';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
@@ -163,6 +164,7 @@ const start = async () => {
     await ensureDefaultStoreTypes();
     const port = process.env.PORT || 3000;
     server.listen(port, "0.0.0.0", () => {
+      startFoodCourierBroadcastScheduler(io);
       console.log(`HTTP server listening on 0.0.0.0:${port} (all devices on your LAN)`);
       console.log(`  Local:  http://127.0.0.1:${port}/health`);
       const lanIps = [];

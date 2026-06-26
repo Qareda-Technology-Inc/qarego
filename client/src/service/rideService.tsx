@@ -12,12 +12,31 @@ import {
   ACTIVE_RIDER_RIDE_STATUSES,
   isAssignedActiveRide,
   riderIdFromUser,
+  rideAssignedRiderId,
 } from "@/utils/riderRideUtils";
+import {
+  clearSkipActiveRideResume,
+  shouldSkipActiveRideResume,
+} from "@/utils/devRideResume";
 
 const ACTIVE_RIDER_STATUSES = [...ACTIVE_RIDER_RIDE_STATUSES];
 
+function currentRiderId(): string {
+  return riderIdFromUser(useRiderStore.getState().user);
+}
+
+function isRiderLiveTrip(ride: { status?: string; rider?: unknown } | null | undefined): boolean {
+  if (!ride?.status || !ACTIVE_RIDER_STATUSES.includes(ride.status as (typeof ACTIVE_RIDER_RIDE_STATUSES)[number])) {
+    return false;
+  }
+  const riderId = currentRiderId();
+  if (!riderId) return false;
+  return rideAssignedRiderId(ride) === riderId;
+}
+
 export function openAssignedRiderRide(rideId: string) {
   if (!rideId) return;
+  if (shouldSkipActiveRideResume()) return;
   void stopRiderOfferRing();
   emitRiderOfferAccepted();
   resetAndNavigate({
@@ -38,13 +57,14 @@ export function handleAssignedRiderRide(
 }
 
 export const fetchRiderActiveRide = async () => {
+  if (shouldSkipActiveRideResume()) return null;
   if (!tokenStorage.getString("access_token")) return null;
   try {
     const res = await appAxios.get("/ride/rides");
     const rides = res.data?.rides ?? [];
     return (
-      rides.find((ride: { status?: string }) =>
-        ACTIVE_RIDER_STATUSES.includes(ride?.status ?? "")
+      rides.find((ride: { status?: string; rider?: unknown }) =>
+        isRiderLiveTrip(ride)
       ) ?? null
     );
   } catch {
@@ -240,15 +260,17 @@ export const getMyRides = async (isCustomer: boolean = true) => {
     return;
   }
 
+  if (shouldSkipActiveRideResume()) return;
+
   try {
     const res = await appAxios.get(`/ride/rides`);
-    const filterRides = res.data.rides?.filter(
-      (ride: { status?: string }) => ride?.status !== "COMPLETED"
+    const activeRide = res.data.rides?.find((ride: { status?: string; rider?: unknown }) =>
+      isRiderLiveTrip(ride)
     );
-    if (filterRides?.length > 0) {
+    if (activeRide?._id) {
       router.navigate({
         pathname: "/rider/liveride",
-        params: { id: String(filterRides[0]._id) },
+        params: { id: String(activeRide._id) },
       });
     }
   } catch (error: any) {
@@ -279,6 +301,7 @@ export const fetchRiderDispatchAnalytics = async (days = 30) => {
 
 export const acceptRideOffer = async (rideId: string) => {
   try {
+    clearSkipActiveRideResume();
     await stopRiderOfferRing();
     emitRiderOfferAccepted();
     const res = await appAxios.patch(`/ride/accept/${rideId}`);
@@ -297,18 +320,25 @@ export const updateRideStatus = async (
   rideId: string,
   status: string,
   otp?: string
-) => {
+): Promise<{ ok: true; ride: any } | { ok: false; message: string }> => {
   try {
     const res = await appAxios.patch(`/ride/update/${rideId}`, {
       status,
       ...(otp ? { otp } : {}),
     });
-    return true;
+    return { ok: true, ride: res.data?.ride ?? null };
   } catch (error: any) {
-    const message = error?.response?.data?.msg || error?.message || "Could not update ride status.";
-    Alert.alert("Error", message);
-    console.log(error);
-    return false;
+    const message =
+      error?.response?.data?.msg ||
+      error?.response?.data?.message ||
+      error?.message ||
+      "Could not update ride status.";
+    const statusCode = error?.response?.status;
+    if (statusCode && statusCode >= 500) {
+      Alert.alert("Error", message);
+    }
+    console.log("updateRideStatus:", message);
+    return { ok: false, message };
   }
 };
 

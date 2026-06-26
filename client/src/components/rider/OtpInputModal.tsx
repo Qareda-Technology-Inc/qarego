@@ -17,6 +17,7 @@ interface OtpInputModalProps {
   onClose: () => void;
   title: string;
   subtitle?: string;
+  confirmLabel?: string;
   onConfirm: (otp: string) => void;
 }
 
@@ -25,6 +26,7 @@ const OtpInputModal: React.FC<OtpInputModalProps> = ({
   onClose,
   title,
   subtitle = "Ask the customer for the 4-digit OTP shown on their screen to confirm you've arrived.",
+  confirmLabel = "Confirm",
   onConfirm,
 }) => {
   const [otp, setOtp] = useState(["", "", "", ""]);
@@ -99,7 +101,7 @@ const OtpInputModal: React.FC<OtpInputModalProps> = ({
           </View>
 
           <CustomButton
-            title="Confirm arrival"
+            title={confirmLabel}
             onPress={handleConfirm}
             disabled={otp.join("").length !== 4}
           />

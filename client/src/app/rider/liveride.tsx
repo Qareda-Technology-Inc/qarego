@@ -1,5 +1,5 @@
-import { View, Alert, TouchableOpacity, Image } from "react-native";
-import React, { useEffect, useState } from "react";
+import { View, Alert, TouchableOpacity } from "react-native";
+import React, { useEffect, useState, useCallback } from "react";
 import { useRiderStore } from "@/store/riderStore";
 import { useWS } from "@/service/WSProvider";
 import { useRoute } from "@react-navigation/native";
@@ -8,8 +8,8 @@ import { resetAndNavigate } from "@/utils/Helpers";
 import { StatusBar } from "expo-status-bar";
 import { rideStyles } from "@/styles/rideStyles";
 import RiderLiveTracking from "@/components/rider/RiderLiveTracking";
+import RiderDeliveryBanner from "@/components/rider/RiderDeliveryBanner";
 import { updateRideStatus, getRideById } from "@/service/rideService";
-import { isFoodDelivery } from "@/utils/riderRideUtils";
 import CustomText from "@/components/shared/CustomText";
 import RiderActionButton from "@/components/rider/RiderActionButton";
 import OtpInputModal from "@/components/rider/OtpInputModal";
@@ -20,19 +20,26 @@ import { Ionicons } from "@expo/vector-icons";
 import { maskPhone } from "@/utils/maskPhone";
 import { stopRiderOfferRing } from "@/utils/ringSound";
 import { emitRiderOfferAccepted } from "@/utils/riderOfferEvents";
-import { resolveMediaUrl } from "@/service/mediaUpload";
-import { parseRideParcelMode, parcelModeLabels } from "@/utils/parcelMode";
+import { parseRideParcelMode } from "@/utils/parcelMode";
 import {
   getRiderCourierUi,
   getRiderSwipeTitle,
+  getRiderDeliveryPhase,
   getRiderParcelCollectedAlert,
   getRiderParcelDeliveryStartedAlert,
   getRiderParcelOtpSubtitle,
   getRiderParcelOtpError,
 } from "@/utils/riderCourierUi";
-import { getCommerceOrderCopy } from "@/utils/commerceOrderCopy";
+import { riderDeliveryStyles as deliveryStyles } from "@/styles/riderDeliveryStyles";
+import { ACTIVE_RIDER_RIDE_STATUSES } from "@/utils/riderRideUtils";
 
 type OtpPurpose = "pickup" | "delivery";
+
+function hasMapCoords(loc?: { latitude?: unknown; longitude?: unknown } | null) {
+  const lat = Number(loc?.latitude);
+  const lng = Number(loc?.longitude);
+  return Number.isFinite(lat) && Number.isFinite(lng);
+}
 
 const LiveRide = () => {
   const [isOtpModalVisible, setOtpModalVisible] = useState(false);
@@ -54,16 +61,17 @@ const LiveRide = () => {
   const isFood = rideData?.serviceType === "FOOD";
   const isParcel = rideData?.serviceType === "DELIVERY";
   const parcelMode = parseRideParcelMode(rideData);
-  const parcelLabels = parcelModeLabels(parcelMode);
-  const parcelPhotoSrc = rideData?.parcelPhotoUrl
-    ? resolveMediaUrl(rideData.parcelPhotoUrl)
-    : null;
   const canChat =
     rideData?.customer &&
     (rideData?.status === "START" ||
       rideData?.status === "ARRIVED" ||
       rideData?.status === "IN_PROGRESS");
   const courierUi = getRiderCourierUi(rideData);
+  const deliveryPhase = getRiderDeliveryPhase(rideData);
+  const mapReady =
+    rideData &&
+    hasMapCoords(rideData.pickup) &&
+    hasMapCoords(rideData.drop);
 
   useEffect(() => {
     let locationSubscription: any;
@@ -124,18 +132,42 @@ const LiveRide = () => {
     };
   }, [id, setLocation, setOnDuty, emit]);
 
+  const handleDeliveryComplete = useCallback((ride: { status?: string } | null) => {
+    if (!ride || ride.status !== "COMPLETED") return;
+    setOtpModalVisible(false);
+    setRideData(ride);
+    setShowCostPopup(true);
+  }, []);
+
   useEffect(() => {
     if (id) {
       emit("subscribeRide", id);
 
       getRideById(id).then((ride) => {
-        if (ride) setRideData(ride);
+        if (!ride) {
+          resetAndNavigate("/rider/home");
+          return;
+        }
+        if (ride.status === "COMPLETED") {
+          handleDeliveryComplete(ride);
+          return;
+        }
+        if (
+          !ACTIVE_RIDER_RIDE_STATUSES.includes(
+            ride.status as (typeof ACTIVE_RIDER_RIDE_STATUSES)[number]
+          )
+        ) {
+          resetAndNavigate("/rider/home");
+          Alert.alert("Delivery ended", "This trip is no longer active.");
+          return;
+        }
+        setRideData(ride);
       });
 
       on("rideData", (data) => {
         setRideData(data);
         if (data?.status === "COMPLETED") {
-          setShowCostPopup(true);
+          handleDeliveryComplete(data);
         }
       });
 
@@ -146,9 +178,19 @@ const LiveRide = () => {
       });
 
       on("rideUpdate", (data) => {
+        if (
+          data?.status &&
+          !ACTIVE_RIDER_RIDE_STATUSES.includes(
+            data.status as (typeof ACTIVE_RIDER_RIDE_STATUSES)[number]
+          ) &&
+          data?.status !== "COMPLETED"
+        ) {
+          resetAndNavigate("/rider/home");
+          return;
+        }
         setRideData(data);
         if (data?.status === "COMPLETED") {
-          setShowCostPopup(true);
+          handleDeliveryComplete(data);
         }
       });
 
@@ -165,7 +207,7 @@ const LiveRide = () => {
       off("rideCanceled");
       off("error");
     };
-  }, [id, emit, on, off]);
+  }, [id, emit, on, off, handleDeliveryComplete]);
 
   const handleCostPopupClose = () => {
     setShowCostPopup(false);
@@ -176,10 +218,11 @@ const LiveRide = () => {
     <View style={rideStyles.container}>
       <StatusBar style="light" backgroundColor="orange" translucent={false} />
 
-      {rideData && (
+      {mapReady && (
         <>
           <RiderLiveTracking
             status={rideData?.status}
+            vehicle={rideData?.vehicle}
             serviceType={rideData?.serviceType}
             parcelMode={rideData?.parcelMode}
             restaurantName={rideData?.restaurantName}
@@ -201,74 +244,15 @@ const LiveRide = () => {
               heading: location?.heading,
             }}
           />
-          {isParcel && (rideData?.recipientName || parcelPhotoSrc) ? (
-            <View
-              style={{
-                position: "absolute",
-                top: 52,
-                left: 12,
-                right: 12,
-                backgroundColor: "rgba(245, 243, 255, 0.97)",
-                padding: 10,
-                borderRadius: 10,
-                borderWidth: 1,
-                borderColor: "#DDD6FE",
-                zIndex: 5,
-              }}
-            >
-              <CustomText fontFamily="SemiBold" fontSize={12} style={{ color: "#4C1D95" }}>
-                📦 {parcelLabels.riderBadge}
-              </CustomText>
-              {rideData?.recipientName ? (
-                <CustomText fontSize={11} style={{ marginTop: 4, color: "#444" }}>
-                  {parcelMode === "RECEIVE" ? "Customer" : "To"}: {rideData.recipientName}
-                  {rideData?.recipientPhone ? ` · ${rideData.recipientPhone}` : ""}
-                </CustomText>
-              ) : null}
-              {rideData?.parcelDescription ? (
-                <CustomText fontSize={11} numberOfLines={2} style={{ marginTop: 4, color: "#666" }}>
-                  {rideData.parcelDescription}
-                </CustomText>
-              ) : null}
-              {parcelPhotoSrc ? (
-                <Image
-                  source={{ uri: parcelPhotoSrc }}
-                  style={{
-                    width: "100%",
-                    height: 100,
-                    borderRadius: 8,
-                    marginTop: 8,
-                    backgroundColor: "#E2E8F0",
-                  }}
-                  resizeMode="cover"
-                />
-              ) : null}
-            </View>
-          ) : null}
-          {isFoodDelivery(rideData) && rideData?.foodOrderSummary ? (
-            <View
-              style={{
-                position: "absolute",
-                top: 52,
-                left: 12,
-                right: 12,
-                backgroundColor: "rgba(255, 247, 237, 0.95)",
-                padding: 10,
-                borderRadius: 10,
-                borderWidth: 1,
-                borderColor: "#f97316",
-                zIndex: 5,
-              }}
-            >
-              <CustomText fontFamily="SemiBold" fontSize={12} style={{ color: "#c2410c" }}>
-                {getCommerceOrderCopy(rideData?.storeVertical).storeEmoji}{" "}
-                {rideData.restaurantName || getCommerceOrderCopy(rideData?.storeVertical).liveDeliveryFallback}
-              </CustomText>
-              <CustomText fontSize={11} numberOfLines={2} style={{ marginTop: 4, color: "#444" }}>
-                {rideData.foodOrderSummary}
+          {rideData?.status ? (
+            <View style={deliveryStyles.statusPill}>
+              <Ionicons name="navigate" size={14} color="#fff" style={{ marginRight: 6 }} />
+              <CustomText fontSize={12} fontFamily="SemiBold" style={{ color: "#fff" }}>
+                {deliveryPhase.phaseLabel}
               </CustomText>
             </View>
           ) : null}
+          <RiderDeliveryBanner ride={rideData} />
           <SafetyFeatures
             rideId={rideData._id}
             pickup={{
@@ -291,22 +275,10 @@ const LiveRide = () => {
           {canChat && (
             <TouchableOpacity
               onPress={() => setShowChat(true)}
-              style={{
-                position: "absolute",
-                bottom: 100,
-                right: 15,
-                backgroundColor: "#fff",
-                padding: 12,
-                borderRadius: 30,
-                shadowColor: "#000",
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.25,
-                shadowRadius: 3.84,
-                elevation: 5,
-                zIndex: 10,
-              }}
+              style={deliveryStyles.chatFab}
+              activeOpacity={0.85}
             >
-              <Ionicons name="chatbubble-ellipses" size={24} color="#333" />
+              <Ionicons name="chatbubble-ellipses" size={24} color="#0f172a" />
             </TouchableOpacity>
           )}
         </>
@@ -314,7 +286,7 @@ const LiveRide = () => {
 
       <RiderActionButton
         ride={rideData}
-        title={getRiderSwipeTitle(rideData)}
+        title={rideData ? getRiderSwipeTitle(rideData) : "LOADING…"}
         meetLabel={courierUi.meetLabel}
         contactPhone={courierUi.contactPhone}
         pickupLabel={courierUi.pickupLabel}
@@ -322,8 +294,8 @@ const LiveRide = () => {
         onPress={async () => {
           if (rideData?.status === "START") {
             if (isFood || isParcel) {
-              const isSuccess = await updateRideStatus(rideData?._id, "ARRIVED");
-              if (isSuccess) {
+              const result = await updateRideStatus(rideData?._id, "ARRIVED");
+              if (result.ok) {
                 if (isParcel) {
                   const alert = getRiderParcelCollectedAlert(parcelMode);
                   Alert.alert(alert.title, alert.message);
@@ -338,8 +310,8 @@ const LiveRide = () => {
             return;
           }
           if (rideData?.status === "ARRIVED") {
-            const isSuccess = await updateRideStatus(rideData?._id, "IN_PROGRESS");
-            if (isSuccess) {
+            const result = await updateRideStatus(rideData?._id, "IN_PROGRESS");
+            if (result.ok) {
               if (isParcel) {
                 const alert = getRiderParcelDeliveryStartedAlert(parcelMode);
                 Alert.alert(alert.title, alert.message);
@@ -361,9 +333,9 @@ const LiveRide = () => {
               setOtpPurpose("delivery");
               setOtpModalVisible(true);
             } else {
-              const isSuccess = await updateRideStatus(rideData?._id, "COMPLETED");
-              if (isSuccess) {
-                setShowCostPopup(true);
+              const result = await updateRideStatus(rideData?._id, "COMPLETED");
+              if (result.ok) {
+                handleDeliveryComplete(result.ride ?? rideData);
               } else {
                 Alert.alert("There was an error");
               }
@@ -371,15 +343,7 @@ const LiveRide = () => {
             return;
           }
         }}
-        color={
-          rideData?.status === "START"
-            ? "#FF9800"
-            : rideData?.status === "ARRIVED"
-            ? "#4CAF50"
-            : rideData?.status === "IN_PROGRESS"
-            ? "#228B22"
-            : "#228B22"
-        }
+        swipeColor={deliveryPhase.swipeColor}
       />
 
       {isOtpModalVisible && (
@@ -394,36 +358,30 @@ const LiveRide = () => {
                 : "Ask the customer for their 4-digit delivery code shown in the app before handing over the food."
               : undefined
           }
+          confirmLabel={otpPurpose === "delivery" ? "Confirm delivery" : "Confirm arrival"}
           onConfirm={async (otp) => {
             if (otpPurpose === "delivery") {
-              const isSuccess = await updateRideStatus(
-                rideData?._id,
-                "COMPLETED",
-                otp
-              );
-              if (isSuccess) {
-                setOtpModalVisible(false);
-                setShowCostPopup(true);
+              const result = await updateRideStatus(rideData?._id, "COMPLETED", otp);
+              if (result.ok) {
+                handleDeliveryComplete(result.ride ?? { ...rideData, status: "COMPLETED" });
               } else {
                 Alert.alert(
                   "Invalid code",
-                  isParcel
-                    ? getRiderParcelOtpError(parcelMode)
-                    : "Ask the customer for the correct delivery code."
+                  result.message ||
+                    (isParcel
+                      ? getRiderParcelOtpError(parcelMode)
+                      : "Ask the customer for the correct delivery code.")
                 );
               }
               return;
             }
             if (otp === rideData?.otp) {
-              const isSuccess = await updateRideStatus(
-                rideData?._id,
-                "ARRIVED",
-                otp
-              );
-              if (isSuccess) {
+              const result = await updateRideStatus(rideData?._id, "ARRIVED", otp);
+              if (result.ok) {
                 setOtpModalVisible(false);
+                if (result.ride) setRideData(result.ride);
               } else {
-                Alert.alert("Technical Error");
+                Alert.alert("Technical Error", result.message || "Could not verify OTP.");
               }
             } else {
               Alert.alert("Wrong OTP");

@@ -1,16 +1,17 @@
 import {
   View,
-  ScrollView,
   TouchableOpacity,
   Image,
   StyleSheet,
   Platform,
-  KeyboardAvoidingView,
   useWindowDimensions,
+  Alert,
+  Linking,
 } from "react-native";
 import React, { memo, useCallback, useMemo, useState, useEffect } from "react";
 import { useLocalSearchParams } from "expo-router";
 import { useRoute } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useUserStore } from "@/store/userStore";
 import { StatusBar } from "expo-status-bar";
 import { calculateFare, type FareRateStructure } from "@/utils/mapUtils";
@@ -22,16 +23,17 @@ import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import CustomButton from "@/components/shared/CustomButton";
 import { createRide } from "@/service/rideService";
 import { formatCurrency, Colors } from "@/utils/Constants";
-import CustomerLogoutButton from "@/components/customer/CustomerLogoutButton";
 import ParcelRecipientForm from "@/components/customer/ParcelRecipientForm";
 import { RideHomeTheme as T } from "@/styles/rideHomeTheme";
 import { ParcelTheme as P } from "@/styles/parcelTheme";
 import { pickParcelImage } from "@/utils/pickParcelImage";
 import { uploadMediaUri } from "@/service/mediaUpload";
 import { parseParcelMode, parcelModeLabels, type ParcelMode } from "@/utils/parcelMode";
+import BottomSheet, { BottomSheetScrollView } from "@gorhom/bottom-sheet";
 
 const RideBooking = () => {
   const { height: windowHeight } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const route = useRoute() as any;
   const localParams = useLocalSearchParams<{
     serviceType?: string;
@@ -44,6 +46,7 @@ const RideBooking = () => {
     drop_longitude?: string;
     drop_address?: string;
     parcelMode?: string;
+    busyVehicles?: string | string[];
   }>();
   // Params can come from route.state (navigate params) or URL (useLocalSearchParams)
   const item = useMemo(() => {
@@ -64,6 +67,7 @@ const RideBooking = () => {
       drop_longitude: str(merged.drop_longitude) ?? merged.drop_longitude,
       drop_address: str(merged.drop_address) ?? merged.drop_address,
       parcelMode: str(merged.parcelMode) ?? merged.parcelMode,
+      busyVehicles: merged.busyVehicles,
     };
   }, [route?.params, localParams]);
   const { location: storeLocation, user } = useUserStore() as any;
@@ -91,6 +95,20 @@ const RideBooking = () => {
   const [parcelPhotoUrl, setParcelPhotoUrl] = useState<string | null>(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [fareRates, setFareRates] = useState<FareRateStructure | null>(null);
+
+  const busyVehicleSet = useMemo(() => {
+    const raw = (item as { busyVehicles?: unknown })?.busyVehicles;
+    const list = Array.isArray(raw)
+      ? raw
+      : typeof raw === "string"
+        ? raw.split(",")
+        : [];
+    return new Set(
+      list
+        .map((v) => String(v).trim().toLowerCase())
+        .filter(Boolean)
+    );
+  }, [item]);
 
   useEffect(() => {
     if (!isParcelFlow || parcelMode !== "RECEIVE") return;
@@ -129,9 +147,8 @@ const RideBooking = () => {
 
     const calc = (vehicle: "motorcycle" | "pragya" | "comfort") => {
       const baseMinutes = (distanceKm / speedsKmh[vehicle]) * 60;
-      const low = Math.max(1, Math.round(baseMinutes * 0.9));
-      const high = Math.max(low, Math.round(baseMinutes * 1.1));
-      return { baseMinutes, low, high };
+      const eta = Math.max(1, Math.round(baseMinutes));
+      return { baseMinutes, eta };
     };
 
     return {
@@ -170,30 +187,30 @@ const RideBooking = () => {
         type: "Motorcycle" as const,
         vehicle: "motorcycle" as const,
         label: "Motorcycle",
-        detail: "1 seat",
+        detail: "Fast city option",
+        capacity: 1,
         price: farePrices?.motorcycle,
-        etaLow: etaByVehicle?.motorcycle.low,
-        etaHigh: etaByVehicle?.motorcycle.high,
+        eta: etaByVehicle?.motorcycle.eta,
         icon: require("@/assets/icons/bike.png"),
       },
       {
         type: "Pragya" as const,
         vehicle: "pragya" as const,
         label: "Pragya",
-        detail: "3 seats",
+        detail: "Balanced comfort",
+        capacity: 3,
         price: farePrices?.pragya,
-        etaLow: etaByVehicle?.pragya.low,
-        etaHigh: etaByVehicle?.pragya.high,
+        eta: etaByVehicle?.pragya.eta,
         icon: require("@/assets/icons/auto.png"),
       },
       {
         type: "Comfort" as const,
         vehicle: "comfort" as const,
         label: "Car",
-        detail: "4 seats",
+        detail: "Spacious ride",
+        capacity: 4,
         price: farePrices?.comfort,
-        etaLow: etaByVehicle?.comfort.low,
-        etaHigh: etaByVehicle?.comfort.high,
+        eta: etaByVehicle?.comfort.eta,
         icon: require("@/assets/icons/cab.png"),
       },
     ],
@@ -208,8 +225,7 @@ const RideBooking = () => {
         label: "Motorbike courier",
         detail: "Small packages · up to ~5 kg",
         price: farePrices?.motorcycle,
-        etaLow: etaByVehicle?.motorcycle.low,
-        etaHigh: etaByVehicle?.motorcycle.high,
+        eta: etaByVehicle?.motorcycle.eta,
         icon: require("@/assets/icons/bike.png"),
       },
       {
@@ -218,8 +234,7 @@ const RideBooking = () => {
         label: "Tricycle courier",
         detail: "Medium packages · up to ~15 kg",
         price: farePrices?.pragya,
-        etaLow: etaByVehicle?.pragya.low,
-        etaHigh: etaByVehicle?.pragya.high,
+        eta: etaByVehicle?.pragya.eta,
         icon: require("@/assets/icons/auto.png"),
       },
     ],
@@ -231,6 +246,37 @@ const RideBooking = () => {
   const handleOptionSelect = useCallback((type: "Motorcycle" | "Pragya" | "Comfort") => {
     setSelectedOption(type);
   }, []);
+
+  const openExternalRoute = useCallback(() => {
+    if (!pickup || !drop) {
+      Alert.alert("Route unavailable", "Pickup or destination is missing.");
+      return;
+    }
+    const sLat = Number(pickup.latitude);
+    const sLng = Number(pickup.longitude);
+    const dLat = Number(drop.latitude);
+    const dLng = Number(drop.longitude);
+    const googleMapsUrl = Platform.select({
+      ios: `comgooglemaps://?saddr=${sLat},${sLng}&daddr=${dLat},${dLng}&directionsmode=driving`,
+      android: `google.navigation:q=${dLat},${dLng}`,
+    });
+    const appleMapsUrl = `maps://app?saddr=${sLat},${sLng}&daddr=${dLat},${dLng}&dirflg=d`;
+    const webMapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${sLat},${sLng}&destination=${dLat},${dLng}&travelmode=driving`;
+
+    if (Platform.OS === "ios") {
+      Linking.canOpenURL(googleMapsUrl || webMapsUrl)
+        .then((ok) =>
+          ok
+            ? Linking.openURL(googleMapsUrl || webMapsUrl)
+            : Linking.openURL(appleMapsUrl).catch(() => Linking.openURL(webMapsUrl))
+        )
+        .catch(() => Linking.openURL(webMapsUrl));
+      return;
+    }
+    Linking.canOpenURL(googleMapsUrl || webMapsUrl)
+      .then((ok) => Linking.openURL(ok ? (googleMapsUrl || webMapsUrl) : webMapsUrl))
+      .catch(() => Linking.openURL(webMapsUrl));
+  }, [pickup, drop]);
 
   const handlePickParcelPhoto = useCallback(async () => {
     const uri = await pickParcelImage();
@@ -336,19 +382,37 @@ const RideBooking = () => {
       : "Destination";
   const accentColor = serviceType === "DELIVERY" ? P.accent : Colors.primary;
 
-  const sheetHeight = Math.max(windowHeight * 0.56, 380);
+  const sheetSnapPoints = useMemo(() => {
+    const low = Math.max(Math.round(windowHeight * 0.4), 320);
+    const mid = Math.max(Math.round(windowHeight * 0.72), low + 120);
+    const high = Math.max(Math.round(windowHeight * 0.9), mid + 80);
+    return [low, mid, high];
+  }, [windowHeight]);
+  const collapsedSheetHeight = sheetSnapPoints[0];
   const isSmallScreen = windowHeight < 700;
 
   /** Inset map camera so pickup → drop fits in the strip above the bottom sheet */
   const routeMapPadding = useMemo(
     () => ({
-      top: Platform.OS === "android" ? 100 : 108,
-      right: 20,
-      bottom: Math.round(sheetHeight) + 36,
-      left: 20,
+      top: Platform.OS === "android" ? 86 : 94,
+      right: 24,
+      bottom: Math.round(collapsedSheetHeight) + 8,
+      left: 24,
     }),
-    [sheetHeight]
+    [collapsedSheetHeight]
   );
+
+  const openLocationEditor = useCallback(() => {
+    const selectedVehicle = displayOptions.find((o) => o.type === selectedOption)?.vehicle;
+    router.navigate({
+      pathname: "/customer/selectlocations",
+      params: {
+        serviceType,
+        ...(selectedVehicle ? { vehicle: selectedVehicle } : {}),
+        ...(serviceType === "DELIVERY" ? { parcelMode } : {}),
+      },
+    });
+  }, [displayOptions, selectedOption, serviceType, parcelMode]);
 
   return (
     <View style={styles.container}>
@@ -371,7 +435,12 @@ const RideBooking = () => {
         </View>
       ) : null}
 
-      <View style={styles.topNav}>
+      <View
+        style={[
+          styles.topNav,
+          { top: Math.max(insets.top + 8, Platform.OS === "android" ? 46 : 54) },
+        ]}
+      >
         <TouchableOpacity
           style={styles.navCircleBtn}
           onPress={() => router.back()}
@@ -379,25 +448,36 @@ const RideBooking = () => {
         >
           <MaterialIcons name="arrow-back-ios" size={20} color={Colors.text} />
         </TouchableOpacity>
-        {serviceType === "DELIVERY" ? (
-          <CustomerLogoutButton style={styles.navCircleBtn} size={20} />
-        ) : null}
+        <TouchableOpacity style={styles.routeInlinePill} onPress={openLocationEditor} activeOpacity={0.85}>
+          <CustomText fontFamily="SemiBold" fontSize={11} numberOfLines={1} style={styles.routeInlineText}>
+            {pickupShort} → {dropShort}
+          </CustomText>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.navCircleBtn}
+          onPress={openExternalRoute}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="add" size={24} color={Colors.text} />
+        </TouchableOpacity>
       </View>
 
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        style={[styles.sheetWrapper, { height: sheetHeight }]}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
+      <BottomSheet
+        index={0}
+        snapPoints={sheetSnapPoints}
+        enableDynamicSizing={false}
+        enablePanDownToClose={false}
+        keyboardBehavior="extend"
+        keyboardBlurBehavior="restore"
+        handleIndicatorStyle={styles.handle}
+        style={styles.sheetContainer}
+        backgroundStyle={styles.sheetBackground}
       >
-        <View style={[styles.sheet, isSmallScreen && styles.sheetCompact]}>
-          <View style={styles.handle} />
-
-          <ScrollView
-            style={styles.scroll}
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={true}
-            keyboardShouldPersistTaps="handled"
-          >
+        <BottomSheetScrollView
+          contentContainerStyle={[styles.sheetContent, isSmallScreen && styles.sheetContentCompact]}
+          showsVerticalScrollIndicator={true}
+          keyboardShouldPersistTaps="handled"
+        >
             {isParcelFlow ? (
               <View style={styles.parcelSheetHeader}>
                 <View style={styles.parcelSheetIcon}>
@@ -410,59 +490,6 @@ const RideBooking = () => {
                   <CustomText fontSize={13} style={{ color: T.inkMuted, marginTop: 2 }}>
                     {parcelLabels.bookingSubtitle}
                   </CustomText>
-                </View>
-              </View>
-            ) : null}
-
-            <View style={[styles.routeCard, isParcelFlow && styles.routeCardParcel]}>
-              <View style={styles.routeRow}>
-                <View style={[styles.dot, styles.dotGreen]} />
-                <View style={styles.routeLabelWrap}>
-                  <CustomText fontSize={11} fontFamily="Medium" style={styles.routeLabel}>
-                    {isParcelFlow ? parcelLabels.routePickup : "Pickup"}
-                  </CustomText>
-                  <CustomText fontSize={14} numberOfLines={2} style={styles.routeText}>
-                    {pickupShort}
-                  </CustomText>
-                </View>
-              </View>
-              <View style={styles.routeLine} />
-              <View style={styles.routeRow}>
-                <View style={[styles.dot, isParcelFlow ? styles.dotParcel : styles.dotRed]} />
-                <View style={styles.routeLabelWrap}>
-                  <CustomText fontSize={11} fontFamily="Medium" style={styles.routeLabel}>
-                    {isParcelFlow ? parcelLabels.routeDrop : "Destination"}
-                  </CustomText>
-                  <CustomText fontSize={14} numberOfLines={2} style={styles.routeText}>
-                    {dropShort}
-                  </CustomText>
-                </View>
-              </View>
-            </View>
-
-            {!isParcelFlow ? (
-              <View style={styles.section}>
-                <View style={styles.segmentedRow}>
-                  <TouchableOpacity
-                    onPress={() => setServiceType("RIDE")}
-                    style={[styles.segment, serviceType === "RIDE" && styles.segmentActive]}
-                    activeOpacity={0.8}
-                  >
-                    <Ionicons name="car-outline" size={20} color={serviceType === "RIDE" ? Colors.text : "#888"} />
-                    <CustomText fontFamily="SemiBold" fontSize={14} style={{ color: serviceType === "RIDE" ? Colors.text : "#888" }}>
-                      Ride
-                    </CustomText>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={() => setServiceType("DELIVERY")}
-                    style={[styles.segment, serviceType === "DELIVERY" && styles.segmentActive]}
-                    activeOpacity={0.8}
-                  >
-                    <Ionicons name="cube-outline" size={20} color={serviceType === "DELIVERY" ? Colors.text : "#888"} />
-                    <CustomText fontFamily="SemiBold" fontSize={14} style={{ color: serviceType === "DELIVERY" ? Colors.text : "#888" }}>
-                      Parcel
-                    </CustomText>
-                  </TouchableOpacity>
                 </View>
               </View>
             ) : null}
@@ -487,8 +514,8 @@ const RideBooking = () => {
             ) : null}
 
             <View style={styles.section}>
-              <CustomText fontFamily="SemiBold" fontSize={15} style={styles.sectionTitle}>
-                {serviceType === "DELIVERY" ? "Choose courier" : "Compare your options"}
+              <CustomText fontFamily="SemiBold" fontSize={14} style={styles.sectionTitle}>
+                Compare your options
               </CustomText>
               {serviceType === "RIDE" && selectedOption === null ? (
                 <CustomText fontSize={12} color="#888" style={{ marginTop: -6, marginBottom: 12 }}>
@@ -498,41 +525,75 @@ const RideBooking = () => {
               {displayOptions.map((ride) => {
                 const isSelected = selectedOption === ride.type;
                 const isFastest = !isParcelFlow && fastestVehicle && ride.vehicle === fastestVehicle;
+                const isBusy =
+                  busyVehicleSet.has(String(ride.vehicle).toLowerCase()) ||
+                  !Number.isFinite(Number(ride.price)) ||
+                  Number(ride.price) <= 0;
                 return (
                   <TouchableOpacity
                     key={ride.type}
-                    onPress={() => handleOptionSelect(ride.type)}
+                    onPress={() => {
+                      if (!isBusy) handleOptionSelect(ride.type);
+                    }}
                     style={[
                       styles.optionCard,
+                      isBusy && styles.optionCardBusy,
                       isSelected && styles.optionCardSelected,
                       isSelected && serviceType === "DELIVERY" && styles.optionCardParcelSelected,
                     ]}
-                    activeOpacity={0.8}
+                    activeOpacity={isBusy ? 1 : 0.8}
+                    disabled={isBusy}
                   >
-                    {isFastest ? (
-                      <View style={styles.fastestBadge}>
-                        <CustomText fontFamily="SemiBold" fontSize={11} style={styles.fastestBadgeText}>
-                          Fastest
-                        </CustomText>
-                      </View>
-                    ) : null}
                     <Image source={ride.icon} style={styles.optionIcon} />
                     <View style={styles.optionInfo}>
-                      <CustomText fontFamily="SemiBold" fontSize={16}>
+                      <CustomText fontFamily="SemiBold" fontSize={15}>
                         {ride.label}
                       </CustomText>
-                      <CustomText fontSize={13} color="#888">
-                        {ride.detail} · ETA{" "}
-                        {ride.etaLow != null && ride.etaHigh != null ? `${ride.etaLow}–${ride.etaHigh}` : "--"}{" "}
-                        min
-                      </CustomText>
+                      <View style={styles.optionMetaRow}>
+                        {"capacity" in ride && typeof ride.capacity === "number" ? (
+                          <View style={styles.capacityChip}>
+                            <Ionicons name="people-outline" size={13} color="#64748b" />
+                            <CustomText fontSize={11} fontFamily="SemiBold" style={styles.capacityText}>
+                              {ride.capacity}
+                            </CustomText>
+                          </View>
+                        ) : (
+                          <CustomText fontSize={12} color="#888" numberOfLines={1}>
+                            {ride.detail}
+                          </CustomText>
+                        )}
+                        <View style={styles.timeChip}>
+                          <Ionicons name="time-outline" size={13} color="#64748b" />
+                          <CustomText fontSize={11} fontFamily="SemiBold" style={styles.timeText}>
+                            {ride.eta != null ? `${ride.eta} min` : "-- min"}
+                          </CustomText>
+                        </View>
+                        {isBusy ? (
+                          <View style={styles.busyBadge}>
+                            <CustomText fontFamily="SemiBold" fontSize={10} style={styles.busyBadgeText}>
+                              Busy
+                            </CustomText>
+                          </View>
+                        ) : null}
+                      </View>
+                      {isFastest ? (
+                        <View style={styles.optionTagRow}>
+                          <View style={styles.fastestBadgeInline}>
+                            <CustomText fontFamily="SemiBold" fontSize={10} style={styles.fastestBadgeText}>
+                              Fastest
+                            </CustomText>
+                          </View>
+                        </View>
+                      ) : null}
                     </View>
-                    <CustomText fontFamily="Bold" fontSize={18} style={styles.optionPrice}>
-                      {formatCurrency(ride?.price)}
-                    </CustomText>
-                    {isSelected ? (
-                      <Ionicons name="checkmark-circle" size={26} color={accentColor} style={styles.optionCheck} />
-                    ) : null}
+                    <View style={styles.optionRight}>
+                      <CustomText fontFamily="Bold" fontSize={17} style={[styles.optionPrice, isBusy && styles.optionPriceBusy]}>
+                        {isBusy ? "Busy" : formatCurrency(Math.round(Number(ride?.price ?? 0)))}
+                      </CustomText>
+                      {isSelected ? (
+                        <Ionicons name="checkmark-circle" size={24} color={accentColor} style={styles.optionCheck} />
+                      ) : null}
+                    </View>
                   </TouchableOpacity>
                 );
               })}
@@ -540,10 +601,10 @@ const RideBooking = () => {
 
             {/* Payment */}
             <View style={styles.section}>
-              <CustomText fontFamily="SemiBold" fontSize={15} style={styles.sectionTitle}>
+              <CustomText fontFamily="SemiBold" fontSize={14} style={styles.sectionTitle}>
                 Payment
               </CustomText>
-              <View style={styles.paymentRow}>
+              <View style={[styles.paymentRow, isSmallScreen && styles.paymentRowCompact]}>
                 <TouchableOpacity
                   onPress={() => setPaymentMethod("CASH")}
                   style={[
@@ -590,15 +651,20 @@ const RideBooking = () => {
                   !pickup ||
                   !drop ||
                   (serviceType === "RIDE" && selectedOption === null) ||
-                  (serviceType === "DELIVERY" && (!recipientName.trim() || !recipientPhone.trim()))
+                  (serviceType === "DELIVERY" && (!recipientName.trim() || !recipientPhone.trim())) ||
+                  !!(
+                    selectedOption &&
+                    busyVehicleSet.has(
+                      String(displayOptions.find((o) => o.type === selectedOption)?.vehicle || "").toLowerCase()
+                    )
+                  )
                 }
                 loading={loading}
                 onPress={handleRideBooking}
               />
             </View>
-          </ScrollView>
-        </View>
-      </KeyboardAvoidingView>
+        </BottomSheetScrollView>
+      </BottomSheet>
     </View>
   );
 };
@@ -614,11 +680,26 @@ const styles = StyleSheet.create({
   },
   topNav: {
     position: "absolute",
-    top: Platform.OS === "android" ? 48 : 56,
+    top: Platform.OS === "android" ? 46 : 54,
     left: 16,
+    right: 16,
     flexDirection: "row",
+    alignItems: "center",
     gap: 10,
     zIndex: 10,
+  },
+  routeInlinePill: {
+    flex: 1,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    backgroundColor: "rgba(255,255,255,0.96)",
+    justifyContent: "center",
+    paddingHorizontal: 14,
+  },
+  routeInlineText: {
+    color: "#334155",
   },
   navCircleBtn: {
     width: 44,
@@ -633,28 +714,28 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 4,
   },
-  sheetWrapper: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
+  sheetContainer: {
+    zIndex: 12,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
   },
-  sheet: {
-    flex: 1,
+  sheetBackground: {
     backgroundColor: "#fff",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    paddingHorizontal: 24,
-    paddingTop: 14,
-    paddingBottom: Platform.OS === "ios" ? 40 : 28,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.08,
     shadowRadius: 16,
     elevation: 12,
   },
-  sheetCompact: {
-    paddingHorizontal: 20,
+  sheetContent: {
+    paddingHorizontal: 24,
+    paddingTop: 14,
+    paddingBottom: Platform.OS === "ios" ? 40 : 28,
+  },
+  sheetContentCompact: {
+    paddingHorizontal: 16,
     paddingTop: 12,
   },
   handle: {
@@ -664,12 +745,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#e0e0e0",
     alignSelf: "center",
     marginBottom: 20,
-  },
-  scroll: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingBottom: 32,
   },
   parcelSheetHeader: {
     flexDirection: "row",
@@ -731,34 +806,11 @@ const styles = StyleSheet.create({
     color: Colors.text,
   },
   section: {
-    marginBottom: 28,
+    marginBottom: 22,
   },
   sectionTitle: {
     color: Colors.text,
     marginBottom: 14,
-  },
-  segmentedRow: {
-    flexDirection: "row",
-    backgroundColor: "#f0f0f0",
-    borderRadius: 16,
-    padding: 5,
-  },
-  segment: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 10,
-    paddingVertical: 14,
-    borderRadius: 12,
-  },
-  segmentActive: {
-    backgroundColor: "#fff",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 2,
   },
   input: {
     backgroundColor: "#f5f5f5",
@@ -779,7 +831,12 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     borderWidth: 2,
     borderColor: "transparent",
-    position: "relative",
+    minHeight: 86,
+  },
+  optionCardBusy: {
+    opacity: 0.72,
+    backgroundColor: "#f1f5f9",
+    borderColor: "#cbd5e1",
   },
   optionCardSelected: {
     backgroundColor: "#fefce8",
@@ -796,27 +853,80 @@ const styles = StyleSheet.create({
     marginRight: 16,
   },
   optionInfo: { flex: 1 },
+  optionMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 3,
+    marginBottom: 2,
+  },
+  optionTagRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 4,
+  },
+  capacityChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#f1f5f9",
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  capacityText: {
+    color: "#475569",
+  },
+  timeChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#f8fafc",
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  timeText: {
+    color: "#475569",
+  },
+  optionRight: {
+    alignItems: "flex-end",
+    justifyContent: "center",
+    marginLeft: 10,
+  },
   optionPrice: {
     color: Colors.text,
-    marginRight: 10,
+    marginRight: 0,
   },
-  optionCheck: { marginLeft: 4 },
-  fastestBadge: {
-    position: "absolute",
-    right: 14,
-    top: 10,
+  optionPriceBusy: {
+    color: "#64748b",
+  },
+  optionCheck: { marginTop: 4 },
+  fastestBadgeInline: {
     backgroundColor: Colors.primary,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
     borderRadius: 999,
-    zIndex: 2,
   },
   fastestBadgeText: {
     color: "#fff",
   },
+  busyBadge: {
+    backgroundColor: "#e2e8f0",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+  },
+  busyBadgeText: {
+    color: "#475569",
+  },
   paymentRow: {
     flexDirection: "row",
     gap: 14,
+  },
+  paymentRowCompact: {
+    flexDirection: "column",
+    gap: 10,
   },
   paymentOption: {
     flex: 1,
@@ -840,6 +950,7 @@ const styles = StyleSheet.create({
   },
   ctaWrap: {
     marginTop: 12,
+    marginBottom: 8,
   },
 });
 

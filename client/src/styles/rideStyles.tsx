@@ -116,6 +116,7 @@ export const rideStyles = StyleSheet.create({
         borderBottomWidth: 2,
         borderColor: "#ddd",
         flexDirection: 'row',
+        alignItems: 'center',
         justifyContent: 'space-between',
         padding: 10
     },
@@ -170,6 +171,10 @@ export const rideStyles = StyleSheet.create({
         borderTopRightRadius: 20,
     },
     swipeableContaninerRider: {
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        bottom: 0,
         width: '100%',
         padding: 10,
         backgroundColor: '#fff',
@@ -181,6 +186,7 @@ export const rideStyles = StyleSheet.create({
         elevation: 10,
         borderTopLeftRadius: 20,
         borderTopRightRadius: 20,
+        zIndex: 10,
     },
     swipeButtonContainer: {
         borderRadius: 2,

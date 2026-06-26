@@ -29,7 +29,7 @@ import StoreTypeFilterRow, {
 } from "@/components/customer/food/StoreTypeFilterRow";
 import DeliverToBar from "@/components/customer/food/DeliverToBar";
 import CuisineCarousel from "@/components/customer/food/CuisineCarousel";
-import { COMMERCE_SEARCH_HINT, FOOD_THEME } from "@/styles/foodStyles";
+import { COMMERCE_SEARCH_HINT, FOOD_THEME, GRID_CARD_WIDTH, GRID_H_PAD } from "@/styles/foodStyles";
 import CommerceModuleLinks from "@/components/customer/food/CommerceModuleLinks";
 import CommerceTopBar from "@/components/customer/food/CommerceTopBar";
 import EmptyStateCard from "@/components/shared/EmptyStateCard";
@@ -253,8 +253,9 @@ const AllStoresBrowse = () => {
           keyExtractor={(item) => item._id}
           numColumns={2}
           columnWrapperStyle={styles.gridRow}
+          contentContainerStyle={{ paddingBottom: tabBarHeight + 16, paddingHorizontal: GRID_H_PAD }}
           renderItem={({ item }) => (
-            <View style={styles.gridItemWrap}>
+            <View style={styles.gridCell}>
               <RestaurantCard
                 restaurant={item}
                 variant="grid"
@@ -264,7 +265,6 @@ const AllStoresBrowse = () => {
             </View>
           )}
           ListHeaderComponent={ListHeader}
-          contentContainerStyle={{ paddingBottom: tabBarHeight + 16 }}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
@@ -369,9 +369,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     backgroundColor: "#fff",
   },
-  gridRow: { paddingHorizontal: 16, gap: 12 },
-  gridItemWrap: { flex: 1, minWidth: 0 },
   loadingWrap: { flex: 1, alignItems: "center", justifyContent: "center" },
+  gridRow: { justifyContent: "space-between", marginBottom: 14 },
+  gridCell: { width: GRID_CARD_WIDTH },
   empty: { alignItems: "center", paddingVertical: 48, paddingHorizontal: 32 },
   resetBtn: { marginTop: 20, paddingVertical: 10, paddingHorizontal: 20 },
 });

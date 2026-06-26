@@ -22,13 +22,26 @@ import { useRiderDrawer } from "@/context/RiderDrawerContext";
 import { tokenStorage } from "@/store/storage";
 import { DS } from "@/theme/designSystem";
 import { formatActiveModeLabel, getEffectivePreferencesFromUser } from "@/utils/riderServiceSettings";
+import {
+  canCourierGoOnDuty,
+  getDriverAccountStatus,
+} from "@/utils/driverProfileAccess";
 
-const TOGGLE_BUSY_MAX_MS = 14_000;
+const TOGGLE_BUSY_MAX_MS = 28_000;
+
+function hasStoredRiderCoords(location: ReturnType<typeof useRiderStore.getState>["location"]) {
+  return (
+    location?.latitude != null &&
+    location?.longitude != null &&
+    Number.isFinite(location.latitude) &&
+    Number.isFinite(location.longitude)
+  );
+}
 
 const RiderHeader = () => {
   const { user, onDuty, setOnDuty, setLocation } = useRiderStore();
   const activeModeLabel = formatActiveModeLabel(getEffectivePreferencesFromUser(user));
-  const { emit } = useWS();
+  const { emit, on, off } = useWS();
   const { openDrawer } = useRiderDrawer();
   const [riderAmount, setRiderAmount] = useState<number | null>(null);
   const [restoredDutySynced, setRestoredDutySynced] = useState(false);
@@ -57,13 +70,13 @@ const RiderHeader = () => {
   const goOnDutyWithCoords = useCallback(
     (latitude: number, longitude: number, heading?: number) => {
       const h = (heading ?? 0) as number;
-      setOnDuty(true);
       setLocation({
         latitude,
         longitude,
         address: "Somewhere",
         heading: h,
       });
+      setOnDuty(true);
       emit("goOnDuty", { latitude, longitude, heading: h });
       appAxios.patch("/ride/rider-status", { isOnline: true }).catch(() => {});
     },
@@ -80,15 +93,25 @@ const RiderHeader = () => {
       return;
     }
 
+    if (!canCourierGoOnDuty(user)) {
+      const status = getDriverAccountStatus(user);
+      Alert.alert(
+        "Cannot go on duty",
+        status === "suspended_debt"
+          ? "Clear your commission balance before going on duty."
+          : status === "pending"
+            ? "Your account is pending admin approval. Complete your profile and wait for activation."
+            : "Your driver account is not active. Contact admin."
+      );
+      return;
+    }
+
     toggleBusyRef.current = true;
     setToggleBusy(true);
     const safetyTimer = setTimeout(clearToggleBusy, TOGGLE_BUSY_MAX_MS);
 
     try {
-      const result = await getCurrentLocationAsync({
-        preferLastKnown: true,
-        timeoutMs: 10_000,
-      });
+      const result = await getCurrentLocationAsync();
       if (!result.ok) {
         Alert.alert(
           "Location unavailable",
@@ -113,32 +136,63 @@ const RiderHeader = () => {
     if (!onDuty || restoredDutySynced) return;
     let cancelled = false;
     (async () => {
-      const result = await getCurrentLocationAsync({
-        preferLastKnown: true,
-        timeoutMs: 10_000,
-      });
-      if (!result.ok || cancelled) {
-        if (!cancelled && !result.ok) {
-          setOnDuty(false);
-          emit("goOffDuty");
+      const stored = useRiderStore.getState().location;
+      let latitude = stored?.latitude;
+      let longitude = stored?.longitude;
+      let heading = stored?.heading;
+
+      if (!hasStoredRiderCoords(stored)) {
+        const result = await getCurrentLocationAsync();
+        if (!result.ok || cancelled) {
+          if (!cancelled && !result.ok) {
+            setOnDuty(false);
+            emit("goOffDuty");
+            appAxios.patch("/ride/rider-status", { isOnline: false }).catch(() => {});
+          }
+          return;
         }
-        return;
+        latitude = result.latitude;
+        longitude = result.longitude;
+        heading = result.heading;
+        setLocation({
+          latitude,
+          longitude,
+          address: "Somewhere",
+          heading: (heading ?? 0) as number,
+        });
       }
-      const { latitude, longitude, heading } = result;
-      emit("goOnDuty", { latitude, longitude, heading: heading ?? 0 });
-      appAxios.patch("/ride/rider-status", { isOnline: true }).catch(() => {});
-      setLocation({
-        latitude,
-        longitude,
-        address: "Somewhere",
-        heading: (heading ?? 0) as number,
+
+      emit("goOnDuty", {
+        latitude: latitude!,
+        longitude: longitude!,
+        heading: heading ?? 0,
       });
+      appAxios.patch("/ride/rider-status", { isOnline: true }).catch(() => {});
       if (!cancelled) setRestoredDutySynced(true);
     })();
     return () => {
       cancelled = true;
     };
   }, [onDuty, restoredDutySynced, emit, setLocation, setOnDuty]);
+
+  useEffect(() => {
+    const onSocketError = (payload: { message?: string }) => {
+      const msg = payload?.message ?? "";
+      if (
+        !msg.includes("not active") &&
+        !msg.includes("balance") &&
+        !msg.toLowerCase().includes("on duty")
+      ) {
+        return;
+      }
+      setOnDuty(false);
+      emit("goOffDuty");
+      appAxios.patch("/ride/rider-status", { isOnline: false }).catch(() => {});
+      Alert.alert("Cannot go on duty", msg);
+    };
+    on("error", onSocketError);
+    return () => off("error", onSocketError);
+  }, [emit, on, off, setOnDuty]);
 
   useEffect(() => {
     if (!onDuty) setRestoredDutySynced(false);

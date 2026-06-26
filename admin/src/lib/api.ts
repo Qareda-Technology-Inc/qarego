@@ -1,16 +1,13 @@
 /**
- * Browser always uses same-origin proxy: /api → backend (next.config.ts rewrites).
- * Do NOT use NEXT_PUBLIC_* for client URLs (gets baked into old builds as :5000).
+ * Browser uses same-origin /api proxy (next.config.ts rewrites).
  */
+import { resolveApiOrigin } from "@/lib/appEnvironment";
+
 export function getApiBaseUrl(): string {
   if (typeof window !== "undefined") {
     return `${window.location.origin}/api`;
   }
-  const target =
-    process.env.API_PROXY_TARGET ||
-    process.env.NEXT_PUBLIC_API_URL ||
-    "http://127.0.0.1:2026";
-  return String(target).replace(/\/$/, "");
+  return resolveApiOrigin();
 }
 
 /** Call when API returns 401 and we had a token – clears session and redirects to login */
@@ -52,7 +49,7 @@ export async function fetcher(url: string, options: RequestInit = {}) {
   return res.json();
 }
 
-/** Multipart upload — prefers direct API port for large files when not on localhost proxy. */
+/** Multipart upload — local dev hits :2026; production uses cloud API origin. */
 export async function uploadToApi(
   path: string,
   formData: FormData,
@@ -62,14 +59,10 @@ export async function uploadToApi(
   if (typeof window !== "undefined") {
     const { protocol, hostname } = window.location;
     const onLoopback = hostname === "localhost" || hostname === "127.0.0.1";
-    const envUrl = (
-      process.env.NEXT_PUBLIC_API_BASE_URL ||
-      process.env.NEXT_PUBLIC_SOCKET_URL
-    )?.trim();
     if (!onLoopback) {
       base = `${protocol}//${hostname}:2026`;
-    } else if (envUrl) {
-      base = envUrl.replace(/\/$/, "");
+    } else {
+      base = resolveApiOrigin();
     }
   }
   const url = `${base}${path}`;

@@ -6,6 +6,7 @@
 import { Vibration } from "react-native";
 import { requireOptionalNativeModule } from "expo-modules-core";
 import { appAxios } from "@/service/apiInterceptors";
+import { ensureApiBaseUrl, getApiBaseUrl } from "@/service/config";
 
 type ExpoAVModule = {
   Audio: {
@@ -76,6 +77,38 @@ let offerSound: {
 let startingRing = false;
 let vibrationInterval: ReturnType<typeof setInterval> | null = null;
 
+function isLoopbackHost(host: string): boolean {
+  return host === "localhost" || host === "127.0.0.1" || host === "10.0.2.2";
+}
+
+/**
+ * Backend may return media URLs with localhost which ExoPlayer cannot always resolve
+ * the same way as appAxios on Android. Re-anchor to current API origin when needed.
+ */
+function normalizeRiderAlertUrl(rawUrl: string | null): string | null {
+  if (!rawUrl) return null;
+  const apiBase = getApiBaseUrl();
+  if (!apiBase) return rawUrl;
+  try {
+    const parsed = new URL(rawUrl);
+    const api = new URL(apiBase);
+
+    if (isLoopbackHost(parsed.hostname) || parsed.hostname !== api.hostname) {
+      parsed.protocol = api.protocol;
+      parsed.hostname = api.hostname;
+      parsed.port = api.port;
+      return parsed.toString();
+    }
+    return rawUrl;
+  } catch {
+    // Relative path fallback
+    if (rawUrl.startsWith("/")) {
+      return `${apiBase.replace(/\/$/, "")}${rawUrl}`;
+    }
+    return rawUrl;
+  }
+}
+
 function stopVibrationFallback(): void {
   if (vibrationInterval) {
     clearInterval(vibrationInterval);
@@ -100,11 +133,12 @@ function startVibrationFallback(): void {
 export async function loadRiderAlertSoundUrl(): Promise<string | null> {
   if (cachedSoundUrl) return cachedSoundUrl;
   if (!soundUrlPromise) {
+    await ensureApiBaseUrl();
     soundUrlPromise = appAxios
       .get("/ride/rider-alert-sound")
       .then((res) => {
-        cachedSoundUrl =
-          typeof res.data?.url === "string" ? res.data.url : null;
+        const serverUrl = typeof res.data?.url === "string" ? res.data.url : null;
+        cachedSoundUrl = normalizeRiderAlertUrl(serverUrl);
         return cachedSoundUrl;
       })
       .catch(() => {

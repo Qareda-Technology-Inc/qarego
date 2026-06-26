@@ -1,4 +1,4 @@
-import { View, Text, ActivityIndicator, TouchableOpacity } from "react-native";
+import { View, ActivityIndicator, TouchableOpacity, StyleSheet } from "react-native";
 import React, { FC } from "react";
 import { useWS } from "@/service/WSProvider";
 import { rideStyles } from "@/styles/rideStyles";
@@ -10,7 +10,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { formatCurrency } from "@/utils/Constants";
 import { parseRideParcelMode, parcelModeLabels } from "@/utils/parcelMode";
-import { getCustomerRouteLabels } from "@/utils/customerCourierUi";
+import { getCustomerParcelPhase, getCustomerRouteLabels } from "@/utils/customerCourierUi";
 
 interface RideItem {
   serviceType?: "RIDE" | "DELIVERY" | "FOOD";
@@ -29,6 +29,7 @@ const SearchingRideSheet: FC<{ item: RideItem }> = ({ item }) => {
   const parcelMode = parseRideParcelMode(item);
   const parcelLabels = parcelModeLabels(parcelMode);
   const routeLabels = getCustomerRouteLabels(item);
+  const parcelPhase = getCustomerParcelPhase(parcelMode, "START", item?.recipientName);
 
   return (
     <View>
@@ -39,6 +40,13 @@ const SearchingRideSheet: FC<{ item: RideItem }> = ({ item }) => {
             style={rideStyles?.rideIcon}
           />
           <View style={{ marginLeft: 10 }}>
+            {isParcel ? (
+              <View style={[styles.phaseChip, { backgroundColor: `${parcelPhase.color}1a` }]}>
+                <CustomText fontSize={10} fontFamily="SemiBold" style={{ color: parcelPhase.color }}>
+                  Step {parcelPhase.step} of {parcelPhase.totalSteps}
+                </CustomText>
+              </View>
+            ) : null}
             <CustomText fontSize={10}>
               {isParcel ? "Finding a courier" : "Looking for your"}
             </CustomText>
@@ -64,12 +72,7 @@ const SearchingRideSheet: FC<{ item: RideItem }> = ({ item }) => {
           </CustomText>
         ) : null}
 
-        <View
-          style={[
-            commonStyles?.flexRowGap,
-            { marginVertical: 15, width: "90%" },
-          ]}
-        >
+        <View style={[commonStyles?.flexRowGap, styles.routeRow]}>
           <Image
             source={require("@/assets/icons/marker.png")}
             style={rideStyles?.pinIcon}
@@ -86,7 +89,7 @@ const SearchingRideSheet: FC<{ item: RideItem }> = ({ item }) => {
           </View>
         </View>
 
-        <View style={[commonStyles.flexRowGap, { width: "90%" }]}>
+        <View style={[commonStyles.flexRowGap, styles.routeRow]}>
           <Image
             source={require("@/assets/icons/drop_marker.png")}
             style={rideStyles.pinIcon}
@@ -152,3 +155,17 @@ const SearchingRideSheet: FC<{ item: RideItem }> = ({ item }) => {
 };
 
 export default SearchingRideSheet;
+
+const styles = StyleSheet.create({
+  phaseChip: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 20,
+    marginBottom: 6,
+  },
+  routeRow: {
+    marginTop: 14,
+    width: "90%",
+  },
+});

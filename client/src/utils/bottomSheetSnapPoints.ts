@@ -1,6 +1,15 @@
 import { Platform } from "react-native";
 
 /** Pixel snap points — safe once window height is known (avoids % parse races in gorhom v5). */
+export function buildFoodOrderSnapPoints(windowHeight: number): number[] {
+  if (windowHeight < 100) return [200, 380];
+  const collapsed = Platform.OS === "ios" ? 0.28 : 0.24;
+  const expanded = Platform.OS === "ios" ? 0.52 : 0.46;
+  const low = Math.max(160, Math.round(windowHeight * collapsed));
+  const high = Math.max(low + 100, Math.round(windowHeight * expanded));
+  return [low, high];
+}
+
 export function buildLiveRideSnapPoints(windowHeight: number): number[] {
   if (windowHeight < 100) return [180, 360];
   const collapsed = Platform.OS === "ios" ? 0.2 : 0.12;

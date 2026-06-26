@@ -48,7 +48,7 @@ import {
 } from "@/utils/ensureDeliveryLocation";
 
 const NAV_H = 48;
-const HERO_BODY = 248;
+const HERO_BODY = 196;
 const STICKY_TABS_H = 50;
 /** Scroll until hero image is fully gone */
 const COLLAPSE = HERO_BODY;
@@ -357,7 +357,7 @@ const RestaurantMenu = () => {
 
       return (
         <View key={`${selectedCategory}-${cat.name}`} style={styles.section}>
-          <CustomText fontFamily="SemiBold" fontSize={17} style={styles.categoryTitle}>
+          <CustomText fontFamily="Bold" fontSize={18} style={styles.categoryTitle}>
             {cat.name}
           </CustomText>
           {layout === "row" ? (
@@ -368,7 +368,7 @@ const RestaurantMenu = () => {
               onAdd={handleAdd}
             />
           ) : (
-            <View style={styles.columnGrid}>
+            <View style={styles.columnList}>
               {items.map((item) => (
                 <MenuItemCard
                   key={item._id}
@@ -669,9 +669,9 @@ const styles = StyleSheet.create({
   },
   heroEmoji: {
     position: "absolute",
-    right: -8,
-    top: 56,
-    fontSize: 150,
+    right: -4,
+    top: 48,
+    fontSize: 96,
     opacity: 0.88,
   },
   heroScrim: {
@@ -724,12 +724,9 @@ const styles = StyleSheet.create({
     color: Colors.text,
     paddingTop: 12,
     paddingBottom: 10,
+    lineHeight: 22,
   },
-  columnGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-  },
+  columnList: {},
   emptyMenu: {
     margin: 16,
     padding: 24,
