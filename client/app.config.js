@@ -44,6 +44,7 @@ module.exports = {
     },
     infoPlist: {
       ...appJson.expo.ios?.infoPlist,
+      ITSAppUsesNonExemptEncryption: false,
       NSBonjourServices: ["_expo._tcp"],
     },
   },
