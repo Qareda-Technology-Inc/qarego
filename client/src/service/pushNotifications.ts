@@ -1,6 +1,7 @@
 import { Platform } from "react-native";
 import { requireOptionalNativeModule } from "expo-modules-core";
 import * as Device from "expo-device";
+import Constants from "expo-constants";
 import { appAxios } from "./apiInterceptors";
 import { tokenStorage } from "@/store/storage";
 
@@ -120,27 +121,45 @@ export async function registerForPushNotifications(): Promise<string | null> {
       });
     }
 
-    const deviceToken = await Notifications.getDevicePushTokenAsync();
-    const fcmToken = deviceToken?.data;
-    if (!fcmToken) {
-      throw new Error("FCM token was empty");
+    let token: string | null = null;
+    let provider: "fcm" | "expo" = "fcm";
+
+    if (Platform.OS === "ios") {
+      const projectId =
+        Constants.expoConfig?.extra?.eas?.projectId ||
+        (Constants as unknown as { easConfig?: { projectId?: string } }).easConfig?.projectId;
+      const expoToken = await Notifications.getExpoPushTokenAsync(
+        projectId ? { projectId } : undefined
+      );
+      token = expoToken?.data ?? null;
+      provider = "expo";
+      if (!token) {
+        throw new Error("Expo push token was empty");
+      }
+    } else {
+      const deviceToken = await Notifications.getDevicePushTokenAsync();
+      token = deviceToken?.data ?? null;
+      provider = "fcm";
+      if (!token) {
+        throw new Error("FCM token was empty");
+      }
     }
 
     const { data } = await appAxios.post<{
       firebaseConfigured?: boolean;
     }>("/notifications/register-token", {
-      token: fcmToken,
-      provider: "fcm",
+      token,
+      provider,
       platform: Platform.OS,
     });
 
     if (__DEV__) {
       console.log(
-        `[push] FCM registered firebase=${data?.firebaseConfigured ?? "?"} emulator=${!Device.isDevice}`
+        `[push] token registered provider=${provider} firebase=${data?.firebaseConfigured ?? "?"} emulator=${!Device.isDevice}`
       );
     }
 
-    return fcmToken;
+    return token;
   } catch {
     return null;
   }

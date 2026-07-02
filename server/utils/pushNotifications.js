@@ -7,7 +7,33 @@ import { getCommerceOrderCopy, resolveOrderVertical } from "./commerceOrderCopy.
 export async function sendPushToUserId(userId, payload) {
   if (!userId || !payload) return [];
   const user = await User.findById(userId).select("pushTokens").lean();
-  return sendPushToUserTokens(user?.pushTokens || [], payload);
+  const tokens = user?.pushTokens || [];
+  const results = await sendPushToUserTokens(tokens, payload);
+
+  const invalidTokens = results
+    .filter((row) => {
+      const result = row?.result;
+      if (!result || result.ok) return false;
+      const reason = String(result.reason || "").toLowerCase();
+      const error = String(result.error || "").toLowerCase();
+      return (
+        reason.includes("invalid-registration-token") ||
+        reason.includes("registration-token-not-registered") ||
+        error.includes("not a valid fcm registration token") ||
+        error.includes("requested entity was not found")
+      );
+    })
+    .map((row) => row.token)
+    .filter(Boolean);
+
+  if (invalidTokens.length) {
+    await User.updateOne(
+      { _id: userId },
+      { $pull: { pushTokens: { token: { $in: invalidTokens } } } }
+    );
+  }
+
+  return results;
 }
 
 function formatFare(ride) {
