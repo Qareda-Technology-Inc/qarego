@@ -24,7 +24,7 @@ import webhooksRouter from './routes/webhooks.js';
 import mediaRouter from './routes/media.js';
 import notificationsRouter from './routes/notifications.js';
 import { initCloudinary, isCloudinaryConfigured } from './utils/cloudinary.js';
-import { isFirebaseConfigured } from './utils/firebaseAdmin.js';
+import { getFirebaseConfigSource, isFirebaseConfigured } from './utils/firebaseAdmin.js';
 import { clearDemoFoodSeed } from './seedFood.js';
 import { ensureDefaultStoreTypes } from './utils/commerceStoreTypes.js';
 import { startFoodCourierBroadcastScheduler } from './utils/foodCourierBroadcastScheduler.js';
@@ -57,9 +57,31 @@ if (isCloudinaryConfigured()) {
 }
 
 if (isFirebaseConfigured()) {
-  console.log('[push] Firebase Cloud Messaging enabled');
+  const firebaseSource = getFirebaseConfigSource();
+  const sourceLabel =
+    firebaseSource === "json_path"
+      ? "JSON var -> file path"
+      : firebaseSource === "json"
+      ? "JSON var"
+      : firebaseSource === "path"
+      ? "PATH var"
+      : "unknown";
+  console.log(`[push] Firebase Cloud Messaging enabled (${sourceLabel})`);
 } else {
-  console.log('[push] Firebase not configured — set FIREBASE_SERVICE_ACCOUNT_JSON or FIREBASE_SERVICE_ACCOUNT_PATH in server/.env');
+  const firebaseSource = getFirebaseConfigSource();
+  if (firebaseSource === "invalid_json") {
+    console.log(
+      "[push] Firebase config invalid — FIREBASE_SERVICE_ACCOUNT_JSON is neither valid JSON nor a readable file path"
+    );
+  } else if (firebaseSource === "missing_path_file") {
+    console.log(
+      "[push] Firebase config invalid — FIREBASE_SERVICE_ACCOUNT_PATH does not point to an existing file"
+    );
+  } else {
+    console.log(
+      "[push] Firebase not configured — set FIREBASE_SERVICE_ACCOUNT_JSON or FIREBASE_SERVICE_ACCOUNT_PATH in server/.env"
+    );
+  }
 }
 
 EventEmitter.defaultMaxListeners = 20;
