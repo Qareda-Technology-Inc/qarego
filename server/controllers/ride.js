@@ -355,16 +355,31 @@ export const updateRideStatus = async (req, res) => {
     const isFood = ride.serviceType === "FOOD";
     const isParcel = ride.serviceType === "DELIVERY";
     const current = ride.status;
+    const invalidTransition = () =>
+      new BadRequestError(
+        `Invalid status transition (${ride.serviceType || "RIDE"}): ${current} -> ${status}`
+      );
+
+    // Idempotent status updates: mobile retries / duplicate actions should not fail.
+    if (status === current) {
+      if (req.io) {
+        req.io.to(`ride_${rideId}`).emit("rideUpdate", ride);
+      }
+      return res.status(StatusCodes.OK).json({
+        message: `Ride status already ${status}`,
+        ride,
+      });
+    }
 
     if (isFood) {
       if (status === "ARRIVED" && current !== "START") {
-        throw new BadRequestError("Invalid status transition");
+        throw invalidTransition();
       }
       if (status === "IN_PROGRESS" && current !== "ARRIVED") {
-        throw new BadRequestError("Invalid status transition");
+        throw invalidTransition();
       }
       if (status === "COMPLETED" && current !== "IN_PROGRESS") {
-        throw new BadRequestError("Invalid status transition");
+        throw invalidTransition();
       }
       if (status === "COMPLETED") {
         if (!otp || String(otp) !== String(ride.otp)) {

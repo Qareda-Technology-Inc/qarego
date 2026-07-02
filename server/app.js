@@ -103,8 +103,15 @@ app.use(express.json());
 
 const server = http.createServer(app);
 
-// Avoid process crash on aborted polling connections (Node 20+ / socket.io clients)
+// Handle malformed/aborted HTTP connections defensively.
 server.on("clientError", (err, socket) => {
+  if (process.env.NODE_ENV !== "production") {
+    console.warn("[http] clientError:", err?.message || err);
+  }
+  if (socket && typeof socket.end === "function" && socket.writable) {
+    socket.end("HTTP/1.1 400 Bad Request\r\n\r\n");
+    return;
+  }
   if (socket && typeof socket.destroy === "function" && !socket.destroyed) {
     socket.destroy();
   }
@@ -118,6 +125,14 @@ app.set('io', io);
 // Attach the WebSocket instance to the request object
 app.use((req, res, next) => {
   req.io = io;
+  // Node can emit request-stream errors on abrupt disconnects.
+  // Attach listeners so they do not bubble as unhandled exceptions.
+  req.on("error", (err) => {
+    console.warn("[http] request stream error:", err?.message || err);
+  });
+  res.on("error", (err) => {
+    console.warn("[http] response stream error:", err?.message || err);
+  });
   return next();
 });
 
