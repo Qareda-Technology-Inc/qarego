@@ -28,22 +28,32 @@ export const registerPushToken = async (req, res) => {
 
   if (!user.pushTokens) user.pushTokens = [];
 
-  const existing = user.pushTokens.findIndex(
-    (t) => t.token === token || (t.provider === prov && t.platform === platform)
-  );
+  const normalizedPlatform = platform || "unknown";
+  const normalizedToken = String(token).trim();
+
+  // Keep one active token per provider+platform and drop duplicates/stale entries.
+  user.pushTokens = user.pushTokens.filter((t) => {
+    if (!t?.token) return false;
+    if (t.token === normalizedToken) return false; // dedupe exact token
+    if (
+      normalizedPlatform !== "unknown" &&
+      t.platform === normalizedPlatform &&
+      t.provider !== prov
+    ) {
+      // Token provider switched on this device/platform (e.g. iOS fcm -> expo).
+      return false;
+    }
+    return true;
+  });
 
   const entry = {
-    token,
+    token: normalizedToken,
     provider: prov,
-    platform: platform || "unknown",
+    platform: normalizedPlatform,
     updatedAt: new Date(),
   };
 
-  if (existing >= 0) {
-    user.pushTokens[existing] = entry;
-  } else {
-    user.pushTokens.push(entry);
-  }
+  user.pushTokens.push(entry);
 
   // Keep last 5 tokens per user
   if (user.pushTokens.length > 5) {
