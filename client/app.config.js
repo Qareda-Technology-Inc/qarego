@@ -1,5 +1,5 @@
 /** Dynamic Expo config — injects .env into native Google Maps keys + dev-client plugin. */
-const appJson = require("./app.json");
+const appJson = require("./app.base.json");
 const fs = require("fs");
 const path = require("path");
 
