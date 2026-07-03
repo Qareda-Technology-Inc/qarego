@@ -9,6 +9,7 @@ import {
   MapPin, 
   Settings, 
   FileText,
+  Banknote,
   BarChart3,
   UtensilsCrossed,
   Store,
@@ -31,6 +32,7 @@ const navigation = [
   { name: 'Store types', href: '/store-types', icon: Tags },
   { name: 'Food orders', href: '/food-orders', icon: UtensilsCrossed },
   { name: 'Finance', href: '/finance', icon: FileText },
+  { name: 'Food payments', href: '/finance/food-payments', icon: Banknote },
   { name: 'Push notifications', href: '/notifications', icon: Bell },
   { name: 'Settings', href: '/settings', icon: Settings },
 ];

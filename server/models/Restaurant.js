@@ -41,6 +41,13 @@ const restaurantSchema = new Schema(
     owner: { type: Schema.Types.ObjectId, ref: "User", default: null },
     /** Vendor can pause accepting new orders without going inactive platform-wide */
     isAcceptingOrders: { type: Boolean, default: true },
+    /** Merchant instant settlement destination (QareGO collect -> Hubtel send). */
+    payoutConfig: {
+      instantPayoutEnabled: { type: Boolean, default: false },
+      recipientName: { type: String, default: null },
+      recipientMsisdn: { type: String, default: null },
+      channel: { type: String, default: 'mtn-gh' },
+    },
     /** Customer can collect orders in-store (no delivery fee) */
     allowsPickup: { type: Boolean, default: false },
     /**

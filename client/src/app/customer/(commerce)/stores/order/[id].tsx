@@ -14,8 +14,16 @@ import BottomSheet, { BottomSheetScrollView } from "@gorhom/bottom-sheet";
 import { useIsFocused } from "@react-navigation/native";
 import CustomText from "@/components/shared/CustomText";
 import CustomButton from "@/components/shared/CustomButton";
+import HubtelCheckoutModal from "@/components/shared/HubtelCheckoutModal";
+import { useMessage } from "@/context/MessageContext";
 import { formatCurrency } from "@/utils/Constants";
-import { fetchFoodOrder, FoodOrder } from "@/service/foodService";
+import {
+  fetchFoodOrder,
+  fetchFoodOrderPaymentStatus,
+  FoodOrder,
+  FoodOrderPaymentStatus,
+  initiateFoodOrderPayment,
+} from "@/service/foodService";
 import { fetchCourierLocation, getRideById } from "@/service/rideService";
 import { useWS } from "@/service/WSProvider";
 import OrderStatusTimeline from "@/components/customer/food/OrderStatusTimeline";
@@ -56,6 +64,7 @@ import {
 
 const POLL_MS = 4000;
 const COURIER_POLL_MS = 2500;
+const PAYMENT_POLL_MS = 5000;
 const LIVE_RIDE_STATUSES = new Set(["START", "ARRIVED", "IN_PROGRESS"]);
 
 function mergeOrderRide(order: FoodOrder, ride: NonNullable<FoodOrder["ride"]>): FoodOrder {
@@ -70,19 +79,26 @@ function mergeOrderRide(order: FoodOrder, ride: NonNullable<FoodOrder["ride"]>):
 }
 
 const FoodOrderTracking = () => {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, pay } = useLocalSearchParams<{ id: string; pay?: string }>();
   const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();
   const isFocused = useIsFocused();
+  const { showToast } = useMessage();
   const { emit, on, off, connectNonce } = useWS();
   const [order, setOrder] = useState<FoodOrder | null>(null);
   const [loading, setLoading] = useState(true);
   const [showRating, setShowRating] = useState(false);
+  const [paymentInfo, setPaymentInfo] = useState<FoodOrderPaymentStatus | null>(null);
+  const [paymentBusy, setPaymentBusy] = useState(false);
+  const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
+  const [checkoutVisible, setCheckoutVisible] = useState(false);
+  const autoPayTriggeredRef = useRef(false);
   const ratingOpenedRef = useRef(false);
   const [riderCoords, setRiderCoords] = useState<RiderLiveCoords | null>(null);
   const [courierRevision, setCourierRevision] = useState(0);
   const riderCoordsRef = useRef<RiderLiveCoords | null>(null);
   const riderIdRef = useRef<string | null>(null);
+  const previousPaymentStateRef = useRef<string | null>(null);
 
   const snapPoints = useMemo(
     () => buildFoodOrderSnapPoints(windowHeight),
@@ -111,6 +127,7 @@ const FoodOrderTracking = () => {
   useEffect(() => {
     ratingOpenedRef.current = false;
     setShowRating(false);
+    previousPaymentStateRef.current = null;
   }, [id]);
 
   const load = useCallback(async () => {
@@ -145,9 +162,20 @@ const FoodOrderTracking = () => {
     }
   }, [id]);
 
+  const loadPaymentStatus = useCallback(async () => {
+    if (!id) return;
+    try {
+      const status = await fetchFoodOrderPaymentStatus(id);
+      setPaymentInfo(status);
+    } catch {
+      // Ignore transient payment status errors.
+    }
+  }, [id]);
+
   useEffect(() => {
     load();
-  }, [load]);
+    loadPaymentStatus();
+  }, [load, loadPaymentStatus]);
 
   useEffect(() => {
     if (!id || !isFocused) return;
@@ -187,6 +215,77 @@ const FoodOrderTracking = () => {
     const t = setInterval(load, POLL_MS);
     return () => clearInterval(t);
   }, [order?.status, load]);
+
+  useEffect(() => {
+    const paymentState = paymentInfo?.orderPaymentStatus || order?.paymentStatus;
+    if (!paymentState || ["PAID", "NOT_REQUIRED", "REFUNDED"].includes(paymentState)) return;
+    const t = setInterval(loadPaymentStatus, PAYMENT_POLL_MS);
+    return () => clearInterval(t);
+  }, [paymentInfo?.orderPaymentStatus, order?.paymentStatus, loadPaymentStatus]);
+
+  const handleResumePayment = useCallback(async () => {
+    if (!id) return;
+    setPaymentBusy(true);
+    try {
+      const payment = await initiateFoodOrderPayment(id);
+      if (payment?.status === "success") {
+        await loadPaymentStatus();
+        await load();
+        return;
+      }
+      const url = payment?.checkoutDirectUrl || payment?.checkoutUrl;
+      if (!url) {
+        showToast?.({
+          type: "error",
+          title: "Checkout unavailable",
+          message: "Could not open payment. Please try again in a moment.",
+        });
+        return;
+      }
+      setCheckoutUrl(url);
+      setCheckoutVisible(true);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Could not open payment checkout";
+      showToast?.({ type: "error", title: "Checkout unavailable", message: msg });
+    } finally {
+      setPaymentBusy(false);
+    }
+  }, [id, load, loadPaymentStatus, showToast]);
+
+  const closeCheckout = useCallback(() => {
+    setCheckoutVisible(false);
+    setCheckoutUrl(null);
+  }, []);
+
+  const handleCheckoutSuccess = useCallback(async () => {
+    closeCheckout();
+    showToast?.({
+      type: "success",
+      title: "Payment received",
+      message: "Confirming your payment…",
+    });
+    await loadPaymentStatus();
+    await load();
+  }, [closeCheckout, loadPaymentStatus, load, showToast]);
+
+  const handleCheckoutCancel = useCallback(async () => {
+    closeCheckout();
+    showToast?.({
+      type: "info",
+      title: "Payment cancelled",
+      message: "You can resume payment anytime from this order.",
+    });
+    await loadPaymentStatus();
+  }, [closeCheckout, loadPaymentStatus, showToast]);
+
+  useEffect(() => {
+    if (pay !== "1" || autoPayTriggeredRef.current) return;
+    if (!order || order.paymentMethod !== "MOBILE_MONEY") return;
+    const state = paymentInfo?.orderPaymentStatus || order.paymentStatus;
+    if (state && ["PAID", "NOT_REQUIRED", "REFUNDED"].includes(state)) return;
+    autoPayTriggeredRef.current = true;
+    handleResumePayment();
+  }, [pay, order, paymentInfo?.orderPaymentStatus, handleResumePayment]);
 
   const applyCourierLocation = useCallback((payload: unknown) => {
     const next = parseCourierLocationPayload(payload);
@@ -332,6 +431,37 @@ const FoodOrderTracking = () => {
 
   const paymentLabel =
     order?.paymentMethod === "MOBILE_MONEY" ? "Mobile money" : "Cash on delivery";
+  const orderPaymentState = paymentInfo?.orderPaymentStatus || order?.paymentStatus || "NOT_REQUIRED";
+  const paymentNeedsAttention =
+    order?.paymentMethod === "MOBILE_MONEY" &&
+    ["UNPAID", "PENDING", "FAILED"].includes(orderPaymentState);
+  const paymentStateText =
+    orderPaymentState === "PAID"
+      ? "Paid"
+      : orderPaymentState === "PENDING"
+      ? "Awaiting payment confirmation"
+      : orderPaymentState === "FAILED"
+      ? "Payment failed"
+      : orderPaymentState === "UNPAID"
+      ? "Payment not completed"
+      : orderPaymentState;
+
+  useEffect(() => {
+    const prev = previousPaymentStateRef.current;
+    if (
+      order?.paymentMethod === "MOBILE_MONEY" &&
+      orderPaymentState === "PAID" &&
+      prev &&
+      ["UNPAID", "PENDING", "FAILED"].includes(prev)
+    ) {
+      showToast({
+        title: "Payment successful",
+        message: "Your order payment has gone through.",
+        type: "success",
+      });
+    }
+    previousPaymentStateRef.current = orderPaymentState;
+  }, [order?.paymentMethod, orderPaymentState, showToast]);
 
   const deliveryDistanceKm = order ? getOrderDeliveryDistanceKm(order) : null;
   const deliveryFeeLabel = order
@@ -482,7 +612,27 @@ const FoodOrderTracking = () => {
               <CustomText fontSize={13} style={{ marginLeft: 8, flex: 1 }}>
                 Paying with <CustomText fontFamily="SemiBold">{paymentLabel}</CustomText>
               </CustomText>
+              <CustomText fontSize={12} color={FOOD_THEME.textMuted}>
+                {paymentStateText}
+              </CustomText>
             </View>
+
+            {paymentNeedsAttention ? (
+              <View style={styles.paymentWarning}>
+                <CustomText fontSize={12} color={FOOD_THEME.textMuted} style={{ flex: 1 }}>
+                  Complete payment to allow order fulfillment.
+                </CustomText>
+                <TouchableOpacity
+                  onPress={handleResumePayment}
+                  disabled={paymentBusy}
+                  style={styles.paymentRetryBtn}
+                >
+                  <CustomText fontFamily="SemiBold" fontSize={12} color={FOOD_THEME.accentTeal}>
+                    {paymentBusy ? "Opening…" : "Resume payment"}
+                  </CustomText>
+                </TouchableOpacity>
+              </View>
+            ) : null}
 
             {showCourierCard ? (
               <FoodOrderCourierCard
@@ -610,6 +760,14 @@ const FoodOrderTracking = () => {
           setShowRating(false);
           load();
         }}
+      />
+
+      <HubtelCheckoutModal
+        visible={checkoutVisible}
+        checkoutUrl={checkoutUrl}
+        onSuccess={handleCheckoutSuccess}
+        onCancel={handleCheckoutCancel}
+        onClose={closeCheckout}
       />
     </View>
   );
@@ -761,6 +919,23 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 12,
+  },
+  paymentWarning: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: FOOD_THEME.searchBg,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: FOOD_THEME.divider,
+  },
+  paymentRetryBtn: {
+    marginLeft: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: "#e6fffa",
   },
   orderSummary: {
     backgroundColor: FOOD_THEME.card,

@@ -6,14 +6,47 @@
 import axios from 'axios';
 
 const getAuthHeader = () => {
+  // Hubtel APIs can use either:
+  // - Sales credentials: API_ID:API_KEY (preferred for checkout/sales endpoints)
+  // - Generic credentials: CLIENT_ID:CLIENT_SECRET (legacy/fallback)
+  const apiId = process.env.HUBTEL_API_ID;
+  const apiKey = process.env.HUBTEL_API_KEY;
   const clientId = process.env.HUBTEL_CLIENT_ID;
   const clientSecret = process.env.HUBTEL_CLIENT_SECRET;
-  if (!clientId || !clientSecret) return null;
-  const token = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+
+  const username = apiId || clientId;
+  const password = apiKey || clientSecret;
+  if (!username || !password) return null;
+
+  const token = Buffer.from(`${username}:${password}`).toString('base64');
   return { Authorization: `Basic ${token}` };
 };
 
 const getBaseUrl = () => process.env.HUBTEL_API_URL || 'https://api.hubtel.com/v1';
+const getCheckoutBaseUrl = () =>
+  process.env.HUBTEL_CHECKOUT_API_URL || 'https://payproxyapi.hubtel.com';
+const getStatusBaseUrl = () =>
+  process.env.HUBTEL_STATUS_API_URL || 'https://api-txnstatus.hubtel.com';
+
+function normalizeMoney(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return null;
+  return Number(n.toFixed(2));
+}
+
+function extractHubtelError(err, fallback = 'Hubtel request failed') {
+  const data = err?.response?.data;
+  if (!data) return err?.message || fallback;
+  return (
+    data?.message ||
+    data?.Message ||
+    data?.status ||
+    data?.Status ||
+    data?.Data?.Description ||
+    err?.message ||
+    fallback
+  );
+}
 
 /**
  * Normalize Ghana phone to Hubtel format (233XXXXXXXXX, no +).
@@ -46,7 +79,7 @@ export async function receivePayment(opts) {
     const payload = {
       CustomerName: opts.CustomerName || 'Driver',
       CustomerMsisdn: formatPhoneForHubtel(opts.CustomerMsisdn),
-      Amount: Number(opts.Amount).toFixed(2),
+      Amount: normalizeMoney(opts.Amount),
       PrimaryCallbackUrl: opts.PrimaryCallbackUrl,
       Description: opts.Description || 'QareGO Clear Debt',
       ClientReference: opts.ClientReference,
@@ -58,7 +91,7 @@ export async function receivePayment(opts) {
     });
     return { success: true, data: res.data };
   } catch (err) {
-    const msg = err.response?.data?.message || err.response?.data?.Data?.Description || err.message;
+    const msg = extractHubtelError(err, 'Hubtel receive request failed');
     console.error('Hubtel receive error:', msg);
     return { success: false, error: msg };
   }
@@ -84,7 +117,7 @@ export async function sendPayment(opts) {
     const payload = {
       RecipientName: opts.RecipientName || 'Driver',
       RecipientMsisdn: formatPhoneForHubtel(opts.RecipientMsisdn),
-      Amount: Number(opts.Amount).toFixed(2),
+      Amount: normalizeMoney(opts.Amount),
       PrimaryCallbackUrl: opts.PrimaryCallbackUrl,
       Description: opts.Description || 'QareGO Weekly Payout',
       ClientReference: opts.ClientReference,
@@ -96,8 +129,107 @@ export async function sendPayment(opts) {
     });
     return { success: true, data: res.data };
   } catch (err) {
-    const msg = err.response?.data?.message || err.response?.data?.Data?.Description || err.message;
+    const msg = extractHubtelError(err, 'Hubtel payout request failed');
     console.error('Hubtel send error:', msg);
+    return { success: false, error: msg };
+  }
+}
+
+/**
+ * Online checkout initiation (QareGO collects from customer).
+ */
+export async function initiateOnlineCheckout(opts) {
+  const auth = getAuthHeader();
+  if (!auth) return { success: false, error: 'Hubtel not configured' };
+
+  const url = `${getCheckoutBaseUrl()}/items/initiate`;
+  const totalAmount = normalizeMoney(opts.totalAmount);
+  if (totalAmount == null || totalAmount <= 0) {
+    return { success: false, error: 'Invalid totalAmount for checkout' };
+  }
+  // Hubtel's items/initiate expects merchantAccountNumber as a STRING.
+  const merchantAccountNumber = String(opts.merchantAccountNumber ?? '').trim();
+  const payload = {
+    totalAmount,
+    description: opts.description,
+    callbackUrl: opts.callbackUrl,
+    returnUrl: opts.returnUrl,
+    cancellationUrl: opts.cancellationUrl,
+    merchantAccountNumber,
+    clientReference: opts.clientReference,
+    payeeName: opts.payeeName || undefined,
+    payeeMobileNumber: opts.payeeMobileNumber
+      ? formatPhoneForHubtel(opts.payeeMobileNumber)
+      : undefined,
+    payeeEmail: opts.payeeEmail || undefined,
+  };
+
+  try {
+    const res = await axios.post(url, payload, {
+      headers: { ...auth, 'Content-Type': 'application/json', Accept: 'application/json' },
+      timeout: 15000,
+    });
+    const responseCode = String(res.data?.responseCode || '');
+    if (responseCode !== '0000') {
+      return {
+        success: false,
+        error: res.data?.message || res.data?.status || 'Checkout initiation rejected',
+        data: res.data,
+      };
+    }
+    return { success: true, data: res.data };
+  } catch (err) {
+    const msg = extractHubtelError(err, 'Hubtel checkout initiate request failed');
+    console.error('Hubtel checkout initiate error:', msg, {
+      status: err?.response?.status,
+      url,
+      responseBody: err?.response?.data,
+      sentPayload: {
+        totalAmount: payload.totalAmount,
+        merchantAccountNumber: payload.merchantAccountNumber,
+        merchantAccountType: typeof payload.merchantAccountNumber,
+        callbackUrl: payload.callbackUrl,
+        returnUrl: payload.returnUrl,
+        cancellationUrl: payload.cancellationUrl,
+        clientReference: payload.clientReference,
+      },
+    });
+    return { success: false, error: msg };
+  }
+}
+
+/**
+ * Online checkout transaction status lookup (mandatory fallback when callback delays).
+ */
+export async function checkOnlineCheckoutStatus(opts) {
+  const auth = getAuthHeader();
+  if (!auth) return { success: false, error: 'Hubtel not configured' };
+
+  const account = opts.collectionAccountNumber;
+  const reference = encodeURIComponent(String(opts.clientReference || '').trim());
+  const url = `${getStatusBaseUrl()}/transactions/${account}/status?clientReference=${reference}`;
+
+  try {
+    const res = await axios.get(url, {
+      headers: { ...auth, Accept: 'application/json' },
+      timeout: 15000,
+    });
+    const responseCode = String(res.data?.responseCode || '');
+    if (responseCode !== '0000') {
+      return {
+        success: false,
+        error: res.data?.message || 'Status check rejected',
+        data: res.data,
+      };
+    }
+    return { success: true, data: res.data };
+  } catch (err) {
+    const msg = extractHubtelError(err, 'Hubtel checkout status request failed');
+    console.error('Hubtel checkout status error:', msg, {
+      status: err?.response?.status,
+      url,
+      responseBody: err?.response?.data,
+    });
     return { success: false, error: msg };
   }
 }

@@ -4,7 +4,7 @@ import Transaction from "../models/Transaction.js";
 import Settings from "../models/Settings.js";
 import { StatusCodes } from "http-status-codes";
 import { formatCurrency } from "../utils/currency.js";
-import { getSettings } from "../utils/tripSettlement.js";
+import { getCommissionRateForService, getSettings } from "../utils/tripSettlement.js";
 import { generateOTP } from "../utils/mapUtils.js";
 import {
   canRiderReceiveOffer,
@@ -21,12 +21,24 @@ import {
 } from "../utils/pushNotificationTemplates.js";
 import { isFirebaseConfigured } from "../utils/firebaseAdmin.js";
 import PushBroadcast from "../models/PushBroadcast.js";
+import FoodPayment from "../models/FoodPayment.js";
+import FoodOrder from "../models/FoodOrder.js";
+import Restaurant from "../models/Restaurant.js";
+import { sendPayment } from "../utils/hubtelService.js";
 import {
   BROADCAST_AUDIENCE_IDS,
   BROADCAST_AUDIENCES,
   getBroadcastAudienceStats,
   sendBroadcastPush,
 } from "../utils/pushBroadcast.js";
+
+function computeFoodMerchantPayout(order, settings) {
+  const subtotal = Number(order?.subtotal ?? 0);
+  const commissionRate = getCommissionRateForService(settings, "FOOD");
+  const commission = subtotal * commissionRate;
+  const payoutAmount = Math.max(0, Number((subtotal - commission).toFixed(2)));
+  return { payoutAmount, commission, commissionRate };
+}
 
 export const getDashboardStats = async (req, res) => {
   try {
@@ -677,6 +689,154 @@ export const getTransactionsAdmin = async (req, res) => {
   } catch (error) {
     console.error('Get transactions error:', error);
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ message: 'Failed to fetch transactions' });
+  }
+};
+
+/** GET /admin/food-payments - monitor checkout + payout pipeline */
+export const getFoodPaymentsAdmin = async (req, res) => {
+  try {
+    const {
+      status,
+      payoutStatus,
+      restaurantId,
+      q,
+      page = 1,
+      limit = 25,
+    } = req.query;
+    const query = {};
+    if (status) query.status = String(status);
+    if (payoutStatus) query.payoutStatus = String(payoutStatus);
+    if (restaurantId) query.restaurant = restaurantId;
+    if (q) {
+      query.clientReference = { $regex: String(q).trim(), $options: "i" };
+    }
+    const nPage = Math.max(1, Number(page) || 1);
+    const nLimit = Math.min(100, Math.max(1, Number(limit) || 25));
+    const skip = (nPage - 1) * nLimit;
+
+    const [rows, total] = await Promise.all([
+      FoodPayment.find(query)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(nLimit)
+        .populate("restaurant", "name payoutConfig")
+        .populate("customer", "name phone")
+        .populate("order", "status total subtotal paymentStatus createdAt")
+        .lean(),
+      FoodPayment.countDocuments(query),
+    ]);
+
+    res.status(StatusCodes.OK).json({
+      payments: rows,
+      total,
+      page: nPage,
+      totalPages: Math.ceil(total / nLimit),
+    });
+  } catch (error) {
+    console.error("Get food payments admin error:", error);
+    res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ message: "Failed to load food payments" });
+  }
+};
+
+/** POST /admin/food-payments/:id/retry-payout - retry instant merchant payout */
+export const retryFoodPaymentPayoutAdmin = async (req, res) => {
+  try {
+    const payment = await FoodPayment.findById(req.params.id);
+    if (!payment) {
+      return res.status(StatusCodes.NOT_FOUND).json({ message: "Payment not found" });
+    }
+    if (payment.status !== "success") {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ message: "Cannot retry payout before payment success" });
+    }
+    if (payment.payoutStatus === "sent") {
+      return res.status(StatusCodes.OK).json({ message: "Payout already sent", payment });
+    }
+
+    const [order, restaurant, settings] = await Promise.all([
+      FoodOrder.findById(payment.order),
+      Restaurant.findById(payment.restaurant).lean(),
+      getSettings(),
+    ]);
+
+    if (!order) {
+      return res.status(StatusCodes.BAD_REQUEST).json({ message: "Order not found" });
+    }
+    if (!restaurant) {
+      return res.status(StatusCodes.BAD_REQUEST).json({ message: "Restaurant not found" });
+    }
+
+    const instantEnabled = Boolean(restaurant?.payoutConfig?.instantPayoutEnabled);
+    const recipientMsisdn = String(restaurant?.payoutConfig?.recipientMsisdn || "");
+    const recipientName =
+      String(restaurant?.payoutConfig?.recipientName || "").trim() ||
+      restaurant.name ||
+      "Merchant";
+    const channel = String(restaurant?.payoutConfig?.channel || "mtn-gh");
+
+    if (!instantEnabled || !recipientMsisdn) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        message: "Restaurant instant payout is disabled or missing payout phone",
+      });
+    }
+
+    const { payoutAmount } = computeFoodMerchantPayout(order, settings);
+    if (payoutAmount <= 0) {
+      payment.payoutStatus = "not_applicable";
+      payment.payoutAmount = 0;
+      await payment.save();
+      return res.status(StatusCodes.OK).json({
+        message: "No payout amount due",
+        payment,
+      });
+    }
+
+    payment.payoutAmount = payoutAmount;
+    payment.payoutStatus = "pending";
+    payment.payoutAttemptedAt = new Date();
+    payment.payoutError = null;
+    if (!payment.payoutReference) {
+      payment.payoutReference = `fop_${payment.clientReference}`.slice(0, 32);
+    }
+    await payment.save();
+
+    const callback =
+      process.env.HUBTEL_PAYOUT_CALLBACK_URL ||
+      (process.env.BASE_URL ? `${process.env.BASE_URL}/webhooks/hubtel-payout` : undefined);
+
+    const payout = await sendPayment({
+      RecipientName: recipientName,
+      RecipientMsisdn: recipientMsisdn,
+      Amount: payoutAmount,
+      PrimaryCallbackUrl: callback,
+      Description: `QareGO order payout ${order._id}`,
+      ClientReference: payment.payoutReference,
+      Channel: channel,
+    });
+
+    payment.payoutResponse = payout.data || null;
+    if (payout.success) {
+      payment.payoutStatus = "sent";
+      payment.payoutCompletedAt = new Date();
+      payment.payoutError = null;
+    } else {
+      payment.payoutStatus = "failed";
+      payment.payoutError = payout.error || "Payout retry failed";
+    }
+    await payment.save();
+
+    res.status(StatusCodes.OK).json({
+      message: payout.success ? "Payout sent" : "Payout retry failed",
+      payment,
+    });
+  } catch (error) {
+    console.error("Retry food payout admin error:", error);
+    res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ message: "Failed to retry payout" });
   }
 };
 

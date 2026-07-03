@@ -12,6 +12,10 @@ import {
   adminListFoodOrders,
   adminRestaurantOrderAction,
 } from "../controllers/food.js";
+import {
+  getFoodOrderPaymentStatus,
+  initiateFoodOrderPayment,
+} from "../controllers/payment.js";
 
 const router = express.Router();
 
@@ -20,6 +24,8 @@ router.get("/restaurants/:id", getRestaurantMenu);
 router.get("/checkout-settings", getFoodCheckoutSettings);
 router.get("/delivery-quote", getFoodDeliveryQuote);
 router.post("/orders", createFoodOrder);
+router.post("/orders/:id/payment/initiate", initiateFoodOrderPayment);
+router.get("/orders/:id/payment-status", getFoodOrderPaymentStatus);
 router.get("/orders", listMyFoodOrders);
 router.get("/orders/active", getActiveFoodOrder);
 router.get("/orders/:id", getFoodOrder);

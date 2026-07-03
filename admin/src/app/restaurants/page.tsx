@@ -41,6 +41,12 @@ interface Restaurant {
   latitude: number;
   longitude: number;
   owner?: Owner | null;
+  payoutConfig?: {
+    instantPayoutEnabled?: boolean;
+    recipientName?: string | null;
+    recipientMsisdn?: string | null;
+    channel?: string;
+  };
   menuItemCount?: number;
   createdAt: string;
 }
@@ -61,6 +67,10 @@ const EMPTY_FORM = {
   ownerPassword: "",
   ownerName: "",
   ownerPhone: "",
+  payoutInstantEnabled: false,
+  payoutRecipientName: "",
+  payoutRecipientMsisdn: "",
+  payoutChannel: "mtn-gh",
 };
 
 export default function RestaurantsPage() {
@@ -112,6 +122,13 @@ export default function RestaurantsPage() {
       alert("Enter a username and password for the new vendor login");
       return;
     }
+    if (
+      form.payoutInstantEnabled &&
+      (!form.payoutRecipientMsisdn?.trim() || !form.payoutRecipientName?.trim())
+    ) {
+      alert("Instant payout requires recipient name and phone");
+      return;
+    }
 
     setSaving(true);
     try {
@@ -126,6 +143,12 @@ export default function RestaurantsPage() {
         address: form.address,
         latitude: Number(form.latitude),
         longitude: Number(form.longitude),
+        payoutConfig: {
+          instantPayoutEnabled: Boolean(form.payoutInstantEnabled),
+          recipientName: form.payoutRecipientName?.trim() || null,
+          recipientMsisdn: form.payoutRecipientMsisdn?.trim() || null,
+          channel: form.payoutChannel || "mtn-gh",
+        },
       };
       if (ownerMode === "existing") {
         payload.ownerId = selectedOwnerId;
@@ -277,6 +300,17 @@ export default function RestaurantsPage() {
                     <td className="px-6 py-4 text-sm text-gray-700">
                       <div>Delivery: GH₵{r.deliveryFee}</div>
                       <div className="text-xs text-gray-400">Min: GH₵{r.minOrderAmount}</div>
+                      <div className="text-xs mt-1">
+                        {r.payoutConfig?.instantPayoutEnabled ? (
+                          <span className="inline-flex items-center rounded-full bg-green-100 text-green-700 px-2 py-0.5">
+                            Instant payout
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center rounded-full bg-gray-100 text-gray-600 px-2 py-0.5">
+                            Manual payout
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-4">
                       <button
@@ -440,6 +474,60 @@ export default function RestaurantsPage() {
                 </div>
               </div>
             )}
+          </div>
+
+          <div className="border-t pt-4 space-y-3">
+            <p className="text-sm font-medium text-gray-900">Instant payout setup (optional)</p>
+            <label className="flex items-center gap-2 text-sm text-gray-700">
+              <input
+                type="checkbox"
+                checked={form.payoutInstantEnabled}
+                onChange={(e) =>
+                  setForm({ ...form, payoutInstantEnabled: e.target.checked })
+                }
+                className="rounded border-gray-300"
+              />
+              Enable instant payout after successful customer checkout
+            </label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <Label htmlFor="payoutRecipientName">Recipient Name</Label>
+                <Input
+                  id="payoutRecipientName"
+                  value={form.payoutRecipientName}
+                  onChange={(e) =>
+                    setForm({ ...form, payoutRecipientName: e.target.value })
+                  }
+                  placeholder="Merchant payout name"
+                  required={form.payoutInstantEnabled}
+                />
+              </div>
+              <div>
+                <Label htmlFor="payoutRecipientMsisdn">Recipient Phone</Label>
+                <Input
+                  id="payoutRecipientMsisdn"
+                  value={form.payoutRecipientMsisdn}
+                  onChange={(e) =>
+                    setForm({ ...form, payoutRecipientMsisdn: e.target.value })
+                  }
+                  placeholder="+233..."
+                  required={form.payoutInstantEnabled}
+                />
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="payoutChannel">Payout Channel</Label>
+              <select
+                id="payoutChannel"
+                value={form.payoutChannel}
+                onChange={(e) => setForm({ ...form, payoutChannel: e.target.value })}
+                className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
+              >
+                <option value="mtn-gh">MTN Ghana</option>
+                <option value="vodafone-gh">Vodafone Ghana</option>
+                <option value="airteltigo-gh">AirtelTigo Ghana</option>
+              </select>
+            </div>
           </div>
 
           <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2">

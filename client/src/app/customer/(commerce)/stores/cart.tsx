@@ -289,6 +289,7 @@ const FoodCart = () => {
   const placeOrder = async () => {
     if (!restaurantId || items.length === 0 || !readyToOrder) return;
     setLoading(true);
+    let createdOrderId: string | null = null;
     try {
       const deliveryPayload =
         fulfillmentMode === "PICKUP"
@@ -303,7 +304,7 @@ const FoodCart = () => {
               longitude: location!.longitude,
             };
 
-      await createFoodOrder({
+      const response = await createFoodOrder({
         restaurantId,
         items: items.map((i) => ({
           menuItemId: i.menuItemId,
@@ -317,7 +318,30 @@ const FoodCart = () => {
         scheduledFor: scheduledFor?.toISOString(),
         promoCode: promoCode.trim() || undefined,
       });
+      const orderId = response?.order?._id as string | undefined;
+      if (!orderId) {
+        throw new Error("Order created but missing order ID");
+      }
+      createdOrderId = orderId;
+
+      const orderPath =
+        paymentMethod === "MOBILE_MONEY"
+          ? (`/customer/stores/order/${orderId}?pay=1` as const)
+          : (`/customer/stores/order/${orderId}` as const);
+      router.replace(orderPath);
       clearCart();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Could not place order";
+      if (createdOrderId) {
+        Alert.alert(
+          "Order created",
+          `${msg}. Opening order so you can resume payment.`
+        );
+        router.replace(`/customer/stores/order/${createdOrderId}` as const);
+        clearCart();
+      } else {
+        Alert.alert("Order failed", msg);
+      }
     } finally {
       setLoading(false);
     }

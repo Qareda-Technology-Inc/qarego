@@ -7,6 +7,7 @@ import { formatCurrency } from '@/lib/currency';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Loader2, DollarSign, Wallet, CreditCard, Send } from 'lucide-react';
+import Link from "next/link";
 
 export default function FinancePage() {
   const [stats, setStats] = useState<any>(null);
@@ -134,6 +135,20 @@ export default function FinancePage() {
             {payoutLoading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Running...</> : <><Send className="w-4 h-4 mr-2" /> Execute Weekly Payouts</>}
           </Button>
           {payoutResult && <p className="mt-3 text-sm text-gray-600">{payoutResult}</p>}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Food checkout operations</CardTitle>
+          <p className="text-sm text-gray-500 mt-1">
+            Monitor checkout status and retry failed instant merchant payouts.
+          </p>
+        </CardHeader>
+        <CardContent>
+          <Link href="/finance/food-payments">
+            <Button variant="outline">Open Food Payments Monitor</Button>
+          </Link>
         </CardContent>
       </Card>
 

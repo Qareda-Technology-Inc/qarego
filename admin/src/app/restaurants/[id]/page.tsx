@@ -36,6 +36,12 @@ interface Restaurant {
   latitude: number;
   longitude: number;
   owner?: Owner | null;
+  payoutConfig?: {
+    instantPayoutEnabled?: boolean;
+    recipientName?: string | null;
+    recipientMsisdn?: string | null;
+    channel?: string;
+  };
 }
 
 interface MenuItem {
@@ -99,6 +105,14 @@ export default function RestaurantDetailPage({ params }: { params: Promise<{ id:
       alert("Search for an address or tap the map to set the store location");
       return;
     }
+    if (
+      restaurant.payoutConfig?.instantPayoutEnabled &&
+      (!restaurant.payoutConfig?.recipientMsisdn?.trim() ||
+        !restaurant.payoutConfig?.recipientName?.trim())
+    ) {
+      alert("Instant payout requires recipient name and phone");
+      return;
+    }
     setSavingProfile(true);
     try {
       await fetcher(`/admin/restaurants/${id}`, {
@@ -116,6 +130,12 @@ export default function RestaurantDetailPage({ params }: { params: Promise<{ id:
           longitude: Number(restaurant.longitude),
           isActive: restaurant.isActive,
           isAcceptingOrders: restaurant.isAcceptingOrders,
+          payoutConfig: {
+            instantPayoutEnabled: Boolean(restaurant.payoutConfig?.instantPayoutEnabled),
+            recipientName: restaurant.payoutConfig?.recipientName || "",
+            recipientMsisdn: restaurant.payoutConfig?.recipientMsisdn || "",
+            channel: restaurant.payoutConfig?.channel || "mtn-gh",
+          },
         }),
       });
       alert("Saved");
@@ -323,6 +343,83 @@ export default function RestaurantDetailPage({ params }: { params: Promise<{ id:
                   <input type="checkbox" checked={restaurant.isAcceptingOrders} onChange={(e) => setRestaurant({ ...restaurant, isAcceptingOrders: e.target.checked })} className="rounded border-gray-300" />
                   Accepting new orders
                 </label>
+              </div>
+              <div className="rounded-lg border border-gray-200 p-3 bg-gray-50 space-y-3">
+                <p className="text-sm font-medium text-gray-900">Instant merchant payout</p>
+                <label className="flex items-center gap-2 text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(restaurant.payoutConfig?.instantPayoutEnabled)}
+                    onChange={(e) =>
+                      setRestaurant({
+                        ...restaurant,
+                        payoutConfig: {
+                          ...(restaurant.payoutConfig || {}),
+                          instantPayoutEnabled: e.target.checked,
+                        },
+                      })
+                    }
+                    className="rounded border-gray-300"
+                  />
+                  Enable instant payout after successful checkout
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <Label htmlFor="payoutRecipientName">Recipient Name</Label>
+                    <Input
+                      id="payoutRecipientName"
+                      value={restaurant.payoutConfig?.recipientName || ""}
+                      onChange={(e) =>
+                        setRestaurant({
+                          ...restaurant,
+                          payoutConfig: {
+                            ...(restaurant.payoutConfig || {}),
+                            recipientName: e.target.value,
+                          },
+                        })
+                      }
+                      placeholder="Merchant payout name"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="payoutRecipientMsisdn">Recipient Phone</Label>
+                    <Input
+                      id="payoutRecipientMsisdn"
+                      value={restaurant.payoutConfig?.recipientMsisdn || ""}
+                      onChange={(e) =>
+                        setRestaurant({
+                          ...restaurant,
+                          payoutConfig: {
+                            ...(restaurant.payoutConfig || {}),
+                            recipientMsisdn: e.target.value,
+                          },
+                        })
+                      }
+                      placeholder="+233..."
+                    />
+                  </div>
+                </div>
+                <div>
+                  <Label htmlFor="payoutChannel">Channel</Label>
+                  <select
+                    id="payoutChannel"
+                    value={restaurant.payoutConfig?.channel || "mtn-gh"}
+                    onChange={(e) =>
+                      setRestaurant({
+                        ...restaurant,
+                        payoutConfig: {
+                          ...(restaurant.payoutConfig || {}),
+                          channel: e.target.value,
+                        },
+                      })
+                    }
+                    className="mt-1 flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
+                  >
+                    <option value="mtn-gh">MTN Ghana</option>
+                    <option value="vodafone-gh">Vodafone Ghana</option>
+                    <option value="airteltigo-gh">AirtelTigo Ghana</option>
+                  </select>
+                </div>
               </div>
               <Button type="submit" disabled={savingProfile} className="w-full">
                 {savingProfile ? "Saving..." : (<><Save className="h-4 w-4 mr-2" /> Save Profile</>)}

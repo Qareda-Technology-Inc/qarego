@@ -22,7 +22,9 @@ import {
   getPushBroadcastAdmin,
   sendPushBroadcastAdmin,
   getTransactionsAdmin,
+  getFoodPaymentsAdmin,
   creditDriverBalance,
+  retryFoodPaymentPayoutAdmin,
   runWeeklyPayouts,
 } from '../controllers/admin.js';
 import {
@@ -110,6 +112,8 @@ adminRouter.post(
   uploadRiderAlertSound
 );
 adminRouter.get('/transactions', getTransactionsAdmin);
+adminRouter.get('/food-payments', getFoodPaymentsAdmin);
+adminRouter.post('/food-payments/:id/retry-payout', retryFoodPaymentPayoutAdmin);
 adminRouter.post('/drivers/:id/credit', creditDriverBalance);
 adminRouter.post('/payouts/run', runWeeklyPayouts);
 

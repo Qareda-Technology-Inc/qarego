@@ -258,6 +258,7 @@ export const createFoodOrder = async (req, res) => {
       longitude: deliveryLon,
     },
     paymentMethod: paymentMethod === "MOBILE_MONEY" ? "MOBILE_MONEY" : "CASH",
+    paymentStatus: paymentMethod === "MOBILE_MONEY" ? "UNPAID" : "NOT_REQUIRED",
     notes: notes?.trim() || null,
     promoCode: promoCode?.trim() || null,
     fulfillmentType,

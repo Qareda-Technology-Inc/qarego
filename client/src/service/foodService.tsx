@@ -1,4 +1,3 @@
-import { router } from "expo-router";
 import { appAxios } from "./apiInterceptors";
 import { Alert } from "react-native";
 import { FoodOrderStatus } from "@/utils/foodOrderTracking";
@@ -87,6 +86,8 @@ export type FoodOrder = {
   total: number;
   delivery: { address: string; latitude: number; longitude: number };
   paymentMethod: string;
+  paymentStatus?: "NOT_REQUIRED" | "UNPAID" | "PENDING" | "PAID" | "FAILED" | "REFUNDED";
+  paymentReference?: string | null;
   status: FoodOrderStatus;
   notes?: string | null;
   cancelReason?: string | null;
@@ -146,12 +147,6 @@ export const createFoodOrder = async (payload: {
 }) => {
   try {
     const res = await appAxios.post("/food/orders", payload);
-    const orderId = res?.data?.order?._id;
-    if (orderId) {
-      router.replace(`/customer/stores/order/${orderId}` as const);
-    } else {
-      router.replace("/customer/hub");
-    }
     return res.data;
   } catch (error: any) {
     const message =
@@ -161,6 +156,48 @@ export const createFoodOrder = async (payload: {
     Alert.alert("Order failed", message);
     throw error;
   }
+};
+
+export type FoodOrderPaymentInit = {
+  status: "pending" | "success" | "failed" | "cancelled" | "initiated";
+  clientReference: string;
+  checkoutId?: string | null;
+  checkoutUrl?: string | null;
+  checkoutDirectUrl?: string | null;
+};
+
+export type FoodOrderPaymentStatus = {
+  orderPaymentStatus:
+    | "NOT_REQUIRED"
+    | "UNPAID"
+    | "PENDING"
+    | "PAID"
+    | "FAILED"
+    | "REFUNDED";
+  payment: {
+    status: "pending" | "success" | "failed" | "cancelled" | "initiated";
+    clientReference: string;
+    checkoutId?: string | null;
+    checkoutUrl?: string | null;
+    checkoutDirectUrl?: string | null;
+    payoutStatus?: "not_applicable" | "pending" | "sent" | "failed";
+    payoutError?: string | null;
+  } | null;
+};
+
+export const initiateFoodOrderPayment = async (orderId: string): Promise<FoodOrderPaymentInit> => {
+  const res = await appAxios.post(`/food/orders/${orderId}/payment/initiate`);
+  return res.data?.payment;
+};
+
+export const fetchFoodOrderPaymentStatus = async (
+  orderId: string
+): Promise<FoodOrderPaymentStatus> => {
+  const res = await appAxios.get(`/food/orders/${orderId}/payment-status`);
+  return {
+    orderPaymentStatus: res.data?.orderPaymentStatus ?? "UNPAID",
+    payment: res.data?.payment ?? null,
+  };
 };
 
 export const fetchFoodOrder = async (orderId: string): Promise<FoodOrder | null> => {

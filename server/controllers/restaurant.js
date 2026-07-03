@@ -289,6 +289,20 @@ export const adminCreateRestaurant = async (req, res) => {
 
   if (fields.deliveryFee == null) fields.deliveryFee = 0;
 
+  if (req.body.payoutConfig && typeof req.body.payoutConfig === "object") {
+    const next = req.body.payoutConfig;
+    const channelRaw = String(next.channel ?? "mtn-gh").trim().toLowerCase();
+    const allowedChannels = new Set(["mtn-gh", "vodafone-gh", "airteltigo-gh"]);
+    fields.payoutConfig = {
+      instantPayoutEnabled: Boolean(next.instantPayoutEnabled),
+      recipientName: String(next.recipientName || "").trim() || null,
+      recipientMsisdn: next.recipientMsisdn
+        ? normalizePhone(String(next.recipientMsisdn))
+        : null,
+      channel: allowedChannels.has(channelRaw) ? channelRaw : "mtn-gh",
+    };
+  }
+
   await applyStoreTypeToRestaurantFields(req.body, fields);
   if (!fields.vertical) {
     fields.vertical = inferVerticalFromCategoryName(fields.category);
@@ -363,6 +377,30 @@ export const adminUpdateRestaurant = async (req, res) => {
       phone: owner.phone ? normalizePhone(owner.phone) : undefined,
     });
     restaurant.owner = ownerUser._id;
+  }
+
+  if (req.body.payoutConfig && typeof req.body.payoutConfig === "object") {
+    const next = req.body.payoutConfig;
+    const prev = restaurant.payoutConfig || {};
+    const channelRaw = String(next.channel ?? prev.channel ?? "mtn-gh")
+      .trim()
+      .toLowerCase();
+    const allowedChannels = new Set(["mtn-gh", "vodafone-gh", "airteltigo-gh"]);
+    restaurant.payoutConfig = {
+      instantPayoutEnabled:
+        typeof next.instantPayoutEnabled === "boolean"
+          ? next.instantPayoutEnabled
+          : Boolean(prev.instantPayoutEnabled),
+      recipientName:
+        next.recipientName !== undefined
+          ? String(next.recipientName || "").trim() || null
+          : prev.recipientName || null,
+      recipientMsisdn:
+        next.recipientMsisdn !== undefined
+          ? normalizePhone(String(next.recipientMsisdn || "")) || null
+          : prev.recipientMsisdn || null,
+      channel: allowedChannels.has(channelRaw) ? channelRaw : "mtn-gh",
+    };
   }
 
   await restaurant.save();

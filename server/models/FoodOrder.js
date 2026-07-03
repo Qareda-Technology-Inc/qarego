@@ -47,6 +47,12 @@ const foodOrderSchema = new Schema(
       enum: ["CASH", "MOBILE_MONEY"],
       default: "CASH",
     },
+    paymentStatus: {
+      type: String,
+      enum: ["NOT_REQUIRED", "UNPAID", "PENDING", "PAID", "FAILED", "REFUNDED"],
+      default: "NOT_REQUIRED",
+    },
+    paymentReference: { type: String, default: null },
     notes: { type: String, default: null },
     promoCode: { type: String, default: null },
     fulfillmentType: {
