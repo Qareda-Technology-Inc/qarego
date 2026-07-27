@@ -25,17 +25,15 @@ const RideCompletedModal: FC<RideCompletedModalProps> = ({
   onPay,
   payBusy,
 }) => {
-  if (!ride) return null;
-
-  const fare = ride.fare != null ? Number(ride.fare) : 0;
-  const isDelivery = ride.serviceType === "DELIVERY";
-  const isFood = ride.serviceType === "FOOD";
-  const isMomo = ride.paymentMethod === "MOBILE_MONEY";
-  const isPaid = isMomo && ride.paymentStatus === "PAID";
+  const fare = ride?.fare != null ? Number(ride.fare) : 0;
+  const isDelivery = ride?.serviceType === "DELIVERY";
+  const isFood = ride?.serviceType === "FOOD";
+  const isMomo = ride?.paymentMethod === "MOBILE_MONEY";
+  const isPaid = isMomo && ride?.paymentStatus === "PAID";
   const needsPayment =
     !!onPay &&
-    isMomo &&
-    ["UNPAID", "PENDING", "FAILED"].includes(String(ride.paymentStatus));
+    !!isMomo &&
+    ["UNPAID", "PENDING", "FAILED"].includes(String(ride?.paymentStatus));
 
   const title = isFood
     ? "Order delivered"
@@ -48,7 +46,7 @@ const RideCompletedModal: FC<RideCompletedModalProps> = ({
 
   return (
     <Modal
-      visible={visible}
+      visible={visible && !!ride}
       animationType="fade"
       transparent
       onRequestClose={onClose}

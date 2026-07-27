@@ -1,14 +1,105 @@
-import { screenHeight, screenWidth } from "@/utils/Constants";
+import { screenHeight, screenWidth, Colors } from "@/utils/Constants";
 import { StyleSheet } from "react-native";
+import { DS } from "@/theme/designSystem";
 
 export const splashStyles = StyleSheet.create({
-    img: {
-        width: screenWidth * 0.4,
-        height: screenHeight * 0.4,
-        resizeMode: 'contain'
-    },
-    text: {
-        position: "absolute",
-        bottom: 40,
-    }
-})
+  root: {
+    flex: 1,
+    backgroundColor: "#F4F7FB",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  atmosphere: {
+    ...StyleSheet.absoluteFillObject,
+    overflow: "hidden",
+  },
+  orbTop: {
+    position: "absolute",
+    top: -screenHeight * 0.08,
+    right: -screenWidth * 0.18,
+    width: screenWidth * 0.72,
+    height: screenWidth * 0.72,
+    borderRadius: screenWidth * 0.36,
+    backgroundColor: Colors.primary,
+    opacity: 0.3,
+  },
+  orbSide: {
+    position: "absolute",
+    top: screenHeight * 0.28,
+    left: -screenWidth * 0.28,
+    width: screenWidth * 0.58,
+    height: screenWidth * 0.58,
+    borderRadius: screenWidth * 0.29,
+    backgroundColor: Colors.tertiary,
+    opacity: 0.12,
+  },
+  orbBottom: {
+    position: "absolute",
+    bottom: -screenHeight * 0.04,
+    right: -screenWidth * 0.1,
+    width: screenWidth * 0.48,
+    height: screenWidth * 0.48,
+    borderRadius: screenWidth * 0.24,
+    backgroundColor: Colors.theme,
+    opacity: 0.1,
+  },
+  content: {
+    alignItems: "center",
+    paddingHorizontal: 32,
+    zIndex: 1,
+  },
+  logoBadge: {
+    width: 112,
+    height: 112,
+    borderRadius: 32,
+    backgroundColor: "#fff",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 20,
+    ...DS.shadow.card,
+    shadowOpacity: 0.12,
+    shadowRadius: 18,
+    elevation: 5,
+  },
+  logo: {
+    width: 78,
+    height: 78,
+    resizeMode: "contain",
+  },
+  brandName: {
+    color: Colors.text,
+    letterSpacing: -0.6,
+    textAlign: "center",
+  },
+  tagline: {
+    marginTop: 10,
+    color: DS.color.textMuted,
+    textAlign: "center",
+    lineHeight: 22,
+  },
+  loaderWrap: {
+    marginTop: 28,
+    height: 4,
+    width: 72,
+    borderRadius: 2,
+    backgroundColor: "rgba(15, 23, 42, 0.08)",
+    overflow: "hidden",
+  },
+  loaderBar: {
+    height: "100%",
+    width: "42%",
+    borderRadius: 2,
+    backgroundColor: Colors.primary,
+  },
+  footer: {
+    position: "absolute",
+    bottom: Math.max(36, screenHeight * 0.06),
+    left: 0,
+    right: 0,
+    alignItems: "center",
+    zIndex: 1,
+  },
+  footerText: {
+    color: DS.color.textSoft,
+  },
+});

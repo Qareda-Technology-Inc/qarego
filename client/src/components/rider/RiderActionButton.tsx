@@ -1,8 +1,9 @@
 import React, { FC, ReactNode } from "react";
-import { View, TouchableOpacity, Linking, Alert } from "react-native";
+import { View, TouchableOpacity, Linking, Alert, LayoutChangeEvent } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import CustomText from "../shared/CustomText";
+import { Colors } from "@/utils/Constants";
 import { getRiderDeliveryPhase } from "@/utils/riderCourierUi";
 import { riderDeliveryStyles as s } from "@/styles/riderDeliveryStyles";
 import { openMapsToPoint } from "@/utils/openMapsNavigation";
@@ -18,6 +19,7 @@ type Props = {
   actionColor?: string;
   banner?: ReactNode;
   actionLoading?: boolean;
+  onPanelLayout?: (height: number) => void;
 };
 
 const RiderActionButton: FC<Props> = ({
@@ -31,6 +33,7 @@ const RiderActionButton: FC<Props> = ({
   actionColor,
   banner,
   actionLoading = false,
+  onPanelLayout,
 }) => {
   const insets = useSafeAreaInsets();
   const phase = getRiderDeliveryPhase(ride);
@@ -59,26 +62,43 @@ const RiderActionButton: FC<Props> = ({
     openMapsToPoint(navTarget, navLabel);
   };
 
+  const handleLayout = (e: LayoutChangeEvent) => {
+    const h = e.nativeEvent.layout.height;
+    if (h > 0) onPanelLayout?.(h);
+  };
+
   return (
-    <View style={[s.panel, s.panelCompact, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+    <View
+      style={[s.panel, s.panelCompact, { paddingBottom: Math.max(insets.bottom, 12) }]}
+      onLayout={handleLayout}
+    >
       <View style={s.handle} />
 
       <View style={s.phaseHeader}>
-        <View style={[s.phaseBadge, { backgroundColor: `${phase.accentColor}18` }]}>
+        <View style={[s.phaseBadge, { backgroundColor: `${phase.accentColor}22` }]}>
           <CustomText fontSize={10} fontFamily="SemiBold" style={{ color: phase.accentColor }}>
             Step {phase.step}/{phase.totalSteps}
           </CustomText>
         </View>
-        <CustomText fontFamily="Bold" fontSize={16} style={s.phaseLabel}>
+        <CustomText fontFamily="Bold" fontSize={18} style={s.phaseLabel}>
           {phase.phaseLabel}
         </CustomText>
+        {phase.phaseHint ? (
+          <CustomText fontSize={12} style={s.phaseHint}>
+            {phase.phaseHint}
+          </CustomText>
+        ) : null}
       </View>
 
       {banner}
 
       <View style={s.destCard}>
-        <View style={s.destIconWrap}>
-          <Ionicons name={isStart ? "flag" : "location"} size={18} color={isStart ? "#16a34a" : "#ef4444"} />
+        <View style={[s.destIconWrap, isStart ? s.destIconPickup : s.destIconDrop]}>
+          <Ionicons
+            name={isStart ? "flag" : "location"}
+            size={18}
+            color={isStart ? "#16a34a" : Colors.theme}
+          />
         </View>
         <View style={s.destBody}>
           <CustomText fontSize={10} fontFamily="SemiBold" style={s.destLabel}>
@@ -88,23 +108,26 @@ const RiderActionButton: FC<Props> = ({
             {navAddress || "—"}
           </CustomText>
         </View>
+        <TouchableOpacity
+          style={s.destNavChip}
+          onPress={navigateToCurrentLeg}
+          activeOpacity={0.85}
+          accessibilityLabel="Open directions"
+        >
+          <Ionicons name="navigate" size={16} color={Colors.tertiary} />
+        </TouchableOpacity>
       </View>
-
-      <TouchableOpacity style={s.navigateBtnLarge} activeOpacity={0.9} onPress={navigateToCurrentLeg}>
-        <Ionicons name="navigate" size={22} color="#fff" />
-        <CustomText fontSize={15} fontFamily="Bold" style={s.navigateBtnText}>
-          Open directions
-        </CustomText>
-      </TouchableOpacity>
 
       <View style={s.contactRow}>
         <View style={s.contactMini}>
-          <Ionicons name="person-circle-outline" size={22} color="#64748b" />
+          <View style={s.contactAvatarMini}>
+            <Ionicons name="person" size={16} color={Colors.theme} />
+          </View>
           <View style={{ flex: 1, marginLeft: 8 }}>
-            <CustomText fontSize={10} color="#94a3b8">
+            <CustomText fontSize={10} style={s.meetLabel}>
               {meetLabel}
             </CustomText>
-            <CustomText fontFamily="SemiBold" fontSize={13} numberOfLines={1}>
+            <CustomText fontFamily="SemiBold" fontSize={13} numberOfLines={1} style={s.contactName}>
               {customerName}
             </CustomText>
           </View>
@@ -123,7 +146,7 @@ const RiderActionButton: FC<Props> = ({
         disabled={actionLoading}
       >
         <CustomText fontSize={15} fontFamily="Bold" style={s.actionBtnText}>
-          {actionLabel}
+          {actionLoading ? "Please wait…" : actionLabel}
         </CustomText>
       </TouchableOpacity>
     </View>

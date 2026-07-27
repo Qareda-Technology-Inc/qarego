@@ -6,10 +6,11 @@ import {
   useWindowDimensions,
   InteractionManager,
   LayoutChangeEvent,
+  Platform,
 } from "react-native";
 import React, { FC, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { customMapStyle, indiaIntialRegion } from "@/utils/CustomMap";
-import MapView, { Marker, Polyline } from "react-native-maps";
+import MapView, { Marker, Polyline, type Region } from "react-native-maps";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { RFValue } from "react-native-responsive-fontsize";
 import { mapStyles } from "@/styles/mapStyles";
@@ -23,28 +24,13 @@ const apiKey = process.env.EXPO_PUBLIC_MAP_API_KEY || "";
 const ROUTE_STROKE = Colors.primary;
 const ROUTE_WIDTH = 6;
 
-const MIN_VISIBLE_MAP_PX = 120;
-
-/** Extra breathing room around the route inside the padded (visible) map area. */
-const FIT_MARGIN = { top: 36, right: 36, bottom: 36, left: 36 };
-
 type LatLng = {
   latitude: number;
   longitude: number;
   address?: string;
 };
 
-function sampleCoordinates(
-  coords: { latitude: number; longitude: number }[],
-  maxPoints = 48
-): { latitude: number; longitude: number }[] {
-  if (coords.length <= maxPoints) return coords;
-  const step = Math.ceil(coords.length / maxPoints);
-  const sampled = coords.filter((_, i) => i % step === 0);
-  const last = coords[coords.length - 1];
-  if (sampled[sampled.length - 1] !== last) sampled.push(last);
-  return sampled;
-}
+type Point = { latitude: number; longitude: number };
 
 export type RoutesMapEdgePadding = {
   top?: number;
@@ -56,40 +42,97 @@ export type RoutesMapEdgePadding = {
 type RoutesMapProps = {
   pickup: LatLng;
   drop: LatLng;
-  /** Insets from map edges when fitting pickup → drop (e.g. large bottom = room for bottom sheet). */
+  /** Soft insets (px) reserved for top nav / labels inside the map view. */
   mapEdgePadding?: RoutesMapEdgePadding;
 };
 
 const defaultPadding: Required<RoutesMapEdgePadding> = {
-  top: 52,
-  right: 20,
-  bottom: 52,
-  left: 20,
+  top: 72,
+  right: 36,
+  bottom: 40,
+  left: 36,
 };
 
-/** Scale padding so top+bottom (and left+right) leave a real inner rect — huge bottom sheet values break fitToCoordinates on native maps. */
-function clampEdgePadding(
-  p: { top: number; right: number; bottom: number; left: number },
+function sampleCoordinates(coords: Point[], maxPoints = 48): Point[] {
+  if (coords.length <= maxPoints) return coords;
+  const step = Math.ceil(coords.length / maxPoints);
+  const sampled = coords.filter((_, i) => i % step === 0);
+  const last = coords[coords.length - 1];
+  if (sampled[sampled.length - 1] !== last) sampled.push(last);
+  return sampled;
+}
+
+/**
+ * Build a camera region that keeps all points inside the map's visible pad box.
+ * Prefer this over fitToCoordinates + mapPadding (those often double-apply insets on Google Maps).
+ */
+function regionForPoints(
+  points: Point[],
   mapW: number,
-  mapH: number
-): { top: number; right: number; bottom: number; left: number } {
-  if (mapW < 80 || mapH < 80) return p;
-  let { top, right, bottom, left } = p;
-  if (top + bottom > mapH - MIN_VISIBLE_MAP_PX) {
-    const avail = Math.max(mapH - MIN_VISIBLE_MAP_PX, MIN_VISIBLE_MAP_PX);
-    const sum = top + bottom;
-    const scale = sum > 0 ? avail / sum : 1;
-    top = Math.max(24, top * scale);
-    bottom = Math.max(24, bottom * scale);
+  mapH: number,
+  pad: { top: number; right: number; bottom: number; left: number }
+): Region | null {
+  const valid = points.filter(
+    (p) =>
+      Number.isFinite(p.latitude) &&
+      Number.isFinite(p.longitude) &&
+      Math.abs(p.latitude) <= 90 &&
+      Math.abs(p.longitude) <= 180
+  );
+  if (valid.length === 0 || mapW < 80 || mapH < 80) return null;
+
+  let minLat = Infinity;
+  let maxLat = -Infinity;
+  let minLng = Infinity;
+  let maxLng = -Infinity;
+  for (const p of valid) {
+    minLat = Math.min(minLat, p.latitude);
+    maxLat = Math.max(maxLat, p.latitude);
+    minLng = Math.min(minLng, p.longitude);
+    maxLng = Math.max(maxLng, p.longitude);
   }
-  if (left + right > mapW - MIN_VISIBLE_MAP_PX) {
-    const avail = Math.max(mapW - MIN_VISIBLE_MAP_PX, MIN_VISIBLE_MAP_PX);
-    const sum = left + right;
-    const scale = sum > 0 ? avail / sum : 1;
-    left = Math.max(16, left * scale);
-    right = Math.max(16, right * scale);
+
+  const latSpan = Math.max(maxLat - minLat, 0.004);
+  const lngSpan = Math.max(maxLng - minLng, 0.004);
+
+  const top = Math.max(12, Math.min(pad.top, mapH * 0.4));
+  const bottom = Math.max(12, Math.min(pad.bottom, mapH * 0.3));
+  const left = Math.max(12, Math.min(pad.left, mapW * 0.3));
+  const right = Math.max(12, Math.min(pad.right, mapW * 0.3));
+
+  const visibleH = Math.max(mapH - top - bottom, mapH * 0.35);
+  const visibleW = Math.max(mapW - left - right, mapW * 0.35);
+
+  // Zoom so the geographic span fits the inset rect, then match map aspect ratio.
+  let latitudeDelta = (latSpan * mapH) / visibleH * 1.35;
+  let longitudeDelta = (lngSpan * mapW) / visibleW * 1.35;
+  const aspect = mapW / mapH;
+  if (longitudeDelta / latitudeDelta < aspect) {
+    longitudeDelta = latitudeDelta * aspect;
+  } else {
+    latitudeDelta = longitudeDelta / aspect;
   }
-  return { top, right, bottom, left };
+
+  const midLat = (minLat + maxLat) / 2;
+  const midLng = (minLng + maxLng) / 2;
+
+  // Shift camera so geographic midpoint lands in the visible center (not raw map center).
+  const visibleCenterY = top + visibleH / 2;
+  const mapCenterY = mapH / 2;
+  const yShiftFrac = (mapCenterY - visibleCenterY) / mapH;
+  const latitude = midLat - yShiftFrac * latitudeDelta;
+
+  const visibleCenterX = left + visibleW / 2;
+  const mapCenterX = mapW / 2;
+  const xShiftFrac = (mapCenterX - visibleCenterX) / mapW;
+  const longitude = midLng + xShiftFrac * longitudeDelta;
+
+  return {
+    latitude,
+    longitude,
+    latitudeDelta: Math.min(Math.max(latitudeDelta, 0.015), 0.55),
+    longitudeDelta: Math.min(Math.max(longitudeDelta, 0.015), 0.55),
+  };
 }
 
 function LabeledPin({
@@ -116,16 +159,16 @@ function LabeledPin({
 const RoutesMap: FC<RoutesMapProps> = ({ drop, pickup, mapEdgePadding }) => {
   const mapRef = useRef<MapView>(null);
   const mapReadyRef = useRef(false);
-  const routeCoordsRef = useRef<{ latitude: number; longitude: number }[]>([]);
+  const fitTokenRef = useRef(0);
+  const routeCoordsRef = useRef<Point[]>([]);
   const { width: winW, height: winH } = useWindowDimensions();
   const [mapLayout, setMapLayout] = useState({ width: 0, height: 0 });
   const [mapReady, setMapReady] = useState(false);
   const [markersReady, setMarkersReady] = useState(false);
-  const [routeCoords, setRouteCoords] = useState<{ latitude: number; longitude: number }[]>([]);
-  /** Custom markers often render blank on Google Maps if this stays false (bitmap never captured). */
+  const [routeCoords, setRouteCoords] = useState<Point[]>([]);
   const [markerTracks, setMarkerTracks] = useState(true);
 
-  const edgePadding = useMemo(
+  const pad = useMemo(
     () => ({
       top: mapEdgePadding?.top ?? defaultPadding.top,
       right: mapEdgePadding?.right ?? defaultPadding.right,
@@ -138,25 +181,12 @@ const RoutesMap: FC<RoutesMapProps> = ({ drop, pickup, mapEdgePadding }) => {
   const mapSize = useMemo(
     () => ({
       width: mapLayout.width > 0 ? mapLayout.width : winW,
-      height: mapLayout.height > 0 ? mapLayout.height : winH,
+      height: mapLayout.height > 0 ? mapLayout.height : Math.max(winH * 0.55, 280),
     }),
     [mapLayout.width, mapLayout.height, winW, winH]
   );
 
-  const paddingForFit = useMemo(
-    () => clampEdgePadding(edgePadding, mapSize.width, mapSize.height),
-    [edgePadding, mapSize.width, mapSize.height]
-  );
-
-  const edgePaddingForFit = useMemo(
-    () => ({
-      top: paddingForFit.top + FIT_MARGIN.top,
-      right: paddingForFit.right + FIT_MARGIN.right,
-      bottom: paddingForFit.bottom + FIT_MARGIN.bottom,
-      left: paddingForFit.left + FIT_MARGIN.left,
-    }),
-    [paddingForFit]
-  );
+  const layoutReady = mapLayout.width >= 80 && mapLayout.height >= 120;
 
   const origin = useMemo(
     () => ({
@@ -176,33 +206,42 @@ const RoutesMap: FC<RoutesMapProps> = ({ drop, pickup, mapEdgePadding }) => {
 
   const showDirections = Boolean(apiKey) && pickup?.latitude != null && drop?.latitude != null;
 
-  const fitToCoordinates = useCallback(
-    (coordinates: { latitude: number; longitude: number }[]) => {
-      if (coordinates.length === 0 || !mapRef.current) return;
-      const pts = sampleCoordinates(coordinates);
+  const applyCameraFit = useCallback(
+    (coordinates: Point[], animated = true) => {
+      if (!mapRef.current) return;
+      const pts =
+        coordinates.length >= 2 ? sampleCoordinates(coordinates) : [origin, destination];
+      // Always include endpoints so a sparse polyline sample can't drop a pin off-frame.
+      const withEnds = [...pts, origin, destination];
+
+      const region = regionForPoints(withEnds, mapSize.width, mapSize.height, pad);
+      if (!region) return;
+
       try {
-        mapRef.current.fitToCoordinates(pts, {
-          edgePadding: edgePaddingForFit,
-          animated: true,
-        });
+        mapRef.current.animateToRegion(region, animated ? 350 : 0);
       } catch {
         /* native not ready */
       }
     },
-    [edgePaddingForFit]
+    [destination, mapSize.height, mapSize.width, origin, pad]
   );
 
   const scheduleCameraFit = useCallback(
-    (coordinates: { latitude: number; longitude: number }[]) => {
-      const run = () => fitToCoordinates(coordinates);
+    (coordinates: Point[]) => {
+      const token = ++fitTokenRef.current;
+      const run = (animated: boolean) => {
+        if (fitTokenRef.current !== token) return;
+        applyCameraFit(coordinates, animated);
+      };
+
       InteractionManager.runAfterInteractions(() => {
-        run();
-        setTimeout(run, 280);
-        setTimeout(run, 900);
-        setTimeout(run, 1600);
+        run(false);
+        setTimeout(() => run(true), 120);
+        setTimeout(() => run(true), 450);
+        setTimeout(() => run(true), 1000);
       });
     },
-    [fitToCoordinates]
+    [applyCameraFit]
   );
 
   useEffect(() => {
@@ -217,19 +256,19 @@ const RoutesMap: FC<RoutesMapProps> = ({ drop, pickup, mapEdgePadding }) => {
       if (cancelled || !coords?.length) return;
       routeCoordsRef.current = coords;
       setRouteCoords(coords);
-      scheduleCameraFit(coords);
+      if (layoutReady) scheduleCameraFit(coords);
     });
     return () => {
       cancelled = true;
     };
-  }, [mapReady, showDirections, origin, destination, scheduleCameraFit, apiKey]);
+  }, [mapReady, showDirections, origin, destination, scheduleCameraFit, layoutReady]);
 
   useEffect(() => {
     if (!mapReady) {
       setMarkersReady(false);
       return;
     }
-    const t = setTimeout(() => setMarkersReady(true), 320);
+    const t = setTimeout(() => setMarkersReady(true), 280);
     return () => clearTimeout(t);
   }, [mapReady, origin.latitude, origin.longitude, destination.latitude, destination.longitude]);
 
@@ -243,90 +282,48 @@ const RoutesMap: FC<RoutesMapProps> = ({ drop, pickup, mapEdgePadding }) => {
   const onMapReady = useCallback(() => {
     mapReadyRef.current = true;
     setMapReady(true);
+  }, []);
+
+  /** Fit once map is ready AND we know the real visible size above the sheet */
+  useEffect(() => {
+    if (!mapReady || !layoutReady) return;
     if (!Number.isFinite(origin.latitude) || !Number.isFinite(destination.latitude)) return;
     const pts = routeCoordsRef.current.length >= 2 ? routeCoordsRef.current : [origin, destination];
     scheduleCameraFit(pts);
-  }, [origin, destination, scheduleCameraFit]);
-
-  /** After layout / padding changes, re-fit into the visible map strip */
-  useEffect(() => {
-    if (!mapReadyRef.current || mapLayout.width < 40) return;
-    if (!Number.isFinite(origin.latitude) || !Number.isFinite(destination.latitude)) return;
-    const pts = routeCoordsRef.current.length >= 2 ? routeCoordsRef.current : [origin, destination];
-    const t = setTimeout(() => scheduleCameraFit(pts), 60);
-    return () => clearTimeout(t);
-  }, [edgePaddingForFit, mapLayout.width, mapLayout.height, origin, destination, scheduleCameraFit]);
-
-  /** First mount: map may not fire onMapReady before first coords effect */
-  useEffect(() => {
-    if (!Number.isFinite(origin.latitude) || !Number.isFinite(destination.latitude)) return;
-    routeCoordsRef.current = [origin, destination];
-    const t = setTimeout(() => {
-      if (mapReadyRef.current) scheduleCameraFit(routeCoordsRef.current);
-    }, 400);
-    return () => clearTimeout(t);
-  }, [origin, destination, scheduleCameraFit]);
+  }, [
+    mapReady,
+    layoutReady,
+    mapLayout.width,
+    mapLayout.height,
+    pad.top,
+    pad.right,
+    pad.bottom,
+    pad.left,
+    origin.latitude,
+    origin.longitude,
+    destination.latitude,
+    destination.longitude,
+    scheduleCameraFit,
+  ]);
 
   /** Straight-line fallback when directions are unavailable */
   useEffect(() => {
     if (!mapReady || showDirections) return;
     routeCoordsRef.current = [origin, destination];
     setRouteCoords([origin, destination]);
-    const t = setTimeout(() => scheduleCameraFit([origin, destination]), 120);
-    return () => clearTimeout(t);
-  }, [mapReady, showDirections, origin, destination, scheduleCameraFit]);
+  }, [mapReady, showDirections, origin, destination]);
 
-  /** Stop continuous marker re-rendering once labels have been captured */
   useEffect(() => {
     const t = setTimeout(() => setMarkerTracks(false), 2000);
     return () => clearTimeout(t);
   }, []);
 
   const initialRegion = useMemo(() => {
-    if (
-      pickup?.latitude != null &&
-      drop?.latitude != null &&
-      !Number.isNaN(Number(pickup.latitude)) &&
-      !Number.isNaN(Number(drop.latitude))
-    ) {
-      const lat1 = Number(pickup.latitude);
-      const lon1 = Number(pickup.longitude);
-      const lat2 = Number(drop.latitude);
-      const lon2 = Number(drop.longitude);
-      const minLat = Math.min(lat1, lat2);
-      const maxLat = Math.max(lat1, lat2);
-      const minLon = Math.min(lon1, lon2);
-      const maxLon = Math.max(lon1, lon2);
-      const latDelta = Math.max((maxLat - minLat) * 1.6, 0.02);
-      const lonDelta = Math.max((maxLon - minLon) * 1.6, 0.02);
-      const midLat = (minLat + maxLat) / 2;
-      const midLon = (minLon + maxLon) / 2;
-
-      // Bias camera so the route sits in the visible strip above the bottom sheet.
-      const h = mapSize.height;
-      const visibleH = h - paddingForFit.top - paddingForFit.bottom;
-      const visibleCenterY = paddingForFit.top + visibleH / 2;
-      const mapCenterY = h / 2;
-      const pixelShift = mapCenterY - visibleCenterY;
-      const latOffset = h > 0 ? (pixelShift / h) * latDelta * 0.85 : 0;
-
-      return {
-        latitude: midLat - latOffset,
-        longitude: midLon,
-        latitudeDelta: latDelta,
-        longitudeDelta: lonDelta,
-      };
-    }
-    return indiaIntialRegion;
-  }, [
-    pickup?.latitude,
-    pickup?.longitude,
-    drop?.latitude,
-    drop?.longitude,
-    mapSize.height,
-    paddingForFit.top,
-    paddingForFit.bottom,
-  ]);
+    return (
+      regionForPoints([origin, destination], mapSize.width, mapSize.height, pad) ??
+      indiaIntialRegion
+    );
+  }, [origin, destination, mapSize.width, mapSize.height, pad]);
 
   return (
     <View style={styles.mapWrap} onLayout={onMapWrapperLayout}>
@@ -338,9 +335,11 @@ const RoutesMap: FC<RoutesMapProps> = ({ drop, pickup, mapEdgePadding }) => {
         showsMyLocationButton={false}
         showsCompass={false}
         showsIndoors={false}
-        customMapStyle={customMapStyle}
-        showsUserLocation
+        // customMapStyle can render blank tiles on some Android Google Maps builds
+        customMapStyle={Platform.OS === "ios" ? customMapStyle : undefined}
+        showsUserLocation={false}
         rotateEnabled={false}
+        pitchEnabled={false}
         onMapReady={onMapReady}
       >
         {mapReady && routeCoords.length >= 2 ? (
@@ -385,13 +384,14 @@ const RoutesMap: FC<RoutesMapProps> = ({ drop, pickup, mapEdgePadding }) => {
       </MapView>
 
       <TouchableOpacity
-        style={[mapStyles.gpsButton, styles.refitButton, { bottom: paddingForFit.bottom + 12 }]}
+        style={[mapStyles.gpsButton, styles.refitButton, { bottom: Math.max(pad.bottom, 24) + 8 }]}
         onPress={() => {
           const pts =
             routeCoordsRef.current.length >= 2 ? routeCoordsRef.current : [origin, destination];
           scheduleCameraFit(pts);
         }}
         activeOpacity={0.85}
+        accessibilityLabel="Recenter route"
       >
         <MaterialCommunityIcons name="crosshairs-gps" size={RFValue(16)} color="#3C75BE" />
       </TouchableOpacity>
@@ -404,9 +404,13 @@ const styles = StyleSheet.create({
     flex: 1,
     width: "100%",
     height: "100%",
+    backgroundColor: "#E8EEF5",
   },
+  // Android: prefer flex sizing over absoluteFill — absoluteFill often yields a 0-size surface.
   map: {
     flex: 1,
+    width: "100%",
+    height: "100%",
   },
   refitButton: {
     zIndex: 5,

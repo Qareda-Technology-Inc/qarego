@@ -87,7 +87,7 @@ export function buildFoodTrackingSteps(
   });
 }
 
-/** Delivery code shown to customer when courier is en route (IN_PROGRESS). */
+/** Delivery code shown to customer when courier is assigned (until delivered). */
 export function getFoodDeliveryCode(order: {
   deliveryCode?: string | null;
   ride?: { otp?: string } | null;
@@ -96,7 +96,13 @@ export function getFoodDeliveryCode(order: {
   return code && String(code).length >= 4 ? String(code) : null;
 }
 
-/** Show delivery code on order tracking once a courier ride exists (until delivered). */
+const FOOD_DELIVERY_CODE_RIDE_STATUSES = new Set([
+  "START",
+  "ARRIVED",
+  "IN_PROGRESS",
+]);
+
+/** Show delivery code once a courier is assigned and en route (not while still searching). */
 export function shouldShowFoodDeliveryCode(
   orderStatus: FoodOrderStatus,
   ride?: { status?: string; _id?: string } | null
@@ -104,12 +110,16 @@ export function shouldShowFoodDeliveryCode(
   if (!ride?._id) return false;
   if (orderStatus === "DELIVERED" || orderStatus === "CANCELLED") return false;
   if (ride.status === "COMPLETED") return false;
-  return [
-    "SEARCHING_FOR_RIDER",
-    "START",
-    "ARRIVED",
-    "IN_PROGRESS",
-  ].includes(ride.status ?? "");
+  return FOOD_DELIVERY_CODE_RIDE_STATUSES.has(ride.status ?? "");
+}
+
+/** Live-ride sheet: same rule as order tracking (code ready from pickup through handoff). */
+export function shouldShowFoodDeliveryCodeOnLiveRide(
+  rideStatus?: string | null,
+  otp?: string | null
+): boolean {
+  if (!otp || String(otp).length < 4) return false;
+  return FOOD_DELIVERY_CODE_RIDE_STATUSES.has(rideStatus ?? "");
 }
 
 export function getHeroStatusLabel(

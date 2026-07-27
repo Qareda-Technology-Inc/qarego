@@ -1,7 +1,9 @@
-import { View, StyleSheet } from "react-native";
+import { View, StyleSheet, Image } from "react-native";
 import React from "react";
+import Animated, { FadeInDown } from "react-native-reanimated";
 import CustomText from "../shared/CustomText";
 import { Colors } from "@/utils/Constants";
+import { DS } from "@/theme/designSystem";
 import CircularServiceSelector from "./CircularServiceSelector";
 import { useUserStore } from "@/store/userStore";
 
@@ -13,7 +15,7 @@ function getGreeting(): string {
 }
 
 /**
- * First page: personalized header, subheading, and animated service categories.
+ * Customer module greeting — brand + personalized hello + service list.
  */
 const ServiceSelectScreen = () => {
   const { user } = useUserStore();
@@ -22,15 +24,25 @@ const ServiceSelectScreen = () => {
 
   return (
     <View style={styles.wrapper}>
-      <CustomText fontFamily="SemiBold" fontSize={22} style={styles.heading}>
-        {greeting}, {name}.
-      </CustomText>
-      <CustomText fontFamily="SemiBold" fontSize={18} style={styles.subtitle}>
-        What can we help you with?
-      </CustomText>
-      <CustomText fontFamily="Regular" fontSize={14} style={styles.subheading}>
-        Tap a category to get started
-      </CustomText>
+      <Animated.View entering={FadeInDown.duration(420)} style={styles.brandRow}>
+        <Image
+          source={require("@/assets/images/logo_t.png")}
+          style={styles.logo}
+          resizeMode="contain"
+        />
+        <CustomText fontFamily="Bold" fontSize={18} style={styles.brand}>
+          QareGO
+        </CustomText>
+      </Animated.View>
+
+      <Animated.View entering={FadeInDown.delay(60).duration(420)} style={styles.hero}>
+        <CustomText fontFamily="Bold" fontSize={28} style={styles.heading}>
+          {greeting}, {name}
+        </CustomText>
+        <CustomText fontFamily="Medium" fontSize={16} style={styles.subtitle}>
+          What do you need today?
+        </CustomText>
+      </Animated.View>
 
       <CircularServiceSelector goToHomeOnSelect />
     </View>
@@ -40,24 +52,35 @@ const ServiceSelectScreen = () => {
 const styles = StyleSheet.create({
   wrapper: {
     width: "100%",
-    maxWidth: 400,
+    maxWidth: 440,
+    alignSelf: "center",
+    paddingTop: 8,
+  },
+  brandRow: {
+    flexDirection: "row",
     alignItems: "center",
-    paddingTop: 36,
+    marginBottom: 20,
+  },
+  logo: {
+    width: 36,
+    height: 36,
+    marginRight: 8,
+  },
+  brand: {
+    color: Colors.text,
+    letterSpacing: -0.3,
+  },
+  hero: {
+    marginBottom: 22,
   },
   heading: {
-    textAlign: "center",
     color: Colors.text,
-    marginBottom: 4,
+    letterSpacing: -0.4,
+    marginBottom: 6,
   },
   subtitle: {
-    textAlign: "center",
-    color: Colors.text,
-    marginBottom: 8,
-  },
-  subheading: {
-    textAlign: "center",
-    color: "#888",
-    marginBottom: 16,
+    color: DS.color.textMuted,
+    lineHeight: 22,
   },
 });
 

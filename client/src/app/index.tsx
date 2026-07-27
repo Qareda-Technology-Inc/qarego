@@ -1,4 +1,4 @@
-import { View, Text, Image, Alert } from "react-native";
+import { View, Image, Alert } from "react-native";
 import React, { useEffect, useState } from "react";
 import { useFonts } from "expo-font";
 import {
@@ -13,7 +13,16 @@ import {
   Lora_400Regular,
   Lora_500Medium,
 } from "@expo-google-fonts/lora";
-import { commonStyles } from "@/styles/commonStyles";
+import Animated, {
+  FadeInDown,
+  FadeInUp,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+  Easing,
+} from "react-native-reanimated";
+import { StatusBar } from "expo-status-bar";
 import { splashStyles } from "@/styles/splashStyles";
 import CustomText from "@/components/shared/CustomText";
 import { useUserStore } from "@/store/userStore";
@@ -32,7 +41,7 @@ interface DecodedToken {
   role?: string;
 }
 
-/** Project fonts: Playfair Display (headings), Fraunces (emphasis), Lora (body) */
+/** Boot splash — brand-first while fonts hydrate and session resolves. */
 const Main = () => {
   const [loaded] = useFonts({
     Bold: PlayfairDisplay_700Bold,
@@ -48,11 +57,22 @@ const Main = () => {
   const [hasNavigated, setHasNavigated] = useState(false);
   const [storesHydrated, setStoresHydrated] = useState(false);
 
-  // Wait for stores to hydrate
+  const loaderX = useSharedValue(-40);
+
   useEffect(() => {
-    // Check if stores are hydrated by checking if they've been loaded from storage
+    loaderX.value = withRepeat(
+      withTiming(80, { duration: 1100, easing: Easing.inOut(Easing.ease) }),
+      -1,
+      true
+    );
+  }, [loaderX]);
+
+  const loaderStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: loaderX.value }],
+  }));
+
+  useEffect(() => {
     const checkHydration = () => {
-      // Zustand persist hydrates synchronously, but we'll give it a moment
       setTimeout(() => {
         setStoresHydrated(true);
       }, 100);
@@ -80,7 +100,6 @@ const Main = () => {
         if (decodedAccessToken?.exp < currentTime) {
           try {
             await refresh_tokens();
-            // After refreshing, re-decode the new token
             const newAccessToken = tokenStorage.getString("access_token") as string;
             if (newAccessToken) {
               decodedAccessToken = jwtDecode<DecodedToken>(newAccessToken);
@@ -93,56 +112,33 @@ const Main = () => {
           }
         }
 
-        // Determine user role - prioritize token role, then check stores
         const userRole = decodedAccessToken?.role;
-        
-        console.log("Navigation check:", {
-          tokenRole: userRole,
-          customerStore: !!user,
-          riderStore: !!riderUser,
-          customerUserRole: user?.role,
-          riderUserRole: riderUser?.role,
-        });
 
-        // Clear opposite store if there's a mismatch
         if (userRole === "customer" && riderUser) {
-          const { clearRiderData } = useRiderStore.getState();
-          clearRiderData();
-          console.log("Cleared rider store - user is customer");
+          useRiderStore.getState().clearRiderData();
         } else if (userRole === "rider" && user) {
-          const { clearData } = useUserStore.getState();
-          clearData();
-          console.log("Cleared customer store - user is rider");
+          useUserStore.getState().clearData();
         }
 
-        // Prioritize role from token, but also check stores for consistency
         if (userRole === "customer") {
-          console.log("Navigating to customer");
           const resumed = await resumeCustomerSession({ useReset: true });
           if (!resumed) {
             resetAndNavigate("/customer");
           }
         } else if (userRole === "rider") {
-          console.log("Navigating to rider home");
           resetAndNavigate("/rider/home");
         } else if (user && user.role === "customer") {
-          console.log("Using customer store (old token), navigating to customer");
           const resumed = await resumeCustomerSession({ useReset: true });
           if (!resumed) {
             resetAndNavigate("/customer");
           }
         } else if (riderUser && riderUser.role === "rider") {
-          // Fallback to store if token doesn't have role (old tokens)
-          console.log("Using rider store (old token), navigating to rider home");
           resetAndNavigate("/rider/home");
         } else {
-          // If no role found, navigate to role selection
-          console.log("No role found, navigating to role selection");
           resetAndNavigate("/role");
         }
       } catch (error) {
         console.log("Token decode error:", error);
-        // If token is invalid, clear and redirect to role selection
         tokenStorage.clearAll();
         resetAndNavigate("/role");
       }
@@ -154,23 +150,53 @@ const Main = () => {
 
   useEffect(() => {
     if (loaded && storesHydrated && !hasNavigated) {
+      // Slightly longer so the brand moment lands before route change.
       const timeoutId = setTimeout(() => {
-        tokenCheck();
+        void tokenCheck();
         setHasNavigated(true);
-      }, 500);
+      }, 900);
       return () => clearTimeout(timeoutId);
     }
   }, [loaded, storesHydrated, hasNavigated]);
 
   return (
-    <View style={commonStyles.container}>
-      <Image
-        source={require("@/assets/images/logo_t.png")}
-        style={splashStyles.img}
-      />
-      <CustomText variant="h5" fontFamily="Medium" style={splashStyles.text}>
-        Sponsored by Qaretech
-      </CustomText>
+    <View style={splashStyles.root}>
+      <StatusBar style="dark" />
+      <View pointerEvents="none" style={splashStyles.atmosphere}>
+        <View style={splashStyles.orbTop} />
+        <View style={splashStyles.orbSide} />
+        <View style={splashStyles.orbBottom} />
+      </View>
+
+      <Animated.View
+        entering={FadeInDown.duration(520).springify().damping(16)}
+        style={splashStyles.content}
+      >
+        <View style={splashStyles.logoBadge}>
+          <Image
+            source={require("@/assets/images/logo_t.png")}
+            style={splashStyles.logo}
+          />
+        </View>
+        <CustomText fontFamily="Bold" fontSize={40} style={splashStyles.brandName}>
+          QareGO
+        </CustomText>
+        <CustomText fontFamily="Medium" fontSize={15} style={splashStyles.tagline}>
+          Rides, food & parcels across Ghana
+        </CustomText>
+        <View style={splashStyles.loaderWrap}>
+          <Animated.View style={[splashStyles.loaderBar, loaderStyle]} />
+        </View>
+      </Animated.View>
+
+      <Animated.View
+        entering={FadeInUp.delay(180).duration(400)}
+        style={splashStyles.footer}
+      >
+        <CustomText fontSize={12} style={splashStyles.footerText}>
+          Sponsored by Qaretech
+        </CustomText>
+      </Animated.View>
     </View>
   );
 };

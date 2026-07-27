@@ -17,7 +17,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.qarego.client",
       "config": {
-        "googleMapsApiKey": "process.env.GOOGLE_API_KEY"
+        "googleMapsApiKey": ""
       },
       "infoPlist": {
         "NSLocalNetworkUsageDescription": "QareGO connects to the development server on your local Wi-Fi network.",
@@ -38,7 +38,7 @@
     "android": {
       "config": {
         "googleMaps": {
-          "apiKey": "process.env.GOOGLE_API_KEY"
+          "apiKey": ""
         }
       },
       "adaptiveIcon": {

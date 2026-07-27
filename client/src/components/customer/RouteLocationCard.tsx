@@ -4,6 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import CustomText from "@/components/shared/CustomText";
 import LocationInput from "@/components/customer/LocationInput";
 import { RideHomeTheme as T } from "@/styles/rideHomeTheme";
+import { Colors } from "@/utils/Constants";
 
 type Props = {
   showPickup: boolean;
@@ -22,7 +23,7 @@ type Props = {
   onMapPress: () => void;
 };
 
-/** Bolt-style pickup → destination editor with connector line. */
+/** Pickup → destination editor with connector line. */
 const RouteLocationCard: FC<Props> = ({
   showPickup,
   pickup,
@@ -48,7 +49,13 @@ const RouteLocationCard: FC<Props> = ({
               <View style={[styles.dot, styles.dotPickup]} />
               <View style={styles.connector} />
             </View>
-            <View style={[styles.inputCol, focusedInput === "pickup" && styles.inputColFocused]}>
+            <View
+              style={[
+                styles.inputCol,
+                focusedInput === "pickup" && styles.inputColFocused,
+                pickup.trim().length > 0 && focusedInput !== "pickup" && styles.inputColFilled,
+              ]}
+            >
               <CustomText fontSize={11} fontFamily="Medium" style={styles.fieldLabel}>
                 {pickupLabel}
               </CustomText>
@@ -75,7 +82,13 @@ const RouteLocationCard: FC<Props> = ({
           {!showPickup ? <View style={styles.dotSpacer} /> : null}
           <View style={[styles.dot, styles.dotDrop]} />
         </View>
-        <View style={[styles.inputCol, focusedInput === "drop" && styles.inputColFocused]}>
+        <View
+          style={[
+            styles.inputCol,
+            focusedInput === "drop" && styles.inputColFocused,
+            drop.trim().length > 0 && focusedInput !== "drop" && styles.inputColFilled,
+          ]}
+        >
           <CustomText fontSize={11} fontFamily="Medium" style={styles.fieldLabel}>
             {dropLabel}
           </CustomText>
@@ -93,24 +106,27 @@ const RouteLocationCard: FC<Props> = ({
     </View>
 
     <TouchableOpacity style={styles.mapBtn} onPress={onMapPress} activeOpacity={0.88}>
-      <Ionicons name="map-outline" size={18} color={T.ink} />
+      <View style={styles.mapBtnIcon}>
+        <Ionicons name="map" size={16} color={Colors.theme} />
+      </View>
       <CustomText fontFamily="Medium" fontSize={13} style={styles.mapBtnText}>
         Set location on map
       </CustomText>
+      <Ionicons name="chevron-forward" size={16} color={T.inkSoft} />
     </TouchableOpacity>
   </View>
 );
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: T.sheetBg,
-    marginTop: 8,
-    borderRadius: T.radius.card,
+    backgroundColor: "#fff",
+    marginTop: 10,
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: T.border,
+    borderColor: "rgba(15, 23, 42, 0.06)",
     paddingHorizontal: 14,
-    paddingTop: 14,
-    paddingBottom: 12,
+    paddingTop: 16,
+    paddingBottom: 14,
     ...T.shadow.card,
   },
   routeColumn: {
@@ -154,16 +170,20 @@ const styles = StyleSheet.create({
     flex: 1,
     marginLeft: 10,
     marginBottom: 10,
-    borderRadius: 12,
+    borderRadius: 14,
     paddingHorizontal: 12,
     paddingBottom: 4,
-    backgroundColor: T.surfaceMuted,
+    backgroundColor: "#F8FAFC",
     borderWidth: 1.5,
-    borderColor: "transparent",
+    borderColor: T.border,
   },
   inputColFocused: {
     backgroundColor: "#fff",
-    borderColor: T.ink,
+    borderColor: Colors.theme,
+  },
+  inputColFilled: {
+    backgroundColor: "#fffef5",
+    borderColor: Colors.primary,
   },
   fieldLabel: {
     color: T.inkSoft,
@@ -176,7 +196,7 @@ const styles = StyleSheet.create({
     top: 52,
     width: 36,
     height: 36,
-    borderRadius: 18,
+    borderRadius: 12,
     backgroundColor: "#fff",
     borderWidth: 1,
     borderColor: T.border,
@@ -188,16 +208,25 @@ const styles = StyleSheet.create({
   mapBtn: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
+    gap: 10,
     marginTop: 4,
     paddingVertical: 12,
-    borderRadius: 12,
-    backgroundColor: T.surfaceMuted,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    backgroundColor: "#F8FAFC",
     borderWidth: 1,
     borderColor: T.border,
   },
+  mapBtnIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: "#ffedd5",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   mapBtnText: {
+    flex: 1,
     color: T.ink,
   },
 });

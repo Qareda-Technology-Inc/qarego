@@ -3,8 +3,24 @@ const appJson = require("./app.base.json");
 const fs = require("fs");
 const path = require("path");
 
-const googleMapsKey =
-  process.env.GOOGLE_API_KEY || process.env.EXPO_PUBLIC_MAP_API_KEY || "";
+// Ensure native prebuild / run:* see client/.env (Expo does not always load it for app.config).
+try {
+  require("dotenv").config({ path: path.join(__dirname, ".env") });
+} catch {
+  /* dotenv optional at config time */
+}
+
+const googleMapsKey = (
+  process.env.GOOGLE_API_KEY ||
+  process.env.EXPO_PUBLIC_MAP_API_KEY ||
+  ""
+).trim();
+
+if (!googleMapsKey) {
+  console.warn(
+    "[app.config] Missing GOOGLE_API_KEY / EXPO_PUBLIC_MAP_API_KEY — Android/iOS maps will be blank."
+  );
+}
 
 function resolveFirebaseFile(...candidates) {
   for (const candidate of candidates) {

@@ -12,6 +12,7 @@ import { StatusCodes } from "http-status-codes";
 import { BadRequestError, NotFoundError, UnauthenticatedError } from "../errors/index.js";
 import { applyRestaurantAction } from "../utils/foodOrderFlow.js";
 import { normalizePhone } from "../utils/phone.js";
+import { detectGhMomoChannel } from "../utils/hubtelService.js";
 import { computeOpenState, sanitizeHours } from "../utils/storeHours.js";
 import { getSettings } from "../utils/tripSettlement.js";
 import { layoutFromAdminDefaults, normalizeMenuTags, MENU_ITEM_TAGS } from "../utils/menuDisplay.js";
@@ -356,6 +357,34 @@ export const updateMyRestaurant = async (req, res) => {
     if (!Number.isFinite(restaurant.latitude) || !Number.isFinite(restaurant.longitude)) {
       throw new BadRequestError("Invalid latitude or longitude");
     }
+  }
+
+  // Owner can set Hubtel settlement MoMo (name / phone / network).
+  if (req.body.payoutConfig && typeof req.body.payoutConfig === "object") {
+    if (req.user.role !== "merchant") {
+      throw new BadRequestError("Only the store owner can update settlement MoMo");
+    }
+    const next = req.body.payoutConfig;
+    const prev = restaurant.payoutConfig || {};
+    const recipientMsisdn =
+      next.recipientMsisdn !== undefined
+        ? normalizePhone(String(next.recipientMsisdn || "")) || null
+        : prev.recipientMsisdn || null;
+    const recipientName =
+      next.recipientName !== undefined
+        ? String(next.recipientName || "").trim() || null
+        : prev.recipientName || null;
+    if (recipientMsisdn && !recipientName) {
+      throw new BadRequestError("Recipient name is required when a MoMo phone is set");
+    }
+    restaurant.payoutConfig = {
+      instantPayoutEnabled: Boolean(prev.instantPayoutEnabled),
+      recipientName,
+      recipientMsisdn,
+      channel: recipientMsisdn
+        ? detectGhMomoChannel(recipientMsisdn)
+        : prev.channel || "mtn-gh",
+    };
   }
 
   await restaurant.save();

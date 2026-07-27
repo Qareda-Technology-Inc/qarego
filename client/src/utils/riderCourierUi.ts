@@ -1,6 +1,7 @@
 import { parcelModeLabels, parseRideParcelMode, type ParcelMode } from "./parcelMode";
 import { getCommerceOrderCopy } from "./commerceOrderCopy";
 import { isFoodDelivery } from "./riderRideUtils";
+import { Colors } from "./Constants";
 
 type CourierRide = {
   serviceType?: string;
@@ -133,8 +134,8 @@ export function getRiderDeliveryPhase(ride?: CourierRide | null): RiderDeliveryP
       totalSteps: 3,
       phaseLabel: isFood ? "Collect order" : isParcel ? "Collect parcel" : "Go to pickup",
       phaseHint: isFood ? "Head to the restaurant and confirm when you have the order" : "Navigate to the pickup point",
-      accentColor: "#f97316",
-      swipeColor: "#ea580c",
+      accentColor: Colors.theme,
+      swipeColor: Colors.theme,
     };
   }
   if (status === "ARRIVED") {
@@ -155,8 +156,8 @@ export function getRiderDeliveryPhase(ride?: CourierRide | null): RiderDeliveryP
             ? "Start heading to the customer address"
             : "Start heading to the recipient address"
           : "Begin the trip with your passenger",
-      accentColor: "#0ea5e9",
-      swipeColor: "#0284c7",
+      accentColor: Colors.tertiary,
+      swipeColor: Colors.tertiary,
     };
   }
   if (status === "IN_PROGRESS") {

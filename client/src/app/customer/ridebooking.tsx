@@ -95,6 +95,7 @@ const RideBooking = () => {
   const [parcelPhotoUrl, setParcelPhotoUrl] = useState<string | null>(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [fareRates, setFareRates] = useState<FareRateStructure | null>(null);
+  const [sheetIndex, setSheetIndex] = useState(0);
 
   const busyVehicleSet = useMemo(() => {
     const raw = (item as { busyVehicles?: unknown })?.busyVehicles;
@@ -374,23 +375,56 @@ const RideBooking = () => {
   const accentColor = serviceType === "DELIVERY" ? P.accent : Colors.primary;
 
   const sheetSnapPoints = useMemo(() => {
-    const low = Math.max(Math.round(windowHeight * 0.4), 320);
-    const mid = Math.max(Math.round(windowHeight * 0.72), low + 120);
-    const high = Math.max(Math.round(windowHeight * 0.9), mid + 80);
+    const low = Math.max(Math.round(windowHeight * 0.38), 300);
+    const mid = Math.max(Math.round(windowHeight * 0.68), low + 100);
+    const high = Math.max(Math.round(windowHeight * 0.88), mid + 60);
     return [low, mid, high];
   }, [windowHeight]);
-  const collapsedSheetHeight = sheetSnapPoints[0];
+  const activeSheetHeight =
+    sheetSnapPoints[Math.min(Math.max(sheetIndex, 0), sheetSnapPoints.length - 1)] ??
+    sheetSnapPoints[0];
   const isSmallScreen = windowHeight < 700;
+  const distanceKm = parseFloat(item?.distanceInKm || "0");
+  const distanceLabel = Number.isFinite(distanceKm) && distanceKm > 0
+    ? `${distanceKm.toFixed(1)} km`
+    : null;
 
-  /** Inset map camera so pickup → drop fits in the strip above the bottom sheet */
+  /**
+   * Map view is sized to the strip *above* the sheet (explicit height).
+   * Padding is only for top nav + labeled pins inside that strip.
+   */
+  const mapStripHeight = Math.max(windowHeight - activeSheetHeight, 220);
   const routeMapPadding = useMemo(
     () => ({
-      top: Platform.OS === "android" ? 86 : 94,
-      right: 24,
-      bottom: Math.round(collapsedSheetHeight) + 8,
-      left: 24,
+      top: Math.max(insets.top, 8) + 56,
+      right: 40,
+      bottom: 28,
+      left: 40,
     }),
-    [collapsedSheetHeight]
+    [insets.top]
+  );
+
+  const mapPickup = useMemo(
+    () =>
+      pickup
+        ? {
+            latitude: pickup.latitude,
+            longitude: pickup.longitude,
+            address: pickup.address,
+          }
+        : null,
+    [pickup]
+  );
+  const mapDrop = useMemo(
+    () =>
+      drop
+        ? {
+            latitude: drop.latitude,
+            longitude: drop.longitude,
+            address: drop.address,
+          }
+        : null,
+    [drop]
   );
 
   const openLocationEditor = useCallback(() => {
@@ -408,20 +442,12 @@ const RideBooking = () => {
   return (
     <View style={styles.container}>
       <StatusBar style="dark" backgroundColor="transparent" translucent />
-      {pickup && drop ? (
-        <View style={styles.mapLayer} pointerEvents="box-none">
+      {mapPickup && mapDrop ? (
+        <View style={[styles.mapLayer, { height: mapStripHeight }]}>
           <RoutesMap
             mapEdgePadding={routeMapPadding}
-            drop={{
-              latitude: drop.latitude,
-              longitude: drop.longitude,
-              address: drop.address,
-            }}
-            pickup={{
-              latitude: pickup.latitude,
-              longitude: pickup.longitude,
-              address: pickup.address,
-            }}
+            drop={mapDrop}
+            pickup={mapPickup}
           />
         </View>
       ) : null}
@@ -436,20 +462,37 @@ const RideBooking = () => {
           style={styles.navCircleBtn}
           onPress={() => router.back()}
           activeOpacity={0.8}
+          accessibilityLabel="Go back"
         >
           <MaterialIcons name="arrow-back-ios" size={20} color={Colors.text} />
         </TouchableOpacity>
-        <TouchableOpacity style={styles.routeInlinePill} onPress={openLocationEditor} activeOpacity={0.85}>
-          <CustomText fontFamily="SemiBold" fontSize={11} numberOfLines={1} style={styles.routeInlineText}>
-            {pickupShort} → {dropShort}
-          </CustomText>
+        <TouchableOpacity
+          style={styles.routeInlinePill}
+          onPress={openLocationEditor}
+          activeOpacity={0.85}
+        >
+          <View style={styles.routeDots}>
+            <View style={[styles.routeDot, styles.routeDotPickup]} />
+            <View style={styles.routeDotLine} />
+            <View style={[styles.routeDot, styles.routeDotDrop]} />
+          </View>
+          <View style={styles.routeInlineTextWrap}>
+            <CustomText fontFamily="SemiBold" fontSize={12} numberOfLines={1} style={styles.routeInlineText}>
+              {pickupShort}
+            </CustomText>
+            <CustomText fontSize={11} numberOfLines={1} style={styles.routeInlineDrop}>
+              {dropShort}
+            </CustomText>
+          </View>
+          <Ionicons name="pencil" size={14} color={T.inkSoft} />
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.navCircleBtn}
           onPress={openExternalRoute}
           activeOpacity={0.8}
+          accessibilityLabel="Open in Maps"
         >
-          <Ionicons name="add" size={24} color={Colors.text} />
+          <Ionicons name="navigate-outline" size={20} color={Colors.text} />
         </TouchableOpacity>
       </View>
 
@@ -463,6 +506,7 @@ const RideBooking = () => {
         handleIndicatorStyle={styles.handle}
         style={styles.sheetContainer}
         backgroundStyle={styles.sheetBackground}
+        onChange={setSheetIndex}
       >
         <BottomSheetScrollView
           contentContainerStyle={[styles.sheetContent, isSmallScreen && styles.sheetContentCompact]}
@@ -483,7 +527,28 @@ const RideBooking = () => {
                   </CustomText>
                 </View>
               </View>
-            ) : null}
+            ) : (
+              <View style={styles.rideSheetHeader}>
+                <View>
+                  <CustomText fontFamily="Bold" fontSize={22} style={styles.rideSheetTitle}>
+                    Choose a ride
+                  </CustomText>
+                  <CustomText fontSize={13} style={styles.rideSheetSubtitle}>
+                    {distanceLabel
+                      ? `${distanceLabel} trip · tap an option below`
+                      : "Tap an option to continue"}
+                  </CustomText>
+                </View>
+                {distanceLabel ? (
+                  <View style={styles.distanceChip}>
+                    <Ionicons name="navigate" size={14} color={Colors.theme} />
+                    <CustomText fontFamily="SemiBold" fontSize={12} style={styles.distanceChipText}>
+                      {distanceLabel}
+                    </CustomText>
+                  </View>
+                ) : null}
+              </View>
+            )}
 
             {serviceType === "DELIVERY" ? (
               <ParcelRecipientForm
@@ -505,12 +570,9 @@ const RideBooking = () => {
             ) : null}
 
             <View style={styles.section}>
-              <CustomText fontFamily="SemiBold" fontSize={14} style={styles.sectionTitle}>
-                Compare your options
-              </CustomText>
-              {serviceType === "RIDE" && selectedOption === null ? (
-                <CustomText fontSize={12} color="#888" style={{ marginTop: -6, marginBottom: 12 }}>
-                  Tap one option to select.
+              {isParcelFlow ? (
+                <CustomText fontFamily="SemiBold" fontSize={14} style={styles.sectionTitle}>
+                  Courier options
                 </CustomText>
               ) : null}
               {displayOptions.map((ride) => {
@@ -535,7 +597,15 @@ const RideBooking = () => {
                     activeOpacity={isBusy ? 1 : 0.8}
                     disabled={isBusy}
                   >
-                    <Image source={ride.icon} style={styles.optionIcon} />
+                    <View
+                      style={[
+                        styles.optionIconWrap,
+                        isSelected && styles.optionIconWrapSelected,
+                        isSelected && serviceType === "DELIVERY" && styles.optionIconWrapParcel,
+                      ]}
+                    >
+                      <Image source={ride.icon} style={styles.optionIcon} />
+                    </View>
                     <View style={styles.optionInfo}>
                       <View style={styles.optionTitleRow}>
                         <CustomText fontFamily="SemiBold" fontSize={15} numberOfLines={1}>
@@ -554,20 +624,33 @@ const RideBooking = () => {
                       </CustomText>
                     </View>
                     <View style={styles.optionRight}>
-                      <CustomText fontFamily="Bold" fontSize={17} style={[styles.optionPrice, isBusy && styles.optionPriceBusy]}>
+                      <CustomText
+                        fontFamily="Bold"
+                        fontSize={17}
+                        style={[styles.optionPrice, isBusy && styles.optionPriceBusy]}
+                      >
                         {isBusy ? "Busy" : formatCurrency(Math.round(Number(ride?.price ?? 0)))}
                       </CustomText>
                       {isSelected ? (
-                        <Ionicons name="checkmark-circle" size={22} color={accentColor} style={styles.optionCheck} />
-                      ) : null}
+                        <Ionicons
+                          name="checkmark-circle"
+                          size={20}
+                          color={accentColor}
+                          style={styles.optionCheck}
+                        />
+                      ) : (
+                        <View style={styles.optionRadio} />
+                      )}
                     </View>
                   </TouchableOpacity>
                 );
               })}
             </View>
 
-            {/* Payment */}
             <View style={styles.paymentSection}>
+              <CustomText fontFamily="Medium" fontSize={12} style={styles.paymentLabel}>
+                Pay with
+              </CustomText>
               <View style={styles.paymentToggle}>
                 <TouchableOpacity
                   onPress={() => setPaymentMethod("CASH")}
@@ -578,8 +661,16 @@ const RideBooking = () => {
                   ]}
                   activeOpacity={0.8}
                 >
-                  <Ionicons name="cash-outline" size={18} color={paymentMethod === "CASH" ? accentColor : "#94a3b8"} />
-                  <CustomText fontFamily="SemiBold" fontSize={13} style={{ color: paymentMethod === "CASH" ? Colors.text : "#94a3b8" }}>
+                  <Ionicons
+                    name="cash-outline"
+                    size={18}
+                    color={paymentMethod === "CASH" ? accentColor : "#94a3b8"}
+                  />
+                  <CustomText
+                    fontFamily="SemiBold"
+                    fontSize={13}
+                    style={{ color: paymentMethod === "CASH" ? Colors.text : "#94a3b8" }}
+                  >
                     Cash
                   </CustomText>
                 </TouchableOpacity>
@@ -588,19 +679,30 @@ const RideBooking = () => {
                   style={[
                     styles.paymentSeg,
                     paymentMethod === "MOBILE_MONEY" && styles.paymentSegActive,
-                    paymentMethod === "MOBILE_MONEY" && serviceType === "DELIVERY" && styles.paymentSegParcelActive,
+                    paymentMethod === "MOBILE_MONEY" &&
+                      serviceType === "DELIVERY" &&
+                      styles.paymentSegParcelActive,
                   ]}
                   activeOpacity={0.8}
                 >
-                  <Ionicons name="phone-portrait-outline" size={18} color={paymentMethod === "MOBILE_MONEY" ? accentColor : "#94a3b8"} />
-                  <CustomText fontFamily="SemiBold" fontSize={13} style={{ color: paymentMethod === "MOBILE_MONEY" ? Colors.text : "#94a3b8" }}>
-                    Mobile Money
+                  <Ionicons
+                    name="phone-portrait-outline"
+                    size={18}
+                    color={paymentMethod === "MOBILE_MONEY" ? accentColor : "#94a3b8"}
+                  />
+                  <CustomText
+                    fontFamily="SemiBold"
+                    fontSize={13}
+                    style={{
+                      color: paymentMethod === "MOBILE_MONEY" ? Colors.text : "#94a3b8",
+                    }}
+                  >
+                    MoMo
                   </CustomText>
                 </TouchableOpacity>
               </View>
             </View>
 
-            {/* CTA */}
             <View style={styles.ctaWrap}>
               {!pickup || !drop ? (
                 <CustomText fontSize={14} color="#888" style={{ textAlign: "center", marginVertical: 8 }}>
@@ -608,18 +710,27 @@ const RideBooking = () => {
                 </CustomText>
               ) : null}
               <CustomButton
-                title={serviceType === "DELIVERY" ? parcelLabels.confirmCta : "Confirm ride"}
+                title={
+                  serviceType === "DELIVERY"
+                    ? parcelLabels.confirmCta
+                    : selectedOption
+                      ? `Confirm ${selectedOption}`
+                      : "Select a ride"
+                }
                 disabled={
                   loading ||
                   uploadingPhoto ||
                   !pickup ||
                   !drop ||
                   (serviceType === "RIDE" && selectedOption === null) ||
-                  (serviceType === "DELIVERY" && (!recipientName.trim() || !recipientPhone.trim())) ||
+                  (serviceType === "DELIVERY" &&
+                    (!recipientName.trim() || !recipientPhone.trim())) ||
                   !!(
                     selectedOption &&
                     busyVehicleSet.has(
-                      String(displayOptions.find((o) => o.type === selectedOption)?.vehicle || "").toLowerCase()
+                      String(
+                        displayOptions.find((o) => o.type === selectedOption)?.vehicle || ""
+                      ).toLowerCase()
                     )
                   )
                 }
@@ -636,17 +747,22 @@ const RideBooking = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f0f0f0",
+    backgroundColor: "#F4F7FB",
   },
   mapLayer: {
-    ...StyleSheet.absoluteFillObject,
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
     zIndex: 0,
+    overflow: "hidden",
+    backgroundColor: "#E8EEF5",
   },
   topNav: {
     position: "absolute",
     top: Platform.OS === "android" ? 46 : 54,
-    left: 16,
-    right: 16,
+    left: 14,
+    right: 14,
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
@@ -654,29 +770,60 @@ const styles = StyleSheet.create({
   },
   routeInlinePill: {
     flex: 1,
-    height: 44,
-    borderRadius: 22,
+    minHeight: 48,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#e2e8f0",
-    backgroundColor: "rgba(255,255,255,0.96)",
-    justifyContent: "center",
-    paddingHorizontal: 14,
+    borderColor: "rgba(15, 23, 42, 0.08)",
+    backgroundColor: "rgba(255,255,255,0.97)",
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    gap: 10,
+    ...T.shadow.card,
+  },
+  routeDots: {
+    alignItems: "center",
+    width: 10,
+  },
+  routeDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  routeDotPickup: {
+    backgroundColor: "#22c55e",
+  },
+  routeDotDrop: {
+    backgroundColor: "#ef4444",
+  },
+  routeDotLine: {
+    width: 2,
+    height: 8,
+    backgroundColor: "#e2e8f0",
+    marginVertical: 2,
+    borderRadius: 1,
+  },
+  routeInlineTextWrap: {
+    flex: 1,
   },
   routeInlineText: {
-    color: "#334155",
+    color: "#0F172A",
+  },
+  routeInlineDrop: {
+    color: "#64748B",
+    marginTop: 1,
   },
   navCircleBtn: {
     width: 44,
     height: 44,
-    borderRadius: 22,
+    borderRadius: 14,
     backgroundColor: "#fff",
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 4,
+    borderWidth: 1,
+    borderColor: "rgba(15, 23, 42, 0.06)",
+    ...T.shadow.card,
   },
   sheetContainer: {
     zIndex: 12,
@@ -687,28 +834,55 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    shadowColor: "#000",
+    shadowColor: "#0F172A",
     shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.08,
+    shadowOpacity: 0.1,
     shadowRadius: 16,
     elevation: 12,
   },
   sheetContent: {
-    paddingHorizontal: 24,
-    paddingTop: 14,
+    paddingHorizontal: 20,
+    paddingTop: 6,
     paddingBottom: Platform.OS === "ios" ? 40 : 28,
   },
   sheetContentCompact: {
     paddingHorizontal: 16,
-    paddingTop: 12,
+    paddingTop: 4,
   },
   handle: {
-    width: 44,
+    width: 40,
     height: 4,
     borderRadius: 2,
-    backgroundColor: "#e0e0e0",
+    backgroundColor: "#E2E8F0",
     alignSelf: "center",
-    marginBottom: 20,
+  },
+  rideSheetHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 12,
+    marginBottom: 16,
+    marginTop: 4,
+  },
+  rideSheetTitle: {
+    color: T.ink,
+    letterSpacing: -0.3,
+  },
+  rideSheetSubtitle: {
+    color: T.inkMuted,
+    marginTop: 4,
+  },
+  distanceChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "#ffedd5",
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 999,
+  },
+  distanceChipText: {
+    color: Colors.theme,
   },
   parcelSheetHeader: {
     flexDirection: "row",
@@ -727,48 +901,6 @@ const styles = StyleSheet.create({
   parcelSheetHeadText: {
     flex: 1,
   },
-  routeCard: {
-    backgroundColor: "#f8f9fa",
-    borderRadius: 18,
-    padding: 20,
-    marginBottom: 24,
-  },
-  routeCardParcel: {
-    backgroundColor: P.accentSoft,
-    borderWidth: 1,
-    borderColor: "#DDD6FE",
-  },
-  routeRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-  },
-  routeLabelWrap: {
-    flex: 1,
-  },
-  routeLabel: {
-    color: T.inkMuted,
-    marginBottom: 2,
-  },
-  dot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    marginRight: 14,
-  },
-  dotGreen: { backgroundColor: "#22c55e" },
-  dotRed: { backgroundColor: "#ef4444" },
-  dotParcel: { backgroundColor: P.accent },
-  routeLine: {
-    width: 2,
-    height: 20,
-    backgroundColor: "#e5e7eb",
-    marginLeft: 5,
-    marginVertical: 8,
-  },
-  routeText: {
-    flex: 1,
-    color: Colors.text,
-  },
   section: {
     marginBottom: 16,
   },
@@ -776,46 +908,53 @@ const styles = StyleSheet.create({
     color: Colors.text,
     marginBottom: 10,
   },
-  input: {
-    backgroundColor: "#f5f5f5",
-    borderRadius: 14,
-    paddingHorizontal: 18,
-    paddingVertical: 16,
-    fontSize: 16,
-    color: Colors.text,
-    marginBottom: 12,
-  },
-  inputLast: { marginBottom: 0 },
   optionCard: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#f8f9fa",
-    borderRadius: 16,
+    backgroundColor: "#F8FAFC",
+    borderRadius: 18,
     paddingVertical: 12,
-    paddingHorizontal: 14,
+    paddingHorizontal: 12,
     marginBottom: 10,
-    borderWidth: 2,
-    borderColor: "transparent",
-    minHeight: 68,
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    minHeight: 72,
   },
   optionCardBusy: {
-    opacity: 0.72,
-    backgroundColor: "#f1f5f9",
-    borderColor: "#cbd5e1",
+    opacity: 0.65,
+    backgroundColor: "#F1F5F9",
   },
   optionCardSelected: {
-    backgroundColor: "#fefce8",
+    backgroundColor: "#fffef5",
     borderColor: Colors.primary,
   },
   optionCardParcelSelected: {
     backgroundColor: P.accentSoft,
     borderColor: P.accent,
   },
+  optionIconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: "#fff",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  optionIconWrapSelected: {
+    borderColor: Colors.primary,
+    backgroundColor: "#fef9c3",
+  },
+  optionIconWrapParcel: {
+    borderColor: P.accent,
+    backgroundColor: "#fff",
+  },
   optionIcon: {
-    width: 40,
-    height: 40,
+    width: 32,
+    height: 32,
     resizeMode: "contain",
-    marginRight: 14,
   },
   optionInfo: { flex: 1 },
   optionTitleRow: {
@@ -824,24 +963,32 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   optionMeta: {
-    marginTop: 2,
+    marginTop: 3,
   },
   optionRight: {
     alignItems: "flex-end",
     justifyContent: "center",
-    marginLeft: 10,
+    marginLeft: 8,
+    minWidth: 72,
   },
   optionPrice: {
     color: Colors.text,
-    marginRight: 0,
   },
   optionPriceBusy: {
     color: "#94a3b8",
     fontSize: 13,
   },
-  optionCheck: { marginTop: 2 },
+  optionCheck: { marginTop: 4 },
+  optionRadio: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 1.5,
+    borderColor: "#CBD5E1",
+    marginTop: 5,
+  },
   fastestBadgeInline: {
-    backgroundColor: Colors.primary,
+    backgroundColor: Colors.theme,
     paddingHorizontal: 7,
     paddingVertical: 2,
     borderRadius: 999,
@@ -852,9 +999,13 @@ const styles = StyleSheet.create({
   paymentSection: {
     marginBottom: 14,
   },
+  paymentLabel: {
+    color: T.inkMuted,
+    marginBottom: 8,
+  },
   paymentToggle: {
     flexDirection: "row",
-    backgroundColor: "#f1f5f9",
+    backgroundColor: "#F1F5F9",
     borderRadius: 14,
     padding: 4,
     gap: 4,
@@ -879,7 +1030,7 @@ const styles = StyleSheet.create({
     borderColor: P.accent,
   },
   ctaWrap: {
-    marginTop: 8,
+    marginTop: 4,
     marginBottom: 8,
   },
 });

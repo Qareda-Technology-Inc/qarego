@@ -1,4 +1,4 @@
-import { View, Image, TouchableOpacity } from "react-native";
+import { View, Image, TouchableOpacity, Platform } from "react-native";
 import React, { FC, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import MapView, { Marker, Callout } from "react-native-maps";
 import { customMapStyle, indiaIntialRegion } from "@/utils/CustomMap";
@@ -48,6 +48,7 @@ const LiveTrackingMap: FC<{
   );
   const routeLabels = getCustomerRouteLabels({ serviceType, parcelMode });
   const mapRef = useRef<MapView>(null);
+  const mountedRef = useRef(true);
   const fitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasFittedRef = useRef(false);
   const isUserInteractingRef = useRef(false);
@@ -69,11 +70,60 @@ const LiveTrackingMap: FC<{
     [riderKey, pickupKey, dropKey, riderCoord, pickupCoord, dropCoord]
   );
   const isActiveRide = ACTIVE_STATUSES.has(status);
+  const isCompleted = status === "COMPLETED";
   const showRiderMarker = isActiveRide && !!riderCoord;
   const vehicleMarkerType = getVehicleMarkerType(vehicle);
 
+  /**
+   * Keep a single Directions/Polyline child mounted across status changes.
+   * Swapping multiple MapDrivingRoute instances on COMPLETED unmounts native
+   * Directions mid-flight and can kill the iOS process.
+   */
+  const activeRoute = useMemo(() => {
+    if (isCompleted && pickupCoord && dropCoord) {
+      return {
+        origin: pickupCoord,
+        destination: dropCoord,
+        strokeColor: "#EDD228",
+      };
+    }
+    if (
+      (status === "START" || (status === "ARRIVED" && serviceType === "RIDE")) &&
+      showRiderOnMap &&
+      riderCoord &&
+      pickupCoord
+    ) {
+      return { origin: riderCoord, destination: pickupCoord, strokeColor: "#4CAF50" };
+    }
+    if (
+      (status === "IN_PROGRESS" ||
+        (status === "ARRIVED" && (serviceType === "FOOD" || serviceType === "DELIVERY"))) &&
+      showRiderOnMap &&
+      riderCoord &&
+      dropCoord
+    ) {
+      return { origin: riderCoord, destination: dropCoord, strokeColor: "#2196F3" };
+    }
+    if (status === "IN_PROGRESS" && pickupCoord && dropCoord) {
+      return { origin: pickupCoord, destination: dropCoord, strokeColor: "#FF9800" };
+    }
+    if (pickupCoord && dropCoord) {
+      return { origin: pickupCoord, destination: dropCoord, strokeColor: "#94a3b8" };
+    }
+    return null;
+  }, [
+    isCompleted,
+    status,
+    serviceType,
+    showRiderOnMap,
+    riderCoord,
+    pickupCoord,
+    dropCoord,
+  ]);
+
   const fitToMarkers = useCallback(async () => {
-    if (isUserInteractingRef.current) return;
+    if (!mountedRef.current || isUserInteractingRef.current) return;
+    if (isCompleted) return;
 
     const coordinates: { latitude: number; longitude: number }[] = [];
     if (pickupCoord) coordinates.push(pickupCoord);
@@ -87,17 +137,18 @@ const LiveTrackingMap: FC<{
         animated: true,
       });
       hasFittedRef.current = true;
-    } catch (error) {
-      console.error("Error fitting to markers:", error);
+    } catch {
+      /* native not ready / torn down */
     }
-  }, [dropCoord, pickupCoord, riderCoord, showRiderMarker]);
+  }, [dropCoord, pickupCoord, riderCoord, showRiderMarker, isCompleted]);
 
   const scheduleFit = useCallback(() => {
+    if (isCompleted) return;
     if (fitTimerRef.current) clearTimeout(fitTimerRef.current);
     fitTimerRef.current = setTimeout(() => {
       void fitToMarkers();
     }, 600);
-  }, [fitToMarkers]);
+  }, [fitToMarkers, isCompleted]);
 
   const calculateInitialRegion = () => {
     if (riderCoord && dropCoord) {
@@ -120,107 +171,95 @@ const LiveTrackingMap: FC<{
   };
 
   useEffect(() => {
-    if (!pickupKey || !dropKey) return;
-    if (!hasFittedRef.current) scheduleFit();
-  }, [dropKey, pickupKey, status, scheduleFit]);
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      if (fitTimerRef.current) clearTimeout(fitTimerRef.current);
+    };
+  }, []);
 
   useEffect(() => {
+    if (!pickupKey || !dropKey || isCompleted) return;
+    if (!hasFittedRef.current) scheduleFit();
+  }, [dropKey, pickupKey, status, scheduleFit, isCompleted]);
+
+  useEffect(() => {
+    // Never animate camera after the trip ends — fights Modal presentation on iOS.
     if (!riderCoord || !isActiveRide || isUserInteractingRef.current) return;
+    if (!mountedRef.current) return;
     const now = Date.now();
     const prev = lastCameraCoordRef.current;
     const movedEnough =
       !prev ||
       Math.abs(prev.latitude - riderCoord.latitude) > 0.00025 ||
       Math.abs(prev.longitude - riderCoord.longitude) > 0.00025;
-    // Throttle follow-camera so 2s courier polls don't yank the map.
     if (!movedEnough || now - lastCameraAtRef.current < 2500) return;
     lastCameraAtRef.current = now;
     lastCameraCoordRef.current = riderCoord;
-    mapRef.current?.animateCamera(
-      {
-        center: riderCoord,
-        zoom: 15,
-      },
-      { duration: 800 }
-    );
+    try {
+      mapRef.current?.animateCamera(
+        {
+          center: riderCoord,
+          zoom: 15,
+        },
+        { duration: 800 }
+      );
+    } catch {
+      /* ignore */
+    }
   }, [riderKey, courierRevision, isActiveRide, riderCoord]);
-
-  useEffect(
-    () => () => {
-      if (fitTimerRef.current) clearTimeout(fitTimerRef.current);
-    },
-    []
-  );
 
   useEffect(() => {
     if (!mapReady) {
       setOverlaysReady(false);
       return;
     }
+    // Keep overlays up on COMPLETED — don't tear markers down for a remount cycle.
+    if (isCompleted) {
+      setOverlaysReady(true);
+      return;
+    }
     const t = setTimeout(() => setOverlaysReady(true), 320);
     return () => clearTimeout(t);
-  }, [mapReady, status, pickupKey, dropKey, riderKey]);
+  }, [mapReady, isCompleted, pickupKey, dropKey, riderKey]);
 
   return (
-    <View style={{ height, width: "100%" }}>
+    <View style={{ height, width: "100%", backgroundColor: "#E8EEF5" }} pointerEvents={isCompleted ? "box-none" : "auto"}>
       <MapView
         ref={mapRef}
-        followsUserLocation={!isActiveRide}
-        style={{ flex: 1 }}
+        // Never flip follows/showsUserLocation when the ride ends — that native
+        // toggle during overlay teardown is a common iOS process kill.
+        followsUserLocation={false}
+        showsUserLocation={false}
+        style={{ flex: 1, width: "100%", height: "100%" }}
         initialRegion={calculateInitialRegion()}
         provider="google"
         showsMyLocationButton={false}
         showsCompass={false}
         showsIndoors={false}
-        customMapStyle={customMapStyle}
-        showsUserLocation={!isActiveRide}
+        customMapStyle={Platform.OS === "ios" ? customMapStyle : undefined}
+        rotateEnabled={false}
+        pitchEnabled={false}
         onMapReady={() => {
           setMapReady(true);
           scheduleFit();
         }}
-        onRegionChange={() => {
+        onPanDrag={() => {
           isUserInteractingRef.current = true;
         }}
         onRegionChangeComplete={() => {
-          isUserInteractingRef.current = false;
+          setTimeout(() => {
+            isUserInteractingRef.current = false;
+          }, 800);
         }}
       >
-        {mapReady && overlaysReady &&
-        (status === "START" || (status === "ARRIVED" && serviceType === "RIDE")) &&
-        showRiderOnMap &&
-        riderCoord &&
-        pickupCoord ? (
+        {mapReady && overlaysReady && activeRoute ? (
           <MapDrivingRoute
-            origin={riderCoord}
-            destination={pickupCoord}
-            strokeColor="#4CAF50"
+            origin={activeRoute.origin}
+            destination={activeRoute.destination}
+            strokeColor={activeRoute.strokeColor}
             strokeWidth={5}
-            onReady={scheduleFit}
-          />
-        ) : null}
-
-        {mapReady && overlaysReady &&
-        (status === "IN_PROGRESS" ||
-          (status === "ARRIVED" && (serviceType === "FOOD" || serviceType === "DELIVERY"))) &&
-        showRiderOnMap &&
-        riderCoord &&
-        dropCoord ? (
-          <MapDrivingRoute
-            origin={riderCoord}
-            destination={dropCoord}
-            strokeColor="#2196F3"
-            strokeWidth={5}
-            onReady={scheduleFit}
-          />
-        ) : null}
-
-        {mapReady && overlaysReady && status === "IN_PROGRESS" && (!showRiderOnMap || !riderCoord) && pickupCoord && dropCoord ? (
-          <MapDrivingRoute
-            origin={pickupCoord}
-            destination={dropCoord}
-            strokeColor="#FF9800"
-            strokeWidth={5}
-            onReady={scheduleFit}
+            onReady={isCompleted ? undefined : scheduleFit}
           />
         ) : null}
 
@@ -286,21 +325,16 @@ const LiveTrackingMap: FC<{
             description={riderMapStatus}
             tracksViewChanges={false}
           >
-            <NearbyVehicleMarker
-              type={vehicleMarkerType}
-              rotation={rider?.heading || 0}
-            />
+            <NearbyVehicleMarker type={vehicleMarkerType} rotation={rider?.heading || 0} />
           </Marker>
         ) : null}
       </MapView>
 
-      <TouchableOpacity style={mapStyles.gpsButton} onPress={fitToMarkers}>
-        <MaterialCommunityIcons
-          name="crosshairs-gps"
-          size={RFValue(16)}
-          color="#3C75BE"
-        />
-      </TouchableOpacity>
+      {!isCompleted ? (
+        <TouchableOpacity style={mapStyles.gpsButton} onPress={fitToMarkers}>
+          <MaterialCommunityIcons name="crosshairs-gps" size={RFValue(16)} color="#3C75BE" />
+        </TouchableOpacity>
+      ) : null}
     </View>
   );
 };

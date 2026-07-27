@@ -2,6 +2,7 @@ import React, { FC } from "react";
 import { View, StyleSheet, Image } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import CustomText from "@/components/shared/CustomText";
+import { Colors } from "@/utils/Constants";
 import { DS } from "@/theme/designSystem";
 import { getCommerceOrderCopy } from "@/utils/commerceOrderCopy";
 import { isFoodDelivery } from "@/utils/riderRideUtils";
@@ -56,7 +57,7 @@ const RiderDeliveryBanner: FC<Props> = ({ ride, variant = "overlay" }) => {
       <View style={[styles.card, styles.parcelCard, variant === "inline" && styles.inlineCard]}>
         <View style={styles.row}>
           <View style={[styles.iconBadge, styles.parcelBadge]}>
-            <Ionicons name="cube-outline" size={20} color="#6d28d9" />
+            <Ionicons name="cube-outline" size={20} color={Colors.tertiary} />
           </View>
           <View style={styles.body}>
             <CustomText fontFamily="SemiBold" fontSize={13} style={styles.parcelTitle}>
@@ -97,14 +98,14 @@ const styles = StyleSheet.create({
     ...DS.shadow.card,
   },
   foodCard: {
-    backgroundColor: "rgba(255,255,255,0.97)",
+    backgroundColor: "#fffef5",
     borderWidth: 1,
-    borderColor: "#fed7aa",
+    borderColor: "#fde68a",
   },
   parcelCard: {
-    backgroundColor: "rgba(255,255,255,0.97)",
+    backgroundColor: "#eff6ff",
     borderWidth: 1,
-    borderColor: "#ddd6fe",
+    borderColor: "#bfdbfe",
   },
   inlineCard: {
     position: "relative",
@@ -124,12 +125,12 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: "#fff7ed",
+    backgroundColor: "#ffedd5",
     alignItems: "center",
     justifyContent: "center",
   },
   parcelBadge: {
-    backgroundColor: "#f5f3ff",
+    backgroundColor: "#dbeafe",
   },
   body: {
     flex: 1,
@@ -137,11 +138,11 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   foodTitle: {
-    color: "#c2410c",
+    color: Colors.theme,
     marginBottom: 4,
   },
   parcelTitle: {
-    color: "#5b21b6",
+    color: Colors.tertiary,
     marginBottom: 4,
   },
   parcelPhoto: {

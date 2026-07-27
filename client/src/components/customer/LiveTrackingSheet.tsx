@@ -25,6 +25,7 @@ import {
 } from "@/utils/customerCourierUi";
 import { getCommerceOrderCopy, resolveOrderVertical } from "@/utils/commerceOrderCopy";
 import { openMapsRoute, openMapsToPoint, type MapPoint } from "@/utils/openMapsNavigation";
+import { shouldShowFoodDeliveryCodeOnLiveRide } from "@/utils/foodOrderTracking";
 
 interface RideItem {
   _id: string;
@@ -78,7 +79,15 @@ function getStatusSubtitle(
     return "Thank you for riding with us";
   }
   if (parcelStatus) return parcelStatus.subtitle;
-  if (isFood) return item.restaurantName ?? storeCopy.liveDeliveryFallback;
+  if (isFood) {
+    if (item.status === "IN_PROGRESS") {
+      return "Share your delivery code with the courier at handoff";
+    }
+    if (item.status === "START" || item.status === "ARRIVED") {
+      return "Keep your delivery code ready — you'll share it at handoff";
+    }
+    return item.restaurantName ?? storeCopy.liveDeliveryFallback;
+  }
   if (isParcel && item.recipientName) return `For ${item.recipientName}`;
   if (isParcel) return "Parcel delivery";
   return getVehicleLabel(item.vehicle ?? "motorcycle");
@@ -109,7 +118,7 @@ const LiveTrackingSheet: FC<{
   const isCompleted = item?.status === "COMPLETED";
   const isActive = !isCompleted;
   const showRideOtp = isRide && item?.otp && (item.status === "START" || item.status === "ARRIVED");
-  const showFoodDeliveryCode = isFood && item?.status === "IN_PROGRESS" && item?.otp;
+  const showFoodDeliveryCode = isFood && shouldShowFoodDeliveryCodeOnLiveRide(item?.status, item?.otp);
   const showParcelDeliveryCode = isParcel && item?.status === "IN_PROGRESS" && item?.deliveryOtp;
   const riderName = item?.rider?.name ?? (isParcel ? "Your courier" : "Your rider");
 

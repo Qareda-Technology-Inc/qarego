@@ -1,5 +1,5 @@
-import { View, Alert, TouchableOpacity } from "react-native";
-import React, { useEffect, useState, useCallback, useRef } from "react";
+import { View, Alert, TouchableOpacity, useWindowDimensions, ActivityIndicator } from "react-native";
+import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useRiderStore } from "@/store/riderStore";
 import { useWS } from "@/service/WSProvider";
 import { useRoute } from "@react-navigation/native";
@@ -15,6 +15,8 @@ import OtpInputModal from "@/components/rider/OtpInputModal";
 import RideCompletedModal from "@/components/shared/RideCompletedModal";
 import ChatModal from "@/components/shared/ChatModal";
 import { Ionicons } from "@expo/vector-icons";
+import CustomText from "@/components/shared/CustomText";
+import { Colors } from "@/utils/Constants";
 import { maskPhone } from "@/utils/maskPhone";
 import { stopRiderOfferRing } from "@/utils/ringSound";
 import { emitRiderOfferAccepted } from "@/utils/riderOfferEvents";
@@ -40,11 +42,13 @@ function hasMapCoords(loc?: { latitude?: unknown; longitude?: unknown } | null) 
 }
 
 const LiveRide = () => {
+  const { height: windowHeight } = useWindowDimensions();
   const [isOtpModalVisible, setOtpModalVisible] = useState(false);
   const [otpPurpose, setOtpPurpose] = useState<OtpPurpose>("pickup");
   const [showCostPopup, setShowCostPopup] = useState(false);
   const [showChat, setShowChat] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+  const [panelHeight, setPanelHeight] = useState(320);
   const { location, setLocation, setOnDuty, user } = useRiderStore();
   const { emit, on, off } = useWS();
   const [rideData, setRideData] = useState<any>(null);
@@ -72,10 +76,17 @@ const LiveRide = () => {
       rideData?.status === "IN_PROGRESS");
   const courierUi = getRiderCourierUi(rideData);
   const deliveryPhase = getRiderDeliveryPhase(rideData);
-  const mapReady =
-    rideData &&
-    hasMapCoords(rideData.pickup) &&
-    hasMapCoords(rideData.drop);
+
+  const hasPickup = hasMapCoords(rideData?.pickup);
+  const hasDrop = hasMapCoords(rideData?.drop);
+  const hasRider = hasMapCoords(location);
+  /** Show map as soon as any useful point exists — don't blank the screen. */
+  const mapReady = !!rideData && (hasPickup || hasDrop || hasRider);
+
+  const mapStripHeight = useMemo(() => {
+    const reserved = Math.min(Math.max(panelHeight, 260), Math.round(windowHeight * 0.58));
+    return Math.max(windowHeight - reserved, Math.round(windowHeight * 0.38));
+  }, [panelHeight, windowHeight]);
 
   useEffect(() => {
     let locationSubscription: any;
@@ -120,8 +131,8 @@ const LiveRide = () => {
           timeInterval: 2000,
           distanceInterval: 8,
         },
-        (location) => {
-          const { latitude, longitude, heading } = location.coords;
+        (loc) => {
+          const { latitude, longitude, heading } = loc.coords;
           publishLocation(latitude, longitude, heading);
         }
       );
@@ -323,13 +334,30 @@ const LiveRide = () => {
     [otpPurpose, handleDeliveryComplete]
   );
 
-  return (
-    <View style={rideStyles.container}>
-      <StatusBar style="light" backgroundColor="orange" translucent={false} />
+  const mapPickup = hasPickup
+    ? {
+        latitude: Number(rideData.pickup.latitude),
+        longitude: Number(rideData.pickup.longitude),
+        address: rideData?.pickup?.address,
+      }
+    : undefined;
+  const mapDrop = hasDrop
+    ? {
+        latitude: Number(rideData.drop.latitude),
+        longitude: Number(rideData.drop.longitude),
+        address: rideData?.drop?.address,
+      }
+    : undefined;
 
-      {mapReady && (
+  return (
+    <View style={[rideStyles.container, { backgroundColor: "#F4F7FB" }]}>
+      <StatusBar style="dark" />
+
+      {mapReady ? (
         <>
           <RiderLiveTracking
+            mapHeight={mapStripHeight}
+            bottomInset={72}
             status={rideData?.status}
             vehicle={rideData?.vehicle}
             serviceType={rideData?.serviceType}
@@ -337,32 +365,35 @@ const LiveRide = () => {
             restaurantName={rideData?.restaurantName}
             storeVertical={rideData?.storeVertical}
             foodOrderSummary={rideData?.foodOrderSummary}
-            drop={{
-              latitude: parseFloat(rideData?.drop.latitude),
-              longitude: parseFloat(rideData?.drop.longitude),
-              address: rideData?.drop?.address,
-            }}
-            pickup={{
-              latitude: parseFloat(rideData?.pickup.latitude),
-              longitude: parseFloat(rideData?.pickup.longitude),
-              address: rideData?.pickup?.address,
-            }}
+            drop={mapDrop}
+            pickup={mapPickup}
             rider={{
               latitude: location?.latitude,
               longitude: location?.longitude,
               heading: location?.heading,
             }}
           />
-          {canChat && (
+          {canChat ? (
             <TouchableOpacity
               onPress={() => setShowChat(true)}
-              style={deliveryStyles.chatFab}
+              style={[deliveryStyles.chatFab, { bottom: panelHeight + 12 }]}
               activeOpacity={0.85}
+              accessibilityLabel="Open chat"
             >
-              <Ionicons name="chatbubble-ellipses" size={22} color="#0f172a" />
+              <Ionicons name="chatbubble-ellipses" size={22} color={Colors.text} />
             </TouchableOpacity>
-          )}
+          ) : null}
         </>
+      ) : (
+        <View style={deliveryStyles.mapLoading}>
+          <ActivityIndicator size="large" color={Colors.theme} />
+          <CustomText fontFamily="SemiBold" fontSize={15} style={{ marginTop: 14, color: Colors.text }}>
+            Loading your trip map…
+          </CustomText>
+          <CustomText fontSize={13} style={{ marginTop: 6, color: "#64748B", textAlign: "center" }}>
+            Hang tight while we fetch pickup and drop details.
+          </CustomText>
+        </View>
       )}
 
       <RiderActionButton
@@ -380,6 +411,7 @@ const LiveRide = () => {
         }
         onAction={handlePrimaryAction}
         actionColor={deliveryPhase.swipeColor}
+        onPanelLayout={setPanelHeight}
       />
 
       {isOtpModalVisible && (

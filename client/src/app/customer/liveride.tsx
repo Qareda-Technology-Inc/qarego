@@ -5,6 +5,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   useWindowDimensions,
+  Platform,
 } from "react-native";
 import React, {
   memo,
@@ -176,8 +177,12 @@ const LiveRide = () => {
     };
 
     const onRideCanceled = () => {
-      resetAndNavigate("/customer/home");
-      Alert.alert("Ride Canceled");
+      Alert.alert("Ride Canceled", "This ride was canceled.", [
+        {
+          text: "OK",
+          onPress: () => resetAndNavigate("/customer/home"),
+        },
+      ]);
     };
 
     const onSocketError = (error: { message?: string }) => {
@@ -185,10 +190,15 @@ const LiveRide = () => {
       if (!isRideSearchFatalError(message)) return;
       if (ACTIVE_RIDE_STATUSES.has(rideStatusRef.current || "")) return;
 
-      resetAndNavigate("/customer/home");
       Alert.alert(
         "No riders available",
-        message || "We could not find a rider. Please try again."
+        message || "We could not find a rider. Please try again.",
+        [
+          {
+            text: "OK",
+            onPress: () => resetAndNavigate("/customer/home"),
+          },
+        ]
       );
     };
 
@@ -275,27 +285,49 @@ const LiveRide = () => {
     [riderCoords?.latitude, riderCoords?.longitude, riderCoords?.heading]
   );
 
-  const handleCostPopupClose = () => {
-    setShowCostPopup(false);
-    if (customerRatesRiderForRide(rideData)) {
-      setShowRating(true);
-      return;
-    }
-    if (foodOrderId) {
-      router.replace(`/customer/stores/order/${foodOrderId}`);
-      return;
-    }
-    resetAndNavigate("/customer/hub");
-  };
+  const dismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const handleRatingSuccess = () => {
+  useEffect(() => {
+    return () => {
+      if (dismissTimerRef.current) clearTimeout(dismissTimerRef.current);
+    };
+  }, []);
+
+  /** Wait for Modal fade on iOS before navigating or stacking another Modal. */
+  const afterModalDismiss = useCallback((fn: () => void) => {
+    if (dismissTimerRef.current) clearTimeout(dismissTimerRef.current);
+    const delay = Platform.OS === "ios" ? 420 : 80;
+    dismissTimerRef.current = setTimeout(fn, delay);
+  }, []);
+
+  const handleCostPopupClose = useCallback(() => {
+    setShowCostPopup(false);
+    const rates = customerRatesRiderForRide(rideData);
+    const orderId = foodOrderId;
+    afterModalDismiss(() => {
+      if (rates) {
+        setShowRating(true);
+        return;
+      }
+      if (orderId) {
+        router.replace(`/customer/stores/order/${orderId}`);
+        return;
+      }
+      resetAndNavigate("/customer/hub");
+    });
+  }, [afterModalDismiss, foodOrderId, rideData]);
+
+  const handleRatingSuccess = useCallback(() => {
     setShowRating(false);
-    resetAndNavigate("/customer/home");
-  };
+    afterModalDismiss(() => {
+      resetAndNavigate("/customer/home");
+    });
+  }, [afterModalDismiss]);
 
   const handleRequestRate = useCallback(() => {
-    setShowRating(true);
-  }, []);
+    setShowCostPopup(false);
+    afterModalDismiss(() => setShowRating(true));
+  }, [afterModalDismiss]);
 
   const serviceType = rideData?.serviceType;
   const isMomoPayableRide =
@@ -462,15 +494,17 @@ const LiveRide = () => {
         </View>
       )}
 
-      {showCostPopup && rideData?.status === "COMPLETED" ? (
-        <RideCompletedModal
-          visible={showCostPopup}
-          ride={{ ...rideData, paymentStatus: effectivePaymentStatus }}
-          onClose={handleCostPopupClose}
-          onPay={needsMomoPayment ? handlePayRide : undefined}
-          payBusy={paymentBusy}
-        />
-      ) : null}
+      <RideCompletedModal
+        visible={showCostPopup && rideData?.status === "COMPLETED"}
+        ride={
+          rideData
+            ? { ...rideData, paymentStatus: effectivePaymentStatus }
+            : null
+        }
+        onClose={handleCostPopupClose}
+        onPay={needsMomoPayment ? handlePayRide : undefined}
+        payBusy={paymentBusy}
+      />
       <HubtelCheckoutModal
         visible={checkoutVisible}
         checkoutUrl={checkoutUrl}
@@ -478,15 +512,18 @@ const LiveRide = () => {
         onCancel={handleCheckoutCancel}
         onClose={closeCheckout}
       />
-      {showRating && customerRatesRiderForRide(rideData) && (rideId || rideData?._id) ? (
-        <RatingModal
-          visible={showRating}
-          rideId={rideId || rideData?._id}
-          role="customer"
-          onClose={() => setShowRating(false)}
-          onSuccess={handleRatingSuccess}
-        />
-      ) : null}
+      <RatingModal
+        visible={
+          !!showRating &&
+          !!rideData &&
+          customerRatesRiderForRide(rideData) &&
+          !!(rideId || rideData?._id)
+        }
+        rideId={rideId || rideData?._id || ""}
+        role="customer"
+        onClose={() => setShowRating(false)}
+        onSuccess={handleRatingSuccess}
+      />
     </View>
   );
 };

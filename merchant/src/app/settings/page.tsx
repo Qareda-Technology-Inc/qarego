@@ -13,7 +13,7 @@ import ImageUploadField from "@/components/ImageUploadField";
 import StoreLocationPicker, { type StoreLocation } from "@/components/StoreLocationPicker";
 import PageLoader from "@/components/ui/PageLoader";
 import { notify } from "@/lib/notify";
-import { Settings, Loader2, Save, Power, MapPin, Clock } from "lucide-react";
+import { Settings, Loader2, Save, Power, MapPin, Clock, Wallet } from "lucide-react";
 
 type DayHours = { closed: boolean; open: string; close: string };
 
@@ -35,7 +35,27 @@ interface Restaurant {
   latitude?: number;
   longitude?: number;
   openingHours?: DayHours[];
+  payoutConfig?: {
+    recipientName?: string | null;
+    recipientMsisdn?: string | null;
+    channel?: string | null;
+  };
 }
+
+function detectChannelFromPhone(phone: string): string {
+  const digits = phone.replace(/\D/g, "");
+  const local = digits.startsWith("233") ? digits.slice(3) : digits.replace(/^0/, "");
+  const p2 = local.slice(0, 2);
+  if (["20", "50"].includes(p2)) return "vodafone-gh";
+  if (["26", "27", "56", "57"].includes(p2)) return "airteltigo-gh";
+  return "mtn-gh";
+}
+
+const CHANNEL_LABELS: Record<string, string> = {
+  "mtn-gh": "MTN Ghana",
+  "vodafone-gh": "Vodafone Ghana",
+  "airteltigo-gh": "AirtelTigo Ghana",
+};
 
 const DAY_LABELS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -67,6 +87,12 @@ export default function SettingsPage() {
   const [storeLocation, setStoreLocation] = useState<StoreLocation | null>(null);
   const [hours, setHours] = useState<DayHours[]>(DEFAULT_HOURS);
   const [savingHours, setSavingHours] = useState(false);
+  const [payoutForm, setPayoutForm] = useState({
+    recipientName: "",
+    recipientMsisdn: "",
+    channel: "mtn-gh",
+  });
+  const [savingPayout, setSavingPayout] = useState(false);
 
   useEffect(() => {
     if (!isOwner) router.replace("/");
@@ -100,6 +126,11 @@ export default function SettingsPage() {
             }))
           : DEFAULT_HOURS
       );
+      setPayoutForm({
+        recipientName: r.payoutConfig?.recipientName || "",
+        recipientMsisdn: r.payoutConfig?.recipientMsisdn || "",
+        channel: r.payoutConfig?.channel || "mtn-gh",
+      });
     } catch (e) {
       console.error(e);
     } finally {
@@ -188,6 +219,35 @@ export default function SettingsPage() {
     }
   };
 
+  const savePayout = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const phone = payoutForm.recipientMsisdn.trim();
+    const name = payoutForm.recipientName.trim();
+    if (phone && !name) {
+      notify.warning("Name required", "Enter the MoMo account name for this number.");
+      return;
+    }
+    setSavingPayout(true);
+    try {
+      await fetcher("/merchant/restaurant", {
+        method: "PATCH",
+        body: JSON.stringify({
+          payoutConfig: {
+            recipientName: name || null,
+            recipientMsisdn: phone || null,
+            channel: phone ? detectChannelFromPhone(phone) : payoutForm.channel,
+          },
+        }),
+      });
+      await load();
+      notify.success("Settlement MoMo saved");
+    } catch (err: unknown) {
+      notify.error(err instanceof Error ? err.message : "Could not save MoMo details");
+    } finally {
+      setSavingPayout(false);
+    }
+  };
+
   const toggleAccepting = async () => {
     if (!restaurant) return;
     setToggling(true);
@@ -214,7 +274,7 @@ export default function SettingsPage() {
         <h1 className="text-2xl font-bold text-gray-900">Store settings</h1>
       </div>
       <p className="text-sm text-gray-500 mb-6">
-        {restaurant.name} — pickup location, hours, and how customers see your store.
+        {restaurant.name} — pickup location, hours, settlement MoMo, and how customers see your store.
       </p>
 
       <div className="bg-white rounded-xl border p-5 mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -355,6 +415,68 @@ export default function SettingsPage() {
           </Button>
         </div>
       </div>
+
+      <form onSubmit={savePayout} className="bg-white rounded-xl border p-5 mb-6 space-y-4">
+        <div className="flex items-center gap-2 mb-1">
+          <Wallet className="h-4 w-4 text-orange-500" />
+          <p className="font-medium text-gray-900">Settlement MoMo</p>
+        </div>
+        <p className="text-sm text-gray-500">
+          When a customer pays with mobile money, your restaurant share is sent here after delivery.
+          Leave blank to use your owner account phone as fallback.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <Label htmlFor="payoutName">Account name</Label>
+            <Input
+              id="payoutName"
+              value={payoutForm.recipientName}
+              onChange={(e) =>
+                setPayoutForm((f) => ({ ...f, recipientName: e.target.value }))
+              }
+              placeholder="Name on MoMo account"
+            />
+          </div>
+          <div>
+            <Label htmlFor="payoutPhone">MoMo number</Label>
+            <Input
+              id="payoutPhone"
+              value={payoutForm.recipientMsisdn}
+              onChange={(e) => {
+                const phone = e.target.value;
+                setPayoutForm((f) => ({
+                  ...f,
+                  recipientMsisdn: phone,
+                  channel: phone.trim() ? detectChannelFromPhone(phone) : f.channel,
+                }));
+              }}
+              placeholder="+233..."
+            />
+          </div>
+        </div>
+        <p className="text-xs text-gray-500">
+          Detected network:{" "}
+          <span className="font-medium text-gray-700">
+            {CHANNEL_LABELS[payoutForm.channel] || payoutForm.channel}
+          </span>
+        </p>
+        <div className="flex justify-end">
+          <Button
+            type="submit"
+            disabled={savingPayout}
+            className="bg-orange-500 hover:bg-orange-600"
+          >
+            {savingPayout ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <>
+                <Save className="h-4 w-4 mr-1 inline" />
+                Save settlement MoMo
+              </>
+            )}
+          </Button>
+        </div>
+      </form>
 
       <form onSubmit={save} className="bg-white rounded-xl border p-5 space-y-4">
         <h2 className="font-semibold text-gray-900">Store profile</h2>

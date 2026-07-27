@@ -1,90 +1,74 @@
-import React, { useEffect } from "react";
-import { View, Image, StyleSheet, Dimensions, Pressable } from "react-native";
-import { useIsFocused } from "@react-navigation/native";
-import Animated, {
-  cancelAnimation,
-  useSharedValue,
-  useAnimatedStyle,
-  withRepeat,
-  withTiming,
-  Easing,
-} from "react-native-reanimated";
+import React from "react";
+import { View, StyleSheet, Pressable } from "react-native";
+import Animated, { FadeInUp } from "react-native-reanimated";
 import { Ionicons } from "@expo/vector-icons";
 import CustomText from "../shared/CustomText";
 import { Colors } from "@/utils/Constants";
+import { DS } from "@/theme/designSystem";
 import { router } from "expo-router";
 import { openCommerceModule } from "@/utils/commerceNavigation";
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
-const CIRCLE_SIZE = Math.min(SCREEN_WIDTH - 28, 340);
-const CENTER = CIRCLE_SIZE / 2;
-const RADIUS = (CIRCLE_SIZE - 100) / 2; // space for option nodes
-
 export type ServiceType = "RIDE" | "PARCEL" | "FOOD" | "GROCERY" | "PHARMACY";
-
-/** Theme colors by vertical */
-const SERVICE_COLORS = {
-  RIDE: "#22c55e",
-  FOOD: "#f97316",
-  PARCEL: "#a855f7",
-  GROCERY: "#0ea5e9",
-  PHARMACY: "#ef4444",
-} as const;
 
 const services: {
   type: ServiceType;
   label: string;
-  icon: any;
-  iconType: "image" | "ionicon";
-  ioniconName?: keyof typeof Ionicons.glyphMap;
+  description: string;
+  ioniconName: keyof typeof Ionicons.glyphMap;
   themeColor: string;
+  tint: string;
 }[] = [
-  { type: "RIDE", label: "Book a ride", icon: null, iconType: "ionicon", ioniconName: "car", themeColor: SERVICE_COLORS.RIDE },
-  { type: "PARCEL", label: "Parcel", icon: null, iconType: "ionicon", ioniconName: "cube", themeColor: SERVICE_COLORS.PARCEL },
-  { type: "FOOD", label: "Food & Restaurants", icon: null, iconType: "ionicon", ioniconName: "restaurant", themeColor: SERVICE_COLORS.FOOD },
-  { type: "GROCERY", label: "Groceries & Supermarket", icon: null, iconType: "ionicon", ioniconName: "basket", themeColor: SERVICE_COLORS.GROCERY },
-  { type: "PHARMACY", label: "Pharmacy", icon: null, iconType: "ionicon", ioniconName: "medkit", themeColor: SERVICE_COLORS.PHARMACY },
+  {
+    type: "RIDE",
+    label: "Ride",
+    description: "Book a trip nearby",
+    ioniconName: "car",
+    themeColor: "#15803d",
+    tint: "#dcfce7",
+  },
+  {
+    type: "FOOD",
+    label: "Food",
+    description: "Restaurants near you",
+    ioniconName: "restaurant",
+    themeColor: Colors.theme,
+    tint: "#ffedd5",
+  },
+  {
+    type: "PARCEL",
+    label: "Parcel",
+    description: "Send or receive a package",
+    ioniconName: "cube",
+    themeColor: Colors.tertiary,
+    tint: "#dbeafe",
+  },
+  {
+    type: "GROCERY",
+    label: "Grocery",
+    description: "Supermarkets & essentials",
+    ioniconName: "basket",
+    themeColor: "#0369a1",
+    tint: "#e0f2fe",
+  },
+  {
+    type: "PHARMACY",
+    label: "Pharmacy",
+    description: "Medicine & health products",
+    ioniconName: "medkit",
+    themeColor: "#b91c1c",
+    tint: "#fee2e2",
+  },
 ];
 
-const CircularServiceSelector = ({ goToHomeOnSelect = false }: { goToHomeOnSelect?: boolean }) => {
-  const isFocused = useIsFocused();
-  const rotation = useSharedValue(0);
-  const pulse = useSharedValue(1);
+type Props = {
+  /** When true, Ride goes to map home instead of location pick. */
+  goToHomeOnSelect?: boolean;
+};
 
-  useEffect(() => {
-    if (!isFocused) {
-      cancelAnimation(rotation);
-      cancelAnimation(pulse);
-      rotation.value = 0;
-      pulse.value = 1;
-      return;
-    }
-
-    rotation.value = withRepeat(
-      withTiming(360, { duration: 24000, easing: Easing.linear }),
-      -1,
-      false
-    );
-    pulse.value = withRepeat(
-      withTiming(1.08, { duration: 2000, easing: Easing.inOut(Easing.ease) }),
-      -1,
-      true
-    );
-
-    return () => {
-      cancelAnimation(rotation);
-      cancelAnimation(pulse);
-    };
-  }, [isFocused, rotation, pulse]);
-
-  const animatedRingStyle = useAnimatedStyle(() => ({
-    transform: [{ rotate: `${rotation.value}deg` }],
-  }));
-
-  const animatedPulseStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: pulse.value }],
-  }));
-
+/**
+ * Service module picker — large tappable rows (replaces the old rotating circle).
+ */
+const CircularServiceSelector = ({ goToHomeOnSelect = false }: Props) => {
   const handleSelect = (type: ServiceType) => {
     if (type === "RIDE") {
       if (goToHomeOnSelect) {
@@ -95,194 +79,103 @@ const CircularServiceSelector = ({ goToHomeOnSelect = false }: { goToHomeOnSelec
           params: { serviceType: "RIDE" },
         });
       }
-    } else if (type === "PARCEL") {
-      router.navigate("/customer/parcel");
-    } else if (type === "FOOD") {
-      openCommerceModule("FOOD");
-    } else if (type === "GROCERY") {
-      openCommerceModule("GROCERY");
-    } else {
-      openCommerceModule("PHARMACY");
+      return;
     }
+    if (type === "PARCEL") {
+      router.navigate("/customer/parcel");
+      return;
+    }
+    if (type === "FOOD") {
+      openCommerceModule("FOOD");
+      return;
+    }
+    if (type === "GROCERY") {
+      openCommerceModule("GROCERY");
+      return;
+    }
+    openCommerceModule("PHARMACY");
   };
 
   return (
-    <View style={styles.wrapper}>
-      <View
-        style={[styles.circleContainer, { width: CIRCLE_SIZE, height: CIRCLE_SIZE }]}
-        collapsable={false}
-      >
-        {/* Rotating ring with orbiting dots - allow touches to pass through to option nodes */}
+    <View style={styles.list}>
+      {services.map((service, index) => (
         <Animated.View
-          pointerEvents="none"
-          style={[
-            styles.ring,
-            {
-              width: CIRCLE_SIZE,
-              height: CIRCLE_SIZE,
-              borderRadius: CIRCLE_SIZE / 2,
-            },
-            animatedRingStyle,
-          ]}
+          key={service.type}
+          entering={FadeInUp.delay(80 + index * 55).duration(380).springify().damping(18)}
         >
-          <View style={styles.ringInner} />
-          {[0, 1, 2, 3, 4, 5].map((i) => {
-            const angleRad = (i * 60 * Math.PI) / 180;
-            const r = RADIUS + 14;
-            const x = CENTER + r * Math.cos(angleRad) - 4;
-            const y = CENTER + r * Math.sin(angleRad) - 4;
-            return (
-              <View
-                key={i}
-                style={[
-                  styles.orbitDot,
-                  { position: "absolute" as const, left: x, top: y },
-                ]}
-              />
-            );
-          })}
-        </Animated.View>
-
-        {/* Center label - allow touches to pass through to option nodes */}
-        <Animated.View pointerEvents="none" style={[styles.centerLabel, animatedPulseStyle]}>
-          <CustomText fontFamily="SemiBold" fontSize={12} style={styles.centerText}>
-            Choose
-          </CustomText>
-          <CustomText fontFamily="Regular" fontSize={10} style={styles.centerSubtext}>
-            one
-          </CustomText>
-        </Animated.View>
-
-        {/* Service nodes around the ring */}
-        {services.map((service, index) => {
-          const angleStep = 360 / services.length;
-          const angleDeg = -90 + index * angleStep;
-          const angleRad = (angleDeg * Math.PI) / 180;
-          const nodeSize = 48;
-          const x = CENTER + RADIUS * Math.cos(angleRad) - nodeSize;
-          const y = CENTER + RADIUS * Math.sin(angleRad) - nodeSize;
-
-          const themeColor = service.themeColor || Colors.primary;
-          return (
-            <Pressable
-              key={service.type}
-              style={({ pressed }) => [
-                styles.optionNode,
-                { left: x, top: y },
-                pressed && { opacity: 0.85 },
-              ]}
-              onPress={() => handleSelect(service.type)}
-              hitSlop={12}
-            >
-              <View style={[styles.optionIconWrap, { borderColor: themeColor }]}>
-                {service.iconType === "image" && service.icon ? (
-                  <Image source={service.icon} style={styles.optionIcon} resizeMode="contain" />
-                ) : (
-                  <Ionicons
-                    name={service.ioniconName || "restaurant"}
-                    size={36}
-                    color={themeColor}
-                  />
-                )}
-              </View>
-              <CustomText fontFamily="SemiBold" fontSize={11} style={styles.optionLabel} numberOfLines={2}>
+          <Pressable
+            onPress={() => handleSelect(service.type)}
+            style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+            accessibilityRole="button"
+            accessibilityLabel={`${service.label}. ${service.description}`}
+          >
+            <View style={[styles.iconWell, { backgroundColor: service.tint }]}>
+              <Ionicons name={service.ioniconName} size={24} color={service.themeColor} />
+            </View>
+            <View style={styles.copy}>
+              <CustomText fontFamily="SemiBold" fontSize={16} style={styles.label}>
                 {service.label}
               </CustomText>
-            </Pressable>
-          );
-        })}
-      </View>
+              <CustomText fontSize={13} style={styles.description}>
+                {service.description}
+              </CustomText>
+            </View>
+            <View style={[styles.chevron, { backgroundColor: service.tint }]}>
+              <Ionicons name="arrow-forward" size={16} color={service.themeColor} />
+            </View>
+          </Pressable>
+        </Animated.View>
+      ))}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  wrapper: {
+  list: {
+    width: "100%",
+    gap: 10,
+  },
+  row: {
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 20,
-    overflow: "visible",
-  },
-  circleContainer: {
-    position: "relative",
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "visible",
-  },
-  ring: {
-    position: "absolute",
-    borderWidth: 2,
-    borderColor: "rgba(237, 210, 40, 0.4)",
-    borderStyle: "dashed",
-  },
-  ringInner: {
-    flex: 1,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: "rgba(237, 210, 40, 0.15)",
-    margin: 6,
-  },
-  orbitDot: {
-    position: "absolute",
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: Colors.primary,
-    opacity: 0.7,
-  },
-  centerLabel: {
-    position: "absolute",
-    alignItems: "center",
-    justifyContent: "center",
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: Colors.background,
-    borderWidth: 2,
-    borderColor: Colors.primary,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  centerText: {
-    color: Colors.text,
-  },
-  centerSubtext: {
-    color: "#888",
-    marginTop: 0,
-  },
-  optionNode: {
-    position: "absolute",
-    width: 88,
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 10,
-  },
-  optionIconWrap: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
     backgroundColor: "#fff",
+    borderRadius: 18,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderColor: "rgba(15, 23, 42, 0.06)",
+    ...DS.shadow.card,
+  },
+  rowPressed: {
+    opacity: 0.92,
+    transform: [{ scale: 0.99 }],
+  },
+  iconWell: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 2,
-    borderColor: Colors.primary,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 4,
-    elevation: 3,
+    marginRight: 12,
   },
-  optionIcon: {
-    width: 42,
-    height: 42,
+  copy: {
+    flex: 1,
+    paddingRight: 8,
   },
-  optionLabel: {
+  label: {
     color: Colors.text,
-    marginTop: 7,
-    textAlign: "center",
+    marginBottom: 2,
+  },
+  description: {
+    color: DS.color.textMuted,
+    lineHeight: 18,
+  },
+  chevron: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
   },
 });
 

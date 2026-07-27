@@ -25,6 +25,7 @@ import LocationItem from "@/components/customer/LocationItem";
 import MapPickerModal from "@/components/customer/MapPickerModal";
 import CustomerLogoutButton from "@/components/customer/CustomerLogoutButton";
 import { RideHomeTheme as T } from "@/styles/rideHomeTheme";
+import { Colors } from "@/utils/Constants";
 import { parseParcelMode, parcelModeLabels, type ParcelMode } from "@/utils/parcelMode";
 
 const LocationSelection = () => {
@@ -361,6 +362,10 @@ const LocationSelection = () => {
   return (
     <View style={styles.container}>
       <StatusBar style="dark" />
+      <View pointerEvents="none" style={styles.atmosphere}>
+        <View style={styles.orbTop} />
+        <View style={styles.orbSide} />
+      </View>
       <SafeAreaView style={styles.safeTop} />
 
       <KeyboardAvoidingView
@@ -378,7 +383,7 @@ const LocationSelection = () => {
             <MaterialIcons name="arrow-back-ios" size={20} color={T.ink} />
           </TouchableOpacity>
           <View style={styles.headerCenter}>
-            <CustomText fontFamily="SemiBold" fontSize={18} style={styles.headerTitle}>
+            <CustomText fontFamily="Bold" fontSize={20} style={styles.headerTitle}>
               {headerTitle}
             </CustomText>
             <CustomText fontSize={13} style={styles.headerSubtitle} numberOfLines={1}>
@@ -447,10 +452,34 @@ const LocationSelection = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: T.surfaceMuted,
+    backgroundColor: "#F4F7FB",
+  },
+  atmosphere: {
+    ...StyleSheet.absoluteFillObject,
+    overflow: "hidden",
+  },
+  orbTop: {
+    position: "absolute",
+    top: -70,
+    right: -40,
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: Colors.primary,
+    opacity: 0.2,
+  },
+  orbSide: {
+    position: "absolute",
+    top: 220,
+    left: -90,
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    backgroundColor: Colors.tertiary,
+    opacity: 0.1,
   },
   safeTop: {
-    backgroundColor: T.sheetBg,
+    backgroundColor: "transparent",
   },
   keyboard: {
     flex: 1,
@@ -461,17 +490,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingBottom: 14,
     paddingTop: 4,
-    backgroundColor: T.sheetBg,
-    borderBottomWidth: 1,
-    borderBottomColor: T.border,
+    backgroundColor: "transparent",
   },
   backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 14,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: T.surfaceMuted,
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "rgba(15, 23, 42, 0.06)",
+    ...T.shadow.card,
   },
   headerCenter: {
     flex: 1,
@@ -480,6 +510,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     color: T.ink,
+    letterSpacing: -0.2,
   },
   headerSubtitle: {
     color: T.inkMuted,
@@ -514,13 +545,14 @@ const styles = StyleSheet.create({
   emptyIcon: {
     width: 56,
     height: 56,
-    borderRadius: 28,
-    backgroundColor: T.sheetBg,
+    borderRadius: 18,
+    backgroundColor: "#fff",
     borderWidth: 1,
-    borderColor: T.border,
+    borderColor: "rgba(15, 23, 42, 0.06)",
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 14,
+    ...T.shadow.card,
   },
   emptyTitle: {
     color: T.ink,
@@ -530,6 +562,7 @@ const styles = StyleSheet.create({
     color: T.inkMuted,
     textAlign: "center",
     lineHeight: 20,
+    paddingHorizontal: 12,
   },
   continueBtn: {
     flexDirection: "row",
@@ -538,8 +571,8 @@ const styles = StyleSheet.create({
     gap: 10,
     marginTop: 20,
     paddingVertical: 16,
-    borderRadius: 14,
-    backgroundColor: T.ink,
+    borderRadius: 16,
+    backgroundColor: Colors.theme,
   },
   continueText: {
     color: "#fff",
