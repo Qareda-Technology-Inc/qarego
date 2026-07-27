@@ -6,6 +6,7 @@ import {
   StyleSheet,
   useWindowDimensions,
   Platform,
+  InteractionManager,
 } from "react-native";
 import React, {
   memo,
@@ -293,19 +294,25 @@ const LiveRide = () => {
     };
   }, []);
 
-  /** Wait for Modal fade on iOS before navigating or stacking another Modal. */
+  /** Wait for Modal dismiss before opening another Modal / navigating (Android is picky). */
   const afterModalDismiss = useCallback((fn: () => void) => {
     if (dismissTimerRef.current) clearTimeout(dismissTimerRef.current);
-    const delay = Platform.OS === "ios" ? 420 : 80;
-    dismissTimerRef.current = setTimeout(fn, delay);
+    const delay = Platform.OS === "android" ? 550 : 400;
+    InteractionManager.runAfterInteractions(() => {
+      dismissTimerRef.current = setTimeout(fn, delay);
+    });
   }, []);
 
   const handleCostPopupClose = useCallback(() => {
-    setShowCostPopup(false);
     const rates = customerRatesRiderForRide(rideData);
     const orderId = foodOrderId;
+    const idForRating = String(rideId || rideData?._id || "");
+
+    setShowCostPopup(false);
+    setShowRating(false);
+
     afterModalDismiss(() => {
-      if (rates) {
+      if (rates && idForRating) {
         setShowRating(true);
         return;
       }
@@ -315,7 +322,7 @@ const LiveRide = () => {
       }
       resetAndNavigate("/customer/hub");
     });
-  }, [afterModalDismiss, foodOrderId, rideData]);
+  }, [afterModalDismiss, foodOrderId, rideData, rideId]);
 
   const handleRatingSuccess = useCallback(() => {
     setShowRating(false);

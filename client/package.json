@@ -16,7 +16,7 @@
     "prebuild:android": "expo prebuild --platform android --clean && npm run setup:android",
     "android": "npm run setup:android && scripts/with-java.sh expo run:android",
     "android:emulator": "npm run setup:android && scripts/with-java.sh expo run:android",
-    "android:device": "npm run usb:reverse && npm run setup:android && scripts/with-java.sh expo run:android --device",
+    "android:device": "npm run usb:reverse && npm run setup:android && scripts/with-java.sh expo run:android -d",
     "android:rebuild": "npm run prebuild:android && npm run android:device",
     "ios": "node scripts/patch-react-native-maps.js && node scripts/ensure-ios-codegen.js && expo run:ios",
     "ios:codegen": "node scripts/ensure-ios-codegen.js",

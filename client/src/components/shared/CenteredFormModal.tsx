@@ -5,6 +5,7 @@ import {
   Platform,
   ScrollView,
   StyleSheet,
+  TouchableWithoutFeedback,
   useWindowDimensions,
   View,
 } from "react-native";
@@ -17,16 +18,26 @@ type Props = {
   maxHeightRatio?: number;
 };
 
-/** Centered modal shell with safe-area padding and keyboard avoidance. */
+/**
+ * Android-safe centered modal:
+ * - Card sits above a separate dimmer (higher elevation) so taps reach controls
+ * - Outer flex center (not ScrollView justifyContent) for reliable vertical centering
+ */
 export const CenteredFormModal: FC<Props> = ({
   visible,
   onRequestClose,
   children,
-  maxHeightRatio = 0.88,
+  maxHeightRatio = 0.86,
 }) => {
   const insets = useSafeAreaInsets();
-  const { height: windowHeight } = useWindowDimensions();
-  const maxCardHeight = Math.round(windowHeight * maxHeightRatio - insets.top - insets.bottom - 32);
+  const { height: windowHeight, width: windowWidth } = useWindowDimensions();
+  const topPad = Math.max(insets.top, Platform.OS === "android" ? 28 : 16);
+  const bottomPad = Math.max(insets.bottom, 16);
+  const maxCardHeight = Math.max(
+    300,
+    Math.round(windowHeight * maxHeightRatio - topPad - bottomPad)
+  );
+  const cardWidth = Math.min(windowWidth - 32, 400);
 
   return (
     <Modal
@@ -34,29 +45,46 @@ export const CenteredFormModal: FC<Props> = ({
       transparent
       animationType="fade"
       statusBarTranslucent
+      hardwareAccelerated
       onRequestClose={onRequestClose}
     >
-      <View style={styles.backdrop}>
+      <View style={styles.root}>
+        <TouchableWithoutFeedback onPress={onRequestClose} accessible={false}>
+          <View style={styles.dimmer} />
+        </TouchableWithoutFeedback>
+
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : undefined}
-          style={styles.keyboardView}
+          style={styles.foreground}
+          pointerEvents="box-none"
         >
-          <ScrollView
-            contentContainerStyle={[
-              styles.scrollContent,
-              {
-                paddingTop: insets.top + 16,
-                paddingBottom: insets.bottom + 16,
-              },
+          <View
+            style={[
+              styles.centerWrap,
+              { paddingTop: topPad, paddingBottom: bottomPad },
             ]}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-            bounces={false}
+            pointerEvents="box-none"
           >
-            <View style={[styles.card, { maxHeight: Math.max(280, maxCardHeight) }]}>
-              {children}
+            <View
+              style={[
+                styles.card,
+                {
+                  width: cardWidth,
+                  maxHeight: maxCardHeight,
+                },
+              ]}
+            >
+              <ScrollView
+                bounces={false}
+                nestedScrollEnabled
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.cardScroll}
+              >
+                {children}
+              </ScrollView>
             </View>
-          </ScrollView>
+          </View>
         </KeyboardAvoidingView>
       </View>
     </Modal>
@@ -64,30 +92,41 @@ export const CenteredFormModal: FC<Props> = ({
 };
 
 const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-  },
-  keyboardView: {
+  root: {
     flex: 1,
   },
-  scrollContent: {
-    flexGrow: 1,
+  dimmer: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(15, 23, 42, 0.55)",
+  },
+  foreground: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 2,
+    elevation: 20,
+  },
+  centerWrap: {
+    flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
   },
   card: {
-    width: "100%",
-    maxWidth: 400,
     backgroundColor: "#fff",
-    borderRadius: 20,
-    padding: 20,
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
+    borderRadius: 24,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "rgba(15, 23, 42, 0.06)",
+    zIndex: 3,
+    elevation: 24,
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 8,
+    shadowRadius: 20,
+  },
+  cardScroll: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 18,
+    alignItems: "stretch",
   },
 });

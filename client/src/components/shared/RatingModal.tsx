@@ -5,7 +5,7 @@ import {
   TextInput,
   TouchableOpacity,
   Alert,
-  ScrollView,
+  Platform,
 } from "react-native";
 import { Colors } from "@/utils/Constants";
 import CustomText from "./CustomText";
@@ -76,18 +76,21 @@ const RatingModal: FC<RatingModalProps> = ({
       setRating(0);
       setReview("");
       setSelectedTags([]);
+      setLoading(false);
     }
   }, [visible]);
 
   const toggleTag = (tag: string) => {
-    if (selectedTags.includes(tag)) {
-      setSelectedTags(selectedTags.filter((t) => t !== tag));
-    } else {
-      setSelectedTags([...selectedTags, tag]);
-    }
+    setSelectedTags((prev) =>
+      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
+    );
   };
 
   const handleRating = async () => {
+    if (!rideId) {
+      Alert.alert("Error", "Missing ride. Please go back and try again.");
+      return;
+    }
     if (rating === 0) {
       Alert.alert("Please select a rating");
       return;
@@ -104,7 +107,6 @@ const RatingModal: FC<RatingModalProps> = ({
     setLoading(true);
     try {
       const finalReview = review.trim() || selectedTags.join(", ");
-
       await appAxios.post(`/ride/${rideId}/rate`, {
         rating,
         review: finalReview,
@@ -123,11 +125,16 @@ const RatingModal: FC<RatingModalProps> = ({
 
   return (
     <CenteredFormModal visible={visible} onRequestClose={onClose}>
-      <View style={styles.header}>
-        <CustomText fontFamily="Bold" style={styles.title}>
-          {role === "customer" ? "Rate your driver" : "Rate your passenger"}
-        </CustomText>
-      </View>
+      <CustomText fontFamily="SemiBold" fontSize={11} style={styles.brandText}>
+        QareGO
+      </CustomText>
+
+      <CustomText fontFamily="Bold" style={styles.title}>
+        {role === "customer" ? "Rate your driver" : "Rate your passenger"}
+      </CustomText>
+      <CustomText fontSize={13} style={styles.subtitle}>
+        Tap a star to rate this trip
+      </CustomText>
 
       <View style={styles.starsContainer}>
         {[1, 2, 3, 4, 5].map((star) => (
@@ -135,12 +142,13 @@ const RatingModal: FC<RatingModalProps> = ({
             key={star}
             onPress={() => setRating(star)}
             activeOpacity={0.7}
+            hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
+            style={styles.starBtn}
           >
             <Ionicons
               name={star <= rating ? "star" : "star-outline"}
-              size={40}
-              color={Colors.primary}
-              style={styles.star}
+              size={Platform.OS === "android" ? 38 : 40}
+              color={star <= rating ? Colors.primary : "#CBD5E1"}
             />
           </TouchableOpacity>
         ))}
@@ -151,28 +159,26 @@ const RatingModal: FC<RatingModalProps> = ({
           <CustomText fontFamily="Medium" style={styles.label}>
             {rating >= 3 ? "What went well?" : "What could be improved?"}
           </CustomText>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.tagsScroll}
-          >
-            {tagsToShow.map((tag) => (
-              <TouchableOpacity
-                key={tag}
-                onPress={() => toggleTag(tag)}
-                style={[styles.tag, selectedTags.includes(tag) && styles.tagSelected]}
-              >
-                <CustomText
-                  fontSize={11}
-                  style={{
-                    color: selectedTags.includes(tag) ? "#fff" : Colors.text,
-                  }}
+          <View style={styles.tagsWrap}>
+            {tagsToShow.map((tag) => {
+              const selected = selectedTags.includes(tag);
+              return (
+                <TouchableOpacity
+                  key={tag}
+                  onPress={() => toggleTag(tag)}
+                  style={[styles.tag, selected && styles.tagSelected]}
+                  activeOpacity={0.85}
                 >
-                  {tag}
-                </CustomText>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
+                  <CustomText
+                    fontSize={12}
+                    style={{ color: selected ? "#fff" : Colors.text }}
+                  >
+                    {tag}
+                  </CustomText>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
         </View>
       ) : null}
 
@@ -187,6 +193,7 @@ const RatingModal: FC<RatingModalProps> = ({
               ? "Please provide feedback..."
               : "Write a review (optional)"
           }
+          placeholderTextColor="#94A3B8"
           multiline
           numberOfLines={3}
           value={review}
@@ -194,24 +201,25 @@ const RatingModal: FC<RatingModalProps> = ({
           textAlignVertical="top"
         />
         {requiresFeedback ? (
-          <CustomText fontSize={10} color="#ff6b6b" style={{ marginTop: 4 }}>
-            * Feedback is required for ratings below 3 stars
+          <CustomText fontSize={11} style={styles.requiredHint}>
+            Feedback is required for ratings below 3 stars
           </CustomText>
         ) : null}
       </View>
 
       <View style={styles.buttonContainer}>
         <CustomButton
-          title="Submit Rating"
+          title={loading ? "Submitting…" : "Submit Rating"}
           onPress={handleRating}
           loading={loading}
-          disabled={loading}
+          disabled={loading || rating === 0}
         />
         {!requiresFeedback ? (
           <TouchableOpacity
             style={styles.skipButton}
             onPress={onSuccess}
             disabled={loading}
+            activeOpacity={0.7}
           >
             <CustomText style={styles.skipText}>Skip</CustomText>
           </TouchableOpacity>
@@ -222,21 +230,33 @@ const RatingModal: FC<RatingModalProps> = ({
 };
 
 const styles = StyleSheet.create({
-  header: {
-    marginBottom: 16,
-    width: "100%",
+  brandText: {
+    color: Colors.text,
+    letterSpacing: 1.1,
+    opacity: 0.75,
+    textAlign: "center",
+    marginBottom: 8,
   },
   title: {
     fontSize: RFValue(18),
     textAlign: "center",
+    color: Colors.text,
+  },
+  subtitle: {
+    textAlign: "center",
+    color: "#64748B",
+    marginTop: 6,
+    marginBottom: 18,
   },
   starsContainer: {
     flexDirection: "row",
     justifyContent: "center",
-    marginBottom: 16,
+    alignItems: "center",
+    marginBottom: 18,
   },
-  star: {
-    marginHorizontal: 5,
+  starBtn: {
+    paddingHorizontal: 6,
+    paddingVertical: 8,
   },
   reviewContainer: {
     width: "100%",
@@ -245,51 +265,58 @@ const styles = StyleSheet.create({
   label: {
     fontSize: RFValue(12),
     marginBottom: 8,
-    color: "#666",
+    color: "#64748B",
   },
   input: {
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 10,
-    padding: 10,
-    height: 100,
-    backgroundColor: "#f9f9f9",
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    borderRadius: 14,
+    padding: 12,
+    minHeight: 96,
+    backgroundColor: "#F8FAFC",
     fontFamily: "Regular",
     width: "100%",
+    color: Colors.text,
+    fontSize: 15,
+  },
+  requiredHint: {
+    marginTop: 6,
+    color: "#EF4444",
   },
   buttonContainer: {
     width: "100%",
-    gap: 10,
+    gap: 8,
   },
   skipButton: {
-    padding: 10,
+    paddingVertical: 12,
     alignItems: "center",
   },
   skipText: {
-    color: "#666",
+    color: "#64748B",
     fontFamily: "Medium",
     fontSize: RFValue(12),
   },
   tagsContainer: {
     width: "100%",
-    marginBottom: 12,
+    marginBottom: 14,
   },
-  tagsScroll: {
+  tagsWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 8,
-    paddingVertical: 4,
+    justifyContent: "center",
   },
   tag: {
     paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    backgroundColor: "#f0f0f0",
-    marginRight: 8,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: "#F1F5F9",
     borderWidth: 1,
-    borderColor: "#ddd",
+    borderColor: "#E2E8F0",
   },
   tagSelected: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
+    backgroundColor: Colors.theme,
+    borderColor: Colors.theme,
   },
 });
 

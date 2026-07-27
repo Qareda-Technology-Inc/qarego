@@ -49,6 +49,8 @@ const RideCompletedModal: FC<RideCompletedModalProps> = ({
       visible={visible && !!ride}
       animationType="fade"
       transparent
+      statusBarTranslucent
+      hardwareAccelerated
       onRequestClose={onClose}
     >
       <View style={styles.overlay}>
@@ -59,7 +61,7 @@ const RideCompletedModal: FC<RideCompletedModalProps> = ({
           <CustomText fontFamily="Bold" variant="h5" style={styles.title}>
             {title}
           </CustomText>
-          <CustomText fontSize={14} color="#666" style={styles.subtitle}>
+          <CustomText fontSize={14} style={styles.subtitle}>
             {subtitle}
           </CustomText>
           <View style={styles.fareWrap}>
@@ -75,7 +77,7 @@ const RideCompletedModal: FC<RideCompletedModalProps> = ({
                 size={16}
                 color={isPaid ? "#16a34a" : "#666"}
               />
-              <CustomText fontSize={13} color={isPaid ? "#16a34a" : "#666"} style={{ marginLeft: 6 }}>
+              <CustomText fontSize={13} style={[styles.payText, isPaid && styles.payTextPaid]}>
                 {isPaid ? "Paid with mobile money" : "Mobile money"}
               </CustomText>
             </View>
@@ -123,32 +125,37 @@ const RideCompletedModal: FC<RideCompletedModalProps> = ({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
+    backgroundColor: "rgba(15, 23, 42, 0.55)",
     justifyContent: "center",
     alignItems: "center",
-    padding: 24,
+    paddingHorizontal: 24,
+    paddingVertical: 40,
   },
   card: {
     backgroundColor: "#fff",
     borderRadius: 20,
     padding: 24,
     width: "100%",
-    maxWidth: 320,
+    maxWidth: 340,
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
+    elevation: 24,
+    zIndex: 2,
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.18,
+    shadowRadius: 16,
   },
   iconWrap: {
     marginBottom: 12,
   },
   title: {
     marginBottom: 4,
+    textAlign: "center",
   },
   subtitle: {
     marginBottom: 16,
+    textAlign: "center",
+    color: "#64748B",
   },
   fareWrap: {
     backgroundColor: Colors.secondary_light,
@@ -166,6 +173,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     marginBottom: 16,
+  },
+  payText: {
+    marginLeft: 6,
+    color: "#666",
+  },
+  payTextPaid: {
+    color: "#16a34a",
   },
   button: {
     backgroundColor: Colors.primary,
