@@ -284,12 +284,14 @@ export const getTopUpStatus = async (req, res) => {
     }
   }
 
-  const user = await User.findById(driverId).select('balance');
+  const user = await User.findById(driverId).select('balance driverDetails.status');
   res.status(StatusCodes.OK).json({
     status: pending.status,
     clientReference: pending.clientReference,
     amount: pending.amount,
     balance: Number(user?.balance ?? 0),
+    driverStatus:
+      pending.status === 'completed' ? user?.driverDetails?.status || 'active' : undefined,
   });
 };
 

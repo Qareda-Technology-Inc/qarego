@@ -826,7 +826,7 @@ export const getMyTransactions = async (req, res) => {
       driver: driverId,
       type: "COMMISSION_DEBIT",
     })
-      .populate("ride", "fare paymentMethod")
+      .populate("ride", "fare paymentMethod serviceType")
       .lean();
 
     const salesSummary = buildSalesSummaryFromCommissionTxns(commissionTxns);

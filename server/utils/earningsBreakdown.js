@@ -43,7 +43,10 @@ function emptySalesBucket() {
   return { gross: 0, commission: 0, net: 0, trips: 0 };
 }
 
-/** Lifetime sales totals split by cash vs mobile money from settled trips. */
+/** Lifetime sales totals split by cash vs mobile money from settled trips.
+ * Excludes FOOD commission rows — those debit platformNet (not ride fare commission)
+ * and would skew gross/net. Food MoMo settles via Hubtel, not this ledger.
+ */
 export function buildSalesSummaryFromCommissionTxns(commissionTxns = []) {
   const sales = {
     total: emptySalesBucket(),
@@ -52,6 +55,8 @@ export function buildSalesSummaryFromCommissionTxns(commissionTxns = []) {
   };
 
   for (const tx of commissionTxns) {
+    if (tx?.ride?.serviceType === "FOOD") continue;
+
     const fare = Number(tx?.ride?.fare ?? 0);
     const commission = Math.abs(Number(tx?.amount ?? 0));
     const net = Math.round((fare - commission) * 100) / 100;

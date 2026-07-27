@@ -11,7 +11,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useRef, useEffect } from "react";
 import { commonStyles } from "@/styles/commonStyles";
 import CustomText from "@/components/shared/CustomText";
 import { Ionicons } from "@expo/vector-icons";
@@ -19,6 +19,7 @@ import { Colors, formatCurrency } from "@/utils/Constants";
 import { router } from "expo-router";
 import { appAxios } from "@/service/apiInterceptors";
 import EarningsBreakdownStrip from "@/components/rider/EarningsBreakdownStrip";
+import { useRiderStore } from "@/store/riderStore";
 
 interface SalesBucket {
   gross: number;
@@ -93,9 +94,31 @@ function getTxLabel(type: string, note?: string): string {
 }
 
 function getTxIcon(type: string): keyof typeof Ionicons.glyphMap {
-  if (type === "COMMISSION_DEBIT") return "remove-circle-outline";
-  if (type === "DIGITAL_EARNING" || type === "TOP_UP" || type === "MANUAL_CREDIT" || type === "PAYOUT") return "add-circle-outline";
+  if (type === "COMMISSION_DEBIT" || type === "MANUAL_DEBIT" || type === "PAYOUT") {
+    return "remove-circle-outline";
+  }
+  if (type === "DIGITAL_EARNING" || type === "TOP_UP" || type === "MANUAL_CREDIT") {
+    return "add-circle-outline";
+  }
   return "wallet-outline";
+}
+
+function syncRiderStatusAfterTopUp(balance: number, driverStatus?: string) {
+  const { user, setUser } = useRiderStore.getState();
+  if (!user) return;
+  const nextStatus =
+    driverStatus ||
+    (balance >= 0 && user.driverDetails?.status === "suspended_debt"
+      ? "active"
+      : user.driverDetails?.status);
+  setUser({
+    ...user,
+    balance,
+    driverDetails: {
+      ...user.driverDetails,
+      status: nextStatus,
+    },
+  });
 }
 
 export default function RiderEarnings() {
@@ -109,6 +132,18 @@ export default function RiderEarnings() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [topUpLoading, setTopUpLoading] = useState(false);
+  const [topUpPolling, setTopUpPolling] = useState(false);
+  const [topUpMessage, setTopUpMessage] = useState<string | null>(null);
+  const [cashoutLoading, setCashoutLoading] = useState(false);
+  const [cashoutMessage, setCashoutMessage] = useState<string | null>(null);
+  const [cashoutMessageIsError, setCashoutMessageIsError] = useState(false);
+  const [cashoutModalVisible, setCashoutModalVisible] = useState(false);
+  const [cashoutAmountInput, setCashoutAmountInput] = useState("");
+
+  const pollAbortRef = useRef(false);
+  const pollRefInFlight = useRef<string | null>(null);
+  const cashoutMsgTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -130,8 +165,12 @@ export default function RiderEarnings() {
     }
   }, []);
 
-  React.useEffect(() => {
+  useEffect(() => {
     load();
+    return () => {
+      pollAbortRef.current = true;
+      if (cashoutMsgTimerRef.current) clearTimeout(cashoutMsgTimerRef.current);
+    };
   }, [load]);
 
   const onRefresh = () => {
@@ -141,41 +180,64 @@ export default function RiderEarnings() {
 
   const isDebt = balance < 0;
   const hasWallet = walletBalance > 0;
+  const belowMinCashout = hasWallet && walletBalance < minCashoutAmount;
   const canCashOut = hasWallet && walletBalance >= minCashoutAmount;
-  const [topUpLoading, setTopUpLoading] = useState(false);
-  const [topUpMessage, setTopUpMessage] = useState<string | null>(null);
-  const [cashoutLoading, setCashoutLoading] = useState(false);
-  const [cashoutMessage, setCashoutMessage] = useState<string | null>(null);
-  const [cashoutModalVisible, setCashoutModalVisible] = useState(false);
-  const [cashoutAmountInput, setCashoutAmountInput] = useState("");
+  const showCashoutFooter =
+    !isDebt && (canCashOut || cashoutLoading || !!cashoutMessage || belowMinCashout);
+  const topUpBusy = topUpLoading || topUpPolling;
+
+  const showCashoutBanner = (message: string, isError: boolean) => {
+    setCashoutMessage(message);
+    setCashoutMessageIsError(isError);
+    if (cashoutMsgTimerRef.current) clearTimeout(cashoutMsgTimerRef.current);
+    if (!isError) {
+      cashoutMsgTimerRef.current = setTimeout(() => setCashoutMessage(null), 6000);
+    }
+  };
 
   const pollTopUpStatus = useCallback(
     async (clientReference: string) => {
-      for (let i = 0; i < 30; i++) {
-        await new Promise((r) => setTimeout(r, 4000));
-        try {
-          const statusRes = await appAxios.get("/ride/top-up/status", {
-            params: { ref: clientReference },
-          });
-          if (statusRes.data?.status === "completed") {
-            setTopUpMessage("Debt cleared successfully.");
-            load();
-            return;
+      if (pollRefInFlight.current === clientReference) return;
+      pollRefInFlight.current = clientReference;
+      pollAbortRef.current = false;
+      setTopUpPolling(true);
+      try {
+        for (let i = 0; i < 30; i++) {
+          if (pollAbortRef.current) return;
+          await new Promise((r) => setTimeout(r, 4000));
+          if (pollAbortRef.current) return;
+          try {
+            const statusRes = await appAxios.get("/ride/top-up/status", {
+              params: { ref: clientReference },
+            });
+            if (statusRes.data?.status === "completed") {
+              setTopUpMessage("Debt cleared successfully.");
+              const bal = Number(statusRes.data?.balance ?? 0);
+              syncRiderStatusAfterTopUp(bal, statusRes.data?.driverStatus);
+              await load();
+              return;
+            }
+            if (statusRes.data?.status === "failed") {
+              setTopUpMessage("Payment failed. Please try again.");
+              return;
+            }
+          } catch {
+            // keep polling
           }
-          if (statusRes.data?.status === "failed") {
-            setTopUpMessage("Payment failed. Please try again.");
-            return;
-          }
-        } catch {
-          // keep polling
+        }
+        setTopUpMessage("Payment pending — pull down to refresh when complete.");
+      } finally {
+        setTopUpPolling(false);
+        if (pollRefInFlight.current === clientReference) {
+          pollRefInFlight.current = null;
         }
       }
-      setTopUpMessage("Payment pending — pull down to refresh when complete.");
     },
     [load]
   );
 
   const handleClearDebt = async () => {
+    if (topUpBusy) return;
     setTopUpMessage(null);
     setTopUpLoading(true);
     try {
@@ -187,11 +249,13 @@ export default function RiderEarnings() {
           res.data?.message || "Approve the MoMo prompt on your phone."
         );
         if (res.data?.clientReference) {
-          pollTopUpStatus(res.data.clientReference);
+          void pollTopUpStatus(res.data.clientReference);
         }
       } else {
         setTopUpMessage(res.data?.message || "Debt cleared successfully.");
-        load();
+        const bal = Number(res.data?.balance ?? 0);
+        syncRiderStatusAfterTopUp(bal, "active");
+        await load();
       }
     } catch (e: any) {
       const msg = e?.response?.data?.msg || e?.message || "Failed to clear debt.";
@@ -202,7 +266,7 @@ export default function RiderEarnings() {
   };
 
   const openCashOutModal = () => {
-    setCashoutAmountInput(walletBalance > 0 ? String(walletBalance) : "");
+    setCashoutAmountInput(walletBalance > 0 ? walletBalance.toFixed(2) : "");
     setCashoutMessage(null);
     setCashoutModalVisible(true);
   };
@@ -214,16 +278,16 @@ export default function RiderEarnings() {
       const payload =
         amount != null && Number.isFinite(amount) ? { amount } : undefined;
       const res = await appAxios.post("/ride/cashout", payload);
-      setCashoutMessage(res.data?.message || "Cash out sent to your MoMo.");
       setCashoutModalVisible(false);
-      load();
+      showCashoutBanner(res.data?.message || "Cash out sent to your MoMo.", false);
+      await load();
     } catch (e: any) {
       const status = e?.response?.status;
       const msg =
         status === 404
           ? "Cash out API not found — restart your local server or redeploy the API."
           : e?.response?.data?.msg || e?.response?.data?.message || e?.message || "Failed to cash out.";
-      setCashoutMessage(msg);
+      showCashoutBanner(msg, true);
     } finally {
       setCashoutLoading(false);
     }
@@ -233,17 +297,20 @@ export default function RiderEarnings() {
     const parsed = parseFloat(cashoutAmountInput);
     if (!Number.isFinite(parsed) || parsed <= 0) {
       setCashoutMessage("Enter a valid amount.");
+      setCashoutMessageIsError(true);
       return;
     }
     if (parsed > walletBalance) {
       setCashoutMessage("Amount exceeds wallet balance.");
+      setCashoutMessageIsError(true);
       return;
     }
     if (parsed < minCashoutAmount) {
       setCashoutMessage(`Minimum cash out is ${formatCurrency(minCashoutAmount)}.`);
+      setCashoutMessageIsError(true);
       return;
     }
-    handleCashOut(parsed);
+    handleCashOut(Number(parsed.toFixed(2)));
   };
 
   if (loading) {
@@ -305,7 +372,7 @@ export default function RiderEarnings() {
             Total sales by payment
           </CustomText>
           <CustomText fontSize={12} style={styles.salesSubtitle}>
-            All completed trips — cash collected from customer vs MoMo paid through QareGO.
+            Ride & parcel trips — cash collected from customer vs MoMo paid through QareGO.
           </CustomText>
 
           <View style={styles.salesTotalRow}>
@@ -395,10 +462,10 @@ export default function RiderEarnings() {
           </CustomText>
           <CustomText fontSize={12} color={isDebt ? "rgba(255,255,255,0.8)" : "#888"} style={styles.balanceSubtext}>
             {isDebt
-              ? "Amount to pay to company. Top up to continue receiving rides."
+              ? "Amount owed to the company from cash-trip commissions. Top up when ready — you stay online until you hit the debt limit."
               : hasWallet
-                ? "Earnings from MoMo trips. Cash out to your registered phone anytime."
-                : "MoMo trip earnings appear here. Cash out anytime when you have a balance."}
+                ? `Earnings from MoMo trips. Cash out to your registered phone (min ${formatCurrency(minCashoutAmount)}).`
+                : "MoMo trip earnings appear here. Cash out when you have a balance."}
           </CustomText>
           {!isDebt && balance === 0 && transactions.length === 0 && (
             <CustomText fontSize={12} color="#888" style={styles.balanceHint}>
@@ -408,7 +475,7 @@ export default function RiderEarnings() {
           {isDebt && (
             <>
               <CustomText fontSize={12} style={styles.debtHint}>
-                Clear debt instantly to continue receiving rides
+                Clear debt with MoMo to bring your balance back to zero
               </CustomText>
               {topUpMessage && (
                 <CustomText fontSize={12} style={styles.topUpMessage}>
@@ -416,12 +483,16 @@ export default function RiderEarnings() {
                 </CustomText>
               )}
               <TouchableOpacity
-                style={[styles.clearDebtButton, topUpLoading && styles.clearDebtButtonDisabled]}
+                style={[styles.clearDebtButton, topUpBusy && styles.clearDebtButtonDisabled]}
                 onPress={handleClearDebt}
-                disabled={topUpLoading}
+                disabled={topUpBusy}
               >
                 <CustomText fontFamily="SemiBold" fontSize={14} style={styles.clearDebtButtonText}>
-                  {topUpLoading ? "Clearing..." : "Clear Debt Now"}
+                  {topUpPolling
+                    ? "Waiting for MoMo…"
+                    : topUpLoading
+                      ? "Starting…"
+                      : "Clear Debt Now"}
                 </CustomText>
               </TouchableOpacity>
             </>
@@ -491,28 +562,49 @@ export default function RiderEarnings() {
         </View>
       </ScrollView>
 
-      {(canCashOut || cashoutLoading) && !isDebt ? (
+      {showCashoutFooter ? (
         <View style={styles.stickyFooter}>
           {cashoutMessage && !cashoutModalVisible ? (
-            <CustomText fontSize={12} style={styles.stickyCashoutMessage}>
+            <CustomText
+              fontSize={12}
+              style={[
+                styles.stickyCashoutMessage,
+                !cashoutMessageIsError && styles.stickyCashoutMessageSuccess,
+              ]}
+            >
               {cashoutMessage}
             </CustomText>
           ) : null}
-          <TouchableOpacity
-            style={[styles.stickyCashOutBtn, cashoutLoading && { opacity: 0.7 }]}
-            onPress={openCashOutModal}
-            disabled={cashoutLoading}
-          >
-            <Ionicons name="cash-outline" size={20} color="#1a1a1a" style={{ marginRight: 8 }} />
-            <CustomText fontFamily="SemiBold" fontSize={15} style={{ color: "#1a1a1a", flex: 1 }}>
-              {cashoutLoading ? "Sending..." : `Cash Out ${formatCurrency(walletBalance)}`}
-            </CustomText>
-            {!cashoutLoading ? (
-              <Ionicons name="arrow-forward" size={18} color="#1a1a1a" />
-            ) : (
-              <ActivityIndicator size="small" color="#1a1a1a" />
-            )}
-          </TouchableOpacity>
+          {belowMinCashout && !cashoutLoading ? (
+            <View style={styles.stickyCashOutDisabled}>
+              <Ionicons
+                name="information-circle-outline"
+                size={18}
+                color="#64748b"
+                style={{ marginRight: 8 }}
+              />
+              <CustomText fontSize={13} style={{ color: "#64748b", flex: 1 }}>
+                Wallet {formatCurrency(walletBalance)} — minimum cash out is{" "}
+                {formatCurrency(minCashoutAmount)}
+              </CustomText>
+            </View>
+          ) : (
+            <TouchableOpacity
+              style={[styles.stickyCashOutBtn, cashoutLoading && { opacity: 0.7 }]}
+              onPress={openCashOutModal}
+              disabled={cashoutLoading || !canCashOut}
+            >
+              <Ionicons name="cash-outline" size={20} color="#1a1a1a" style={{ marginRight: 8 }} />
+              <CustomText fontFamily="SemiBold" fontSize={15} style={{ color: "#1a1a1a", flex: 1 }}>
+                {cashoutLoading ? "Sending..." : `Cash Out ${formatCurrency(walletBalance)}`}
+              </CustomText>
+              {!cashoutLoading ? (
+                <Ionicons name="arrow-forward" size={18} color="#1a1a1a" />
+              ) : (
+                <ActivityIndicator size="small" color="#1a1a1a" />
+              )}
+            </TouchableOpacity>
+          )}
         </View>
       ) : null}
 
@@ -543,15 +635,18 @@ export default function RiderEarnings() {
             />
             <TouchableOpacity
               style={styles.cashoutAllLink}
-              onPress={() => setCashoutAmountInput(String(walletBalance))}
+              onPress={() => setCashoutAmountInput(walletBalance.toFixed(2))}
               disabled={cashoutLoading}
             >
               <CustomText fontSize={13} style={{ color: Colors.primary }} fontFamily="Medium">
                 Cash out full balance
               </CustomText>
             </TouchableOpacity>
-            {cashoutMessage ? (
-              <CustomText fontSize={12} style={styles.modalError}>
+            {cashoutMessage && cashoutModalVisible ? (
+              <CustomText
+                fontSize={12}
+                style={cashoutMessageIsError ? styles.modalError : styles.modalSuccess}
+              >
                 {cashoutMessage}
               </CustomText>
             ) : null}
@@ -787,6 +882,19 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     textAlign: "center",
   },
+  stickyCashoutMessageSuccess: {
+    color: "#047857",
+  },
+  stickyCashOutDisabled: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f8fafc",
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.45)",
@@ -821,6 +929,10 @@ const styles = StyleSheet.create({
   },
   modalError: {
     color: "#dc2626",
+    marginBottom: 12,
+  },
+  modalSuccess: {
+    color: "#047857",
     marginBottom: 12,
   },
   modalActions: {

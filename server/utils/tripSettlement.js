@@ -1,6 +1,9 @@
 /**
  * Trip completion settlement: commission split, ledger entries, balance update, debt check.
  * Called when a ride status is set to COMPLETED.
+ *
+ * Cash: rider keeps the fare in hand; we only debit commission from virtual balance.
+ * MoMo: QareGO collected the fare; credit full fare then debit commission → net = driver share.
  */
 import Settings from '../models/Settings.js';
 import User from '../models/User.js';
@@ -9,6 +12,12 @@ import Transaction from '../models/Transaction.js';
 const DEFAULT_COMMISSION_RATE = 0.15;
 const DEFAULT_DEBT_LIMIT = -100;
 const VALID_SERVICE_TYPES = ["RIDE", "DELIVERY", "FOOD"];
+
+function roundMoney(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 0;
+  return Math.round(n * 100) / 100;
+}
 
 export function getCommissionRateForService(settings, serviceType) {
   const normalizedType = VALID_SERVICE_TYPES.includes(serviceType) ? serviceType : "RIDE";
@@ -35,10 +44,6 @@ export async function getSettings() {
 
 /**
  * Run settlement for a completed ride.
- * - Fetches fare and commission rate
- * - Creates ledger entries (COMMISSION_DEBIT; DIGITAL_EARNING if WALLET/CARD)
- * - Updates driver balance
- * - Checks debt limit and suspends driver if needed
  * Idempotent: skips if transactions for this ride already exist.
  */
 export async function settleTrip(ride) {
@@ -47,7 +52,6 @@ export async function settleTrip(ride) {
   const riderId = ride.rider._id || ride.rider;
   const rideId = ride._id;
 
-  // Idempotent: already settled?
   const existing = await Transaction.findOne({ ride: rideId });
   if (existing) return;
 
@@ -55,19 +59,34 @@ export async function settleTrip(ride) {
   const commissionRate = getCommissionRateForService(settings, ride.serviceType);
   const debtLimit = settings.debtLimit ?? DEFAULT_DEBT_LIMIT;
 
-  const fare = Number(ride.fare);
-  const qaregoShare = fare * commissionRate;
-  const driverShare = fare - qaregoShare;
+  const fare = roundMoney(ride.fare);
+  const qaregoShare = roundMoney(fare * commissionRate);
+  const driverShare = roundMoney(fare - qaregoShare);
 
   const paymentMethod = ride.paymentMethod || 'CASH';
 
   const driver = await User.findById(riderId);
   if (!driver) return;
 
-  let balance = Number(driver.balance ?? 0);
+  let balance = roundMoney(driver.balance ?? 0);
 
-  // 1) COMMISSION_DEBIT: driver owes platform (always, for cash or digital)
-  balance -= qaregoShare;
+  // MoMo: QareGO holds the full fare — credit it first, then take commission.
+  // Net wallet change = driverShare. (Previously credited only driverShare AFTER
+  // also debiting commission → undercredit of one commission amount.)
+  if (paymentMethod === 'MOBILE_MONEY') {
+    balance = roundMoney(balance + fare);
+    await Transaction.create({
+      ride: rideId,
+      driver: riderId,
+      amount: fare,
+      type: 'DIGITAL_EARNING',
+      note: `Trip fare collected via MoMo (net after commission: ${driverShare.toFixed(2)})`,
+      balanceAfter: balance,
+    });
+  }
+
+  // Commission always debited from virtual balance (cash or MoMo).
+  balance = roundMoney(balance - qaregoShare);
   await Transaction.create({
     ride: rideId,
     driver: riderId,
@@ -77,27 +96,11 @@ export async function settleTrip(ride) {
     balanceAfter: balance,
   });
 
-  // 2) DIGITAL_EARNING: only if paid via MOBILE_MONEY (QareGO holds the fare, driver gets share)
-  if (paymentMethod === 'MOBILE_MONEY') {
-    balance += driverShare;
-    await Transaction.create({
-      ride: rideId,
-      driver: riderId,
-      amount: driverShare,
-      type: 'DIGITAL_EARNING',
-      note: `Driver share (${paymentMethod})`,
-      balanceAfter: balance,
-    });
-  }
-  // If CASH: driver keeps full fare; we only debited commission, no credit
-
   await User.findByIdAndUpdate(riderId, { balance });
 
-  // 3) Safety valve: suspend if balance below debt limit
   if (balance < debtLimit) {
     await User.findByIdAndUpdate(riderId, {
       'driverDetails.status': 'suspended_debt',
     });
-    // TODO: send_notification("Your balance is too low. Top up to continue receiving rides.")
   }
 }
