@@ -106,12 +106,13 @@ export default function RestaurantDetailPage({ params }: { params: Promise<{ id:
       return;
     }
     if (
-      restaurant.payoutConfig?.instantPayoutEnabled &&
-      (!restaurant.payoutConfig?.recipientMsisdn?.trim() ||
-        !restaurant.payoutConfig?.recipientName?.trim())
+      !restaurant.payoutConfig?.recipientMsisdn?.trim()
     ) {
-      alert("Instant payout requires recipient name and phone");
-      return;
+      // Soft warning — settlement can fall back to owner phone, but recommend explicit MoMo.
+      const proceed = window.confirm(
+        "No settlement MoMo phone set. Delivery payouts will fall back to the owner phone if available. Continue saving?"
+      );
+      if (!proceed) return;
     }
     setSavingProfile(true);
     try {
@@ -131,7 +132,6 @@ export default function RestaurantDetailPage({ params }: { params: Promise<{ id:
           isActive: restaurant.isActive,
           isAcceptingOrders: restaurant.isAcceptingOrders,
           payoutConfig: {
-            instantPayoutEnabled: Boolean(restaurant.payoutConfig?.instantPayoutEnabled),
             recipientName: restaurant.payoutConfig?.recipientName || "",
             recipientMsisdn: restaurant.payoutConfig?.recipientMsisdn || "",
             channel: restaurant.payoutConfig?.channel || "mtn-gh",
@@ -347,26 +347,10 @@ export default function RestaurantDetailPage({ params }: { params: Promise<{ id:
               <div className="rounded-lg border border-gray-200 p-3 bg-gray-50 space-y-3">
                 <p className="text-sm font-medium text-gray-900">Delivery settlement (Hubtel Send Money)</p>
                 <p className="text-xs text-gray-600">
-                  When a MoMo food order is marked delivered, the restaurant share is sent to this MoMo number.
-                  The instant-checkout toggle below is legacy — delivery payout uses recipient phone whenever it is set.
+                  When a MoMo food order is marked delivered, the restaurant share is sent to this MoMo
+                  number. Network is inferred from the phone prefix (MTN / Vodafone / AirtelTigo).
+                  If phone is empty, settlement falls back to the owner phone.
                 </p>
-                <label className="flex items-center gap-2 text-sm text-gray-700">
-                  <input
-                    type="checkbox"
-                    checked={Boolean(restaurant.payoutConfig?.instantPayoutEnabled)}
-                    onChange={(e) =>
-                      setRestaurant({
-                        ...restaurant,
-                        payoutConfig: {
-                          ...(restaurant.payoutConfig || {}),
-                          instantPayoutEnabled: e.target.checked,
-                        },
-                      })
-                    }
-                    className="rounded border-gray-300"
-                  />
-                  Legacy: instant payout flag (not used — delivery settlement applies)
-                </label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <Label htmlFor="payoutRecipientName">Recipient Name</Label>
@@ -390,21 +374,30 @@ export default function RestaurantDetailPage({ params }: { params: Promise<{ id:
                     <Input
                       id="payoutRecipientMsisdn"
                       value={restaurant.payoutConfig?.recipientMsisdn || ""}
-                      onChange={(e) =>
+                      onChange={(e) => {
+                        const phone = e.target.value;
+                        const digits = phone.replace(/\D/g, "");
+                        let channel = restaurant.payoutConfig?.channel || "mtn-gh";
+                        const local = digits.startsWith("233") ? digits.slice(3) : digits.replace(/^0/, "");
+                        const p2 = local.slice(0, 2);
+                        if (["20", "50"].includes(p2)) channel = "vodafone-gh";
+                        else if (["26", "27", "56", "57"].includes(p2)) channel = "airteltigo-gh";
+                        else if (local.length >= 2) channel = "mtn-gh";
                         setRestaurant({
                           ...restaurant,
                           payoutConfig: {
                             ...(restaurant.payoutConfig || {}),
-                            recipientMsisdn: e.target.value,
+                            recipientMsisdn: phone,
+                            channel,
                           },
-                        })
-                      }
+                        });
+                      }}
                       placeholder="+233..."
                     />
                   </div>
                 </div>
                 <div>
-                  <Label htmlFor="payoutChannel">Channel</Label>
+                  <Label htmlFor="payoutChannel">Detected network</Label>
                   <select
                     id="payoutChannel"
                     value={restaurant.payoutConfig?.channel || "mtn-gh"}
@@ -423,6 +416,9 @@ export default function RestaurantDetailPage({ params }: { params: Promise<{ id:
                     <option value="vodafone-gh">Vodafone Ghana</option>
                     <option value="airteltigo-gh">AirtelTigo Ghana</option>
                   </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Auto-updates from the phone number. Settlement also re-detects from MSISDN.
+                  </p>
                 </div>
               </div>
               <Button type="submit" disabled={savingProfile} className="w-full">

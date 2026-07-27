@@ -9,6 +9,33 @@ import { StatusCodes } from "http-status-codes";
 import { BadRequestError, NotFoundError } from "../errors/index.js";
 import { normalizePhone } from "../utils/phone.js";
 import { sanitizeImageUrl } from "../utils/mediaStorage.js";
+import { detectGhMomoChannel } from "../utils/hubtelService.js";
+
+function normalizePayoutConfig(next = {}, prev = {}) {
+  const allowedChannels = new Set(["mtn-gh", "vodafone-gh", "airteltigo-gh"]);
+  const recipientMsisdn =
+    next.recipientMsisdn !== undefined
+      ? normalizePhone(String(next.recipientMsisdn || "")) || null
+      : prev.recipientMsisdn || null;
+  const channelRaw = String(next.channel ?? prev.channel ?? "").trim().toLowerCase();
+  const channel = recipientMsisdn
+    ? detectGhMomoChannel(recipientMsisdn)
+    : allowedChannels.has(channelRaw)
+      ? channelRaw
+      : "mtn-gh";
+  return {
+    instantPayoutEnabled:
+      typeof next.instantPayoutEnabled === "boolean"
+        ? next.instantPayoutEnabled
+        : Boolean(prev.instantPayoutEnabled),
+    recipientName:
+      next.recipientName !== undefined
+        ? String(next.recipientName || "").trim() || null
+        : prev.recipientName || null,
+    recipientMsisdn,
+    channel,
+  };
+}
 
 const RESTAURANT_FIELDS = [
   "name",
@@ -290,17 +317,7 @@ export const adminCreateRestaurant = async (req, res) => {
   if (fields.deliveryFee == null) fields.deliveryFee = 0;
 
   if (req.body.payoutConfig && typeof req.body.payoutConfig === "object") {
-    const next = req.body.payoutConfig;
-    const channelRaw = String(next.channel ?? "mtn-gh").trim().toLowerCase();
-    const allowedChannels = new Set(["mtn-gh", "vodafone-gh", "airteltigo-gh"]);
-    fields.payoutConfig = {
-      instantPayoutEnabled: Boolean(next.instantPayoutEnabled),
-      recipientName: String(next.recipientName || "").trim() || null,
-      recipientMsisdn: next.recipientMsisdn
-        ? normalizePhone(String(next.recipientMsisdn))
-        : null,
-      channel: allowedChannels.has(channelRaw) ? channelRaw : "mtn-gh",
-    };
+    fields.payoutConfig = normalizePayoutConfig(req.body.payoutConfig, {});
   }
 
   await applyStoreTypeToRestaurantFields(req.body, fields);
@@ -380,27 +397,10 @@ export const adminUpdateRestaurant = async (req, res) => {
   }
 
   if (req.body.payoutConfig && typeof req.body.payoutConfig === "object") {
-    const next = req.body.payoutConfig;
-    const prev = restaurant.payoutConfig || {};
-    const channelRaw = String(next.channel ?? prev.channel ?? "mtn-gh")
-      .trim()
-      .toLowerCase();
-    const allowedChannels = new Set(["mtn-gh", "vodafone-gh", "airteltigo-gh"]);
-    restaurant.payoutConfig = {
-      instantPayoutEnabled:
-        typeof next.instantPayoutEnabled === "boolean"
-          ? next.instantPayoutEnabled
-          : Boolean(prev.instantPayoutEnabled),
-      recipientName:
-        next.recipientName !== undefined
-          ? String(next.recipientName || "").trim() || null
-          : prev.recipientName || null,
-      recipientMsisdn:
-        next.recipientMsisdn !== undefined
-          ? normalizePhone(String(next.recipientMsisdn || "")) || null
-          : prev.recipientMsisdn || null,
-      channel: allowedChannels.has(channelRaw) ? channelRaw : "mtn-gh",
-    };
+    restaurant.payoutConfig = normalizePayoutConfig(
+      req.body.payoutConfig,
+      restaurant.payoutConfig || {}
+    );
   }
 
   await restaurant.save();

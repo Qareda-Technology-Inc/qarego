@@ -15,6 +15,24 @@ import { SettingsAudioUpload } from '@/components/SettingsAudioUpload';
 import { MenuCategoryLayoutsCard } from '@/components/MenuCategoryLayoutsCard';
 import { FoodPromoBannersCard } from '@/components/FoodPromoBannersCard';
 
+/** Parse a number field; allow 0. Returns null when empty/invalid. */
+function parseOptionalNumber(raw: string): number | null {
+  const n = Number(String(raw ?? '').trim());
+  return Number.isFinite(n) ? n : null;
+}
+
+function parseRate(raw: string, fallback: number): number {
+  const n = parseOptionalNumber(raw);
+  if (n == null) return fallback;
+  return Math.min(1, Math.max(0, n));
+}
+
+function parseMoney(raw: string, fallback: number): number {
+  const n = parseOptionalNumber(raw);
+  if (n == null) return fallback;
+  return Math.max(0, n);
+}
+
 export default function SettingsPage() {
   const [loading, setLoading] = useState(false);
   const [loadingGlobal, setLoadingGlobal] = useState(true);
@@ -293,11 +311,19 @@ export default function SettingsPage() {
 
   const handleSubmitGlobal = async (e: React.FormEvent) => {
     e.preventDefault();
+    const commissionRate = parseRate(settings.commissionRate, 0.15);
+    const debtLimitRaw = parseOptionalNumber(settings.debtLimit);
+    const debtLimit = debtLimitRaw == null ? -100 : debtLimitRaw;
+    const minCashoutAmount = parseMoney(settings.minCashoutAmount, 1);
+    if (debtLimitRaw == null && String(settings.debtLimit).trim() !== '') {
+      alert('Debt limit must be a valid number (e.g. -100).');
+      return;
+    }
     await patchSettings(
       {
-        commissionRate: parseFloat(settings.commissionRate) || 0.15,
-        debtLimit: parseFloat(settings.debtLimit) ?? -100,
-        minCashoutAmount: parseFloat(settings.minCashoutAmount) ?? 1,
+        commissionRate,
+        debtLimit,
+        minCashoutAmount,
       },
       'Global commission and debt limit saved.'
     );
@@ -307,9 +333,9 @@ export default function SettingsPage() {
     await patchSettings(
       {
         commissionByService: {
-          RIDE: parseFloat(settings.commissionRide) || 0.15,
-          DELIVERY: parseFloat(settings.commissionDelivery) || 0.15,
-          FOOD: parseFloat(settings.commissionFood) || 0.15,
+          RIDE: parseRate(settings.commissionRide, 0.15),
+          DELIVERY: parseRate(settings.commissionDelivery, 0.15),
+          FOOD: parseRate(settings.commissionFood, 0.15),
         },
       },
       'Service commission saved.'
@@ -360,12 +386,20 @@ export default function SettingsPage() {
   };
 
   const handleSaveFoodServiceFee = async () => {
+    const foodServiceFeeRate = parseRate(settings.foodServiceFeeRate, 0.08);
+    const foodServiceFeeMin = parseMoney(settings.foodServiceFeeMin, 2);
+    const foodServiceFeeMax = parseMoney(settings.foodServiceFeeMax, 12);
+    const foodDeliveryCommissionRate = parseRate(settings.foodDeliveryCommissionRate, 0);
+    if (foodServiceFeeMin > foodServiceFeeMax) {
+      alert('Food service fee minimum cannot be greater than maximum.');
+      return;
+    }
     await patchSettings(
       {
-        foodServiceFeeRate: parseFloat(settings.foodServiceFeeRate) || 0.08,
-        foodServiceFeeMin: parseFloat(settings.foodServiceFeeMin) || 2,
-        foodServiceFeeMax: parseFloat(settings.foodServiceFeeMax) || 12,
-        foodDeliveryCommissionRate: parseFloat(settings.foodDeliveryCommissionRate) || 0,
+        foodServiceFeeRate,
+        foodServiceFeeMin,
+        foodServiceFeeMax,
+        foodDeliveryCommissionRate,
       },
       'Food fee and delivery commission saved.'
     );

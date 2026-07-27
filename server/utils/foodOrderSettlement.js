@@ -100,7 +100,10 @@ function resolveRestaurantPayoutTarget(restaurant) {
     restaurant?.owner?.name ||
     restaurant?.name ||
     "Merchant";
-  const channel = restaurant?.payoutConfig?.channel || "mtn-gh";
+  // Infer network from MSISDN so a wrong admin default (mtn-gh) can't misroute Vodafone/Airtel.
+  const channel = msisdn
+    ? detectGhMomoChannel(msisdn)
+    : restaurant?.payoutConfig?.channel || "mtn-gh";
   return { msisdn, name, channel };
 }
 

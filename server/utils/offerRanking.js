@@ -1,5 +1,6 @@
 import { calculateDistance } from "./mapUtils.js";
 import { getCommissionRateForService } from "./tripSettlement.js";
+import { getFoodDeliveryCommissionRate } from "./foodOrderSettlement.js";
 import { getRideEligibilityServiceType } from "./riderServiceEligibility.js";
 
 const DEFAULT_WEIGHTS = {
@@ -32,7 +33,12 @@ export function scoreOfferForRider(ride, rider, riderCoords, settings = {}) {
   const fare = Number(ride?.fare ?? 0);
   const tripKm = Math.max(Number(ride?.distance ?? 0), 0.5);
   const serviceType = getRideEligibilityServiceType(ride);
-  const commissionRate = getCommissionRateForService(settings, serviceType);
+  // FOOD fare is the delivery fee — rider commission uses foodDeliveryCommissionRate,
+  // not restaurant (subtotal) commissionByService.FOOD.
+  const commissionRate =
+    serviceType === "FOOD"
+      ? getFoodDeliveryCommissionRate(settings)
+      : getCommissionRateForService(settings, serviceType);
   const netEarning = computeNetEarning(fare, commissionRate);
   const earningsPerKm = netEarning / Math.max(tripKm, 0.8);
 

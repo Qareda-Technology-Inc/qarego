@@ -123,10 +123,10 @@ export default function RestaurantsPage() {
       return;
     }
     if (
-      form.payoutInstantEnabled &&
-      (!form.payoutRecipientMsisdn?.trim() || !form.payoutRecipientName?.trim())
+      form.payoutRecipientMsisdn?.trim() &&
+      !form.payoutRecipientName?.trim()
     ) {
-      alert("Instant payout requires recipient name and phone");
+      alert("Enter a recipient name for the settlement MoMo number");
       return;
     }
 
@@ -144,7 +144,6 @@ export default function RestaurantsPage() {
         latitude: Number(form.latitude),
         longitude: Number(form.longitude),
         payoutConfig: {
-          instantPayoutEnabled: Boolean(form.payoutInstantEnabled),
           recipientName: form.payoutRecipientName?.trim() || null,
           recipientMsisdn: form.payoutRecipientMsisdn?.trim() || null,
           channel: form.payoutChannel || "mtn-gh",
@@ -301,13 +300,13 @@ export default function RestaurantsPage() {
                       <div>Delivery: GH₵{r.deliveryFee}</div>
                       <div className="text-xs text-gray-400">Min: GH₵{r.minOrderAmount}</div>
                       <div className="text-xs mt-1">
-                        {r.payoutConfig?.instantPayoutEnabled ? (
+                        {r.payoutConfig?.recipientMsisdn ? (
                           <span className="inline-flex items-center rounded-full bg-green-100 text-green-700 px-2 py-0.5">
-                            Instant payout
+                            MoMo settlement
                           </span>
                         ) : (
-                          <span className="inline-flex items-center rounded-full bg-gray-100 text-gray-600 px-2 py-0.5">
-                            Manual payout
+                          <span className="inline-flex items-center rounded-full bg-amber-50 text-amber-700 px-2 py-0.5">
+                            No MoMo phone
                           </span>
                         )}
                       </div>
@@ -477,18 +476,10 @@ export default function RestaurantsPage() {
           </div>
 
           <div className="border-t pt-4 space-y-3">
-            <p className="text-sm font-medium text-gray-900">Instant payout setup (optional)</p>
-            <label className="flex items-center gap-2 text-sm text-gray-700">
-              <input
-                type="checkbox"
-                checked={form.payoutInstantEnabled}
-                onChange={(e) =>
-                  setForm({ ...form, payoutInstantEnabled: e.target.checked })
-                }
-                className="rounded border-gray-300"
-              />
-              Enable instant payout after successful customer checkout
-            </label>
+            <p className="text-sm font-medium text-gray-900">Delivery settlement MoMo (optional)</p>
+            <p className="text-xs text-gray-500">
+              Restaurant share is sent here when a MoMo food order is delivered. Falls back to owner phone if empty.
+            </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <Label htmlFor="payoutRecipientName">Recipient Name</Label>
@@ -499,7 +490,6 @@ export default function RestaurantsPage() {
                     setForm({ ...form, payoutRecipientName: e.target.value })
                   }
                   placeholder="Merchant payout name"
-                  required={form.payoutInstantEnabled}
                 />
               </div>
               <div>
@@ -507,21 +497,30 @@ export default function RestaurantsPage() {
                 <Input
                   id="payoutRecipientMsisdn"
                   value={form.payoutRecipientMsisdn}
-                  onChange={(e) =>
-                    setForm({ ...form, payoutRecipientMsisdn: e.target.value })
-                  }
+                  onChange={(e) => {
+                    const phone = e.target.value;
+                    const digits = phone.replace(/\D/g, "");
+                    let channel = form.payoutChannel || "mtn-gh";
+                    const local = digits.startsWith("233") ? digits.slice(3) : digits.replace(/^0/, "");
+                    const p2 = local.slice(0, 2);
+                    if (["20", "50"].includes(p2)) channel = "vodafone-gh";
+                    else if (["26", "27", "56", "57"].includes(p2)) channel = "airteltigo-gh";
+                    else if (local.length >= 2) channel = "mtn-gh";
+                    setForm({ ...form, payoutRecipientMsisdn: phone, payoutChannel: channel });
+                  }}
                   placeholder="+233..."
-                  required={form.payoutInstantEnabled}
                 />
               </div>
             </div>
             <div>
-              <Label htmlFor="payoutChannel">Payout Channel</Label>
+              <Label htmlFor="payoutChannel">Detected network</Label>
               <select
                 id="payoutChannel"
                 value={form.payoutChannel}
-                onChange={(e) => setForm({ ...form, payoutChannel: e.target.value })}
-                className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
+                onChange={(e) =>
+                  setForm({ ...form, payoutChannel: e.target.value })
+                }
+                className="mt-1 flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
               >
                 <option value="mtn-gh">MTN Ghana</option>
                 <option value="vodafone-gh">Vodafone Ghana</option>
