@@ -1,12 +1,16 @@
-import { View, Image, StyleSheet } from "react-native";
-import { TouchableOpacity } from "@gorhom/bottom-sheet";
-import React, { FC, useState } from "react";
+import {
+  View,
+  Image,
+  StyleSheet,
+  TouchableOpacity,
+  Linking,
+} from "react-native";
+import { TouchableOpacity as BottomSheetTouchable } from "@gorhom/bottom-sheet";
+import React, { FC, useCallback, useState } from "react";
 import { useWS } from "@/service/WSProvider";
-import { rideStyles } from "@/styles/rideStyles";
-import { commonStyles } from "@/styles/commonStyles";
 import CustomText from "../shared/CustomText";
 import { getVehicleIconSource, getVehicleLabel } from "@/utils/mapUtils";
-import { MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { resetAndNavigate } from "@/utils/Helpers";
 import ChatModal from "../shared/ChatModal";
 import { maskPhone } from "@/utils/maskPhone";
@@ -20,15 +24,17 @@ import {
   getCustomerRouteLabels,
 } from "@/utils/customerCourierUi";
 import { getCommerceOrderCopy, resolveOrderVertical } from "@/utils/commerceOrderCopy";
-import { ParcelTheme } from "@/styles/parcelTheme";
+import { openMapsRoute, openMapsToPoint, type MapPoint } from "@/utils/openMapsNavigation";
 
 interface RideItem {
   _id: string;
   serviceType?: "RIDE" | "DELIVERY" | "FOOD";
   parcelMode?: "SEND" | "RECEIVE";
   vehicle?: string;
-  pickup?: { address: string };
-  drop?: { address: string };
+  paymentMethod?: "CASH" | "MOBILE_MONEY";
+  paymentStatus?: string;
+  pickup?: MapPoint;
+  drop?: MapPoint;
   fare?: number;
   otp?: string;
   restaurantName?: string;
@@ -43,6 +49,41 @@ interface RideItem {
   status: string;
 }
 
+function getStatusTitle(item: RideItem, isFood: boolean, isParcel: boolean, storeCopy: ReturnType<typeof getCommerceOrderCopy>, parcelStatus: { title: string } | null) {
+  if (item.status === "COMPLETED") {
+    if (isFood) return "Order delivered";
+    if (isParcel) return "Parcel delivered";
+    return "Ride completed";
+  }
+  if (isFood && item.status === "START") return storeCopy.trackingCourierToStore;
+  if (isFood && item.status === "ARRIVED") return "Picked up your order";
+  if (isFood && item.status === "IN_PROGRESS") return "Courier on the way";
+  if (parcelStatus) return parcelStatus.title;
+  if (item.status === "START") return "Rider heading to you";
+  if (item.status === "ARRIVED") return "Rider has arrived";
+  if (item.status === "IN_PROGRESS") return "On the way to destination";
+  return "Trip in progress";
+}
+
+function getStatusSubtitle(
+  item: RideItem,
+  isFood: boolean,
+  isParcel: boolean,
+  storeCopy: ReturnType<typeof getCommerceOrderCopy>,
+  parcelStatus: { subtitle: string } | null
+) {
+  if (item.status === "COMPLETED") {
+    if (isFood) return storeCopy.liveEnjoy;
+    if (isParcel) return "Delivery complete";
+    return "Thank you for riding with us";
+  }
+  if (parcelStatus) return parcelStatus.subtitle;
+  if (isFood) return item.restaurantName ?? storeCopy.liveDeliveryFallback;
+  if (isParcel && item.recipientName) return `For ${item.recipientName}`;
+  if (isParcel) return "Parcel delivery";
+  return getVehicleLabel(item.vehicle ?? "motorcycle");
+}
+
 const LiveTrackingSheet: FC<{
   item: RideItem;
   onRateDriver?: () => void;
@@ -53,6 +94,7 @@ const LiveTrackingSheet: FC<{
 
   const isFood = item?.serviceType === "FOOD";
   const isParcel = item?.serviceType === "DELIVERY";
+  const isRide = !isFood && !isParcel;
   const storeCopy = getCommerceOrderCopy(
     isFood ? resolveOrderVertical({ storeVertical: item?.storeVertical, restaurantName: item?.restaurantName }) : "FOOD"
   );
@@ -61,117 +103,115 @@ const LiveTrackingSheet: FC<{
   const routeLabels = getCustomerRouteLabels(item);
   const parcelPhase = getCustomerParcelPhase(parcelMode, item?.status, item?.recipientName);
   const parcelStatus =
-    isParcel && item?.status
-      ? getCustomerParcelStatus(parcelMode, item.status, item.recipientName)
-      : null;
-  const canChat = item?.rider && (item?.status === "START" || item?.status === "ARRIVED" || item?.status === "IN_PROGRESS");
+    isParcel && item?.status ? getCustomerParcelStatus(parcelMode, item.status, item.recipientName) : null;
+  const canChat =
+    item?.rider && (item?.status === "START" || item?.status === "ARRIVED" || item?.status === "IN_PROGRESS");
   const isCompleted = item?.status === "COMPLETED";
+  const isActive = !isCompleted;
+  const showRideOtp = isRide && item?.otp && (item.status === "START" || item.status === "ARRIVED");
   const showFoodDeliveryCode = isFood && item?.status === "IN_PROGRESS" && item?.otp;
-  const showParcelDeliveryCode =
-    isParcel && item?.status === "IN_PROGRESS" && item?.deliveryOtp;
+  const showParcelDeliveryCode = isParcel && item?.status === "IN_PROGRESS" && item?.deliveryOtp;
+  const riderName = item?.rider?.name ?? (isParcel ? "Your courier" : "Your rider");
+
+  const statusTitle = getStatusTitle(item, isFood, isParcel, storeCopy, parcelStatus);
+  const statusSubtitle = getStatusSubtitle(item, isFood, isParcel, storeCopy, parcelStatus);
+
+  const handleCallRider = useCallback(() => {
+    const phone = item?.rider?.phone;
+    if (!phone) return;
+    Linking.openURL(`tel:${phone}`);
+  }, [item?.rider?.phone]);
+
+  const handleNavigateRoute = useCallback(() => {
+    if (item?.pickup && item?.drop) openMapsRoute(item.pickup, item.drop);
+  }, [item?.pickup, item?.drop]);
+
+  const handleNavigatePickup = useCallback(() => {
+    if (item?.pickup) openMapsToPoint(item.pickup, routeLabels.pickupLabel);
+  }, [item?.pickup, routeLabels.pickupLabel]);
+
+  const handleNavigateDrop = useCallback(() => {
+    if (item?.drop) openMapsToPoint(item.drop, routeLabels.dropLabel);
+  }, [item?.drop, routeLabels.dropLabel]);
 
   return (
-    <View>
-      <View style={rideStyles?.headerContainer}>
-        <View style={[commonStyles.flexRowGap, { flex: 1, minWidth: 0, marginRight: 8 }]}>
-          <Image
-            source={getVehicleIconSource(item.vehicle ?? "motorcycle")}
-            style={rideStyles.rideIcon}
-          />
-          <View style={{ flex: 1, minWidth: 0 }}>
+    <View style={styles.container}>
+      {/* Status + rider */}
+      <View style={styles.heroCard}>
+        <View style={styles.heroTop}>
+          <View style={styles.iconRing}>
+            <Image
+              source={getVehicleIconSource(item.vehicle ?? "motorcycle")}
+              style={styles.vehicleIcon}
+            />
+          </View>
+          <View style={styles.heroText}>
             {isParcel ? (
-              <View style={[styles.phaseChip, { backgroundColor: `${parcelPhase.color}1a` }]}>
+              <View style={[styles.phaseChip, { backgroundColor: `${parcelPhase.color}18` }]}>
                 <CustomText fontSize={10} fontFamily="SemiBold" style={{ color: parcelPhase.color }}>
                   Step {parcelPhase.step} of {parcelPhase.totalSteps}
                 </CustomText>
               </View>
             ) : null}
-            <CustomText fontSize={10}>
-              {isCompleted
-                ? isFood
-                  ? "Order delivered"
-                  : isParcel
-                    ? "Parcel delivered"
-                    : "Ride completed"
-                : isFood && item?.status === "START"
-                  ? storeCopy.trackingCourierToStore
-                  : isFood && item?.status === "ARRIVED"
-                    ? "Picked up your order"
-                    : isFood && item?.status === "IN_PROGRESS"
-                      ? "Courier on the way"
-                      : parcelStatus
-                        ? parcelStatus.title
-                        : item?.status === "START"
-                              ? "Rider heading to you"
-                              : item?.status === "ARRIVED"
-                                ? "Rider arrived"
-                                : item?.status === "IN_PROGRESS"
-                                  ? "On the way"
-                                  : "On the way"}
+            <CustomText fontFamily="Bold" fontSize={17} style={styles.heroTitle}>
+              {statusTitle}
             </CustomText>
-
-            <CustomText>
-              {isCompleted
-                ? isFood
-                  ? storeCopy.liveEnjoy
-                  : isParcel
-                    ? "Delivery complete"
-                    : "Thank you for riding with us"
-                : showFoodDeliveryCode
-                  ? "Share the delivery code with your recipient"
-                  : showParcelDeliveryCode
-                    ? parcelMode === "RECEIVE"
-                      ? "Give the delivery code to your courier"
-                      : "Share the delivery code with your recipient"
-                  : parcelStatus
-                    ? parcelStatus.subtitle
-                    : !isFood && !isParcel && (item?.status === "START" || item?.status === "ARRIVED")
-                      ? `OTP - ${item?.otp}`
-                      : isFood
-                      ? item?.restaurantName ?? storeCopy.liveDeliveryFallback
-                      : isParcel && item?.recipientName
-                        ? `For ${item.recipientName}`
-                        : isParcel
-                          ? "Parcel delivery"
-                          : getVehicleLabel(item.vehicle ?? "motorcycle")}
+            <CustomText fontSize={13} style={styles.heroSubtitle} numberOfLines={2}>
+              {statusSubtitle}
             </CustomText>
-            {isParcel ? (
-              <CustomText fontSize={10} color="#64748b" style={{ marginTop: 4 }}>
-                {parcelPhase.hint}
-              </CustomText>
-            ) : null}
           </View>
         </View>
 
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-          {item?.rider?.phone && (
-            <CustomText fontSize={11} numberOfLines={1} fontFamily="Medium">
-              {maskPhone(item.rider.phone)}
-            </CustomText>
-          )}
-          {canChat && (
-            <TouchableOpacity
-              onPress={() => setShowChat(true)}
-              style={{
-                padding: 8,
-                backgroundColor: "#f0f0f0",
-                borderRadius: 20,
-              }}
-            >
-              <Ionicons name="chatbubble-ellipses" size={18} color="#333" />
-            </TouchableOpacity>
-          )}
-        </View>
+        {item?.rider && isActive ? (
+          <View style={styles.riderRow}>
+            <View style={styles.riderInfo}>
+              <CustomText fontFamily="SemiBold" fontSize={14}>
+                {riderName}
+              </CustomText>
+              {item.rider?.phone ? (
+                <CustomText fontSize={12} style={{ color: "#64748b", marginTop: 2 }}>
+                  {maskPhone(item.rider.phone)}
+                </CustomText>
+              ) : null}
+            </View>
+            <View style={styles.riderActions}>
+              {item.rider?.phone ? (
+                <TouchableOpacity style={styles.actionBtn} onPress={handleCallRider} activeOpacity={0.85}>
+                  <Ionicons name="call-outline" size={18} color={Colors.primary} />
+                </TouchableOpacity>
+              ) : null}
+              {canChat ? (
+                <TouchableOpacity style={styles.actionBtn} onPress={() => setShowChat(true)} activeOpacity={0.85}>
+                  <Ionicons name="chatbubble-ellipses-outline" size={18} color={Colors.primary} />
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          </View>
+        ) : null}
       </View>
 
+      {showRideOtp ? (
+        <View style={styles.otpCard}>
+          <CustomText fontSize={11} fontFamily="SemiBold" style={styles.otpLabel}>
+            Share this code with your rider
+          </CustomText>
+          <CustomText fontFamily="Bold" fontSize={32} style={styles.otpCode}>
+            {item.otp}
+          </CustomText>
+          <CustomText fontSize={11} style={styles.otpHint}>
+            Rider will ask for this when they arrive
+          </CustomText>
+        </View>
+      ) : null}
+
       {showFoodDeliveryCode ? (
-        <View style={{ paddingHorizontal: 10, paddingTop: 8 }}>
+        <View style={styles.codeWrap}>
           <DeliveryCodeCard code={item.otp!} compact />
         </View>
       ) : null}
 
       {showParcelDeliveryCode ? (
-        <View style={{ paddingHorizontal: 10, paddingTop: 8 }}>
+        <View style={styles.codeWrap}>
           <DeliveryCodeCard
             code={item.deliveryOtp!}
             compact
@@ -182,113 +222,106 @@ const LiveTrackingSheet: FC<{
         </View>
       ) : null}
 
-      <View style={{ padding: 10 }}>
-        <CustomText fontFamily="SemiBold" fontSize={12}>
-          {isFood || isParcel ? "Delivery details" : "Location details"}
-        </CustomText>
+      {isParcel && (item?.recipientName || item?.recipientPhone || item?.parcelDescription) ? (
+        <View style={styles.recipientBanner}>
+          {item.recipientName ? (
+            <CustomText fontSize={12} fontFamily="Medium">
+              {parcelMode === "RECEIVE" ? "Customer" : "Recipient"}: {item.recipientName}
+            </CustomText>
+          ) : null}
+          {item.recipientPhone ? (
+            <CustomText fontSize={11} style={{ color: "#64748b", marginTop: 2 }}>
+              {maskPhone(item.recipientPhone)}
+            </CustomText>
+          ) : null}
+          {item.parcelDescription ? (
+            <CustomText fontSize={11} style={{ color: "#64748b", marginTop: 4 }}>
+              {item.parcelDescription}
+            </CustomText>
+          ) : null}
+        </View>
+      ) : null}
 
-        {isParcel && (item?.recipientName || item?.recipientPhone) ? (
-          <View style={styles.parcelMetaCard}>
-            {item.recipientName ? (
-              <CustomText fontSize={11} fontFamily="Medium">
-                {parcelMode === "RECEIVE" ? "Customer" : "Recipient"}: {item.recipientName}
-              </CustomText>
-            ) : null}
-            {item.recipientPhone ? (
-              <CustomText fontSize={10} color="#666" style={{ marginTop: 2 }}>
-                {maskPhone(item.recipientPhone)}
-              </CustomText>
-            ) : null}
-            {item.parcelDescription ? (
-              <CustomText fontSize={10} color="#666" style={{ marginTop: 4 }}>
-                {item.parcelDescription}
-              </CustomText>
-            ) : null}
-          </View>
-        ) : null}
-
-        {isFood && item?.foodOrderSummary ? (
-          <CustomText fontSize={10} color="#666" style={{ marginTop: 4 }}>
+      {isFood && item?.foodOrderSummary ? (
+        <View style={styles.orderSummary}>
+          <CustomText fontSize={12} style={{ color: "#475569" }}>
             {item.foodOrderSummary}
           </CustomText>
-        ) : null}
+        </View>
+      ) : null}
 
-        <View style={[commonStyles.flexRowGap, styles.routeRow]}>
-          <Image
-            source={require("@/assets/icons/marker.png")}
-            style={rideStyles.pinIcon}
-          />
-          <View style={{ flex: 1 }}>
-            {isParcel ? (
-              <CustomText fontSize={9} fontFamily="SemiBold" style={{ color: "#888", marginBottom: 2 }}>
-                {routeLabels.pickupLabel}
-              </CustomText>
-            ) : null}
-            <CustomText fontSize={10} numberOfLines={2}>
-              {item?.pickup?.address}
+      <View style={styles.routeCard}>
+        <View style={styles.routeCardHeader}>
+          <CustomText fontFamily="SemiBold" fontSize={13} style={styles.routeCardTitle}>
+            Your route
+          </CustomText>
+          <TouchableOpacity style={styles.routeNavPill} onPress={handleNavigateRoute} activeOpacity={0.85}>
+            <Ionicons name="map-outline" size={14} color={Colors.primary} />
+            <CustomText fontSize={11} fontFamily="SemiBold" style={{ color: Colors.primary }}>
+              Open in Maps
             </CustomText>
-          </View>
+          </TouchableOpacity>
         </View>
 
-        <View style={[commonStyles.flexRowGap, styles.routeRow]}>
-          <Image
-            source={require("@/assets/icons/drop_marker.png")}
-            style={rideStyles.pinIcon}
-          />
-          <View style={{ flex: 1 }}>
-            {isParcel ? (
-              <CustomText fontSize={9} fontFamily="SemiBold" style={{ color: "#888", marginBottom: 2 }}>
-                {routeLabels.dropLabel}
-              </CustomText>
-            ) : null}
-            <CustomText fontSize={10} numberOfLines={2}>
-              {item?.drop?.address}
+        <View style={styles.stopRow}>
+          <View style={styles.timelineCol}>
+            <View style={[styles.dot, styles.dotPickup]} />
+            <View style={styles.connector} />
+          </View>
+          <View style={styles.stopBody}>
+            <CustomText fontSize={10} fontFamily="SemiBold" style={styles.stopLabel}>
+              {routeLabels.pickupLabel}
+            </CustomText>
+            <CustomText fontSize={13} numberOfLines={2} style={styles.stopAddress}>
+              {item?.pickup?.address || "Pickup location"}
             </CustomText>
           </View>
+          <TouchableOpacity style={styles.navBtn} onPress={handleNavigatePickup} activeOpacity={0.8}>
+            <Ionicons name="navigate" size={18} color={Colors.primary} />
+          </TouchableOpacity>
         </View>
 
-        <View style={{ marginVertical: 20 }}>
-          <View style={[commonStyles.flexRowBetween]}>
-            <View style={commonStyles.flexRow}>
-              <MaterialCommunityIcons
-                name="credit-card"
-                size={24}
-                color="black"
-              />
-              <CustomText
-                style={{ marginLeft: 10 }}
-                fontFamily="SemiBold"
-                fontSize={12}
-              >
-                Payment
-              </CustomText>
-            </View>
-
-            <CustomText fontFamily="SemiBold" fontSize={14}>
-              {formatCurrency(item.fare)}
+        <View style={styles.stopRow}>
+          <View style={styles.timelineCol}>
+            <View style={[styles.dot, styles.dotDrop]} />
+          </View>
+          <View style={styles.stopBody}>
+            <CustomText fontSize={10} fontFamily="SemiBold" style={styles.stopLabel}>
+              {routeLabels.dropLabel}
+            </CustomText>
+            <CustomText fontSize={13} numberOfLines={2} style={styles.stopAddress}>
+              {item?.drop?.address || "Destination"}
             </CustomText>
           </View>
-
-          <CustomText fontSize={10}>Payment via cash</CustomText>
+          <TouchableOpacity style={styles.navBtn} onPress={handleNavigateDrop} activeOpacity={0.8}>
+            <Ionicons name="navigate" size={18} color={Colors.primary} />
+          </TouchableOpacity>
         </View>
       </View>
 
-      {/* Completed: prompt to rate driver */}
-      {isCompleted && onRateDriver && (
-        <TouchableOpacity
-          onPress={onRateDriver}
-          style={{
-            backgroundColor: Colors.primary,
-            marginHorizontal: 10,
-            marginTop: 16,
-            marginBottom: 8,
-            paddingVertical: 16,
-            borderRadius: 14,
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-          activeOpacity={0.8}
-        >
+      <View style={styles.fareCard}>
+        <View style={styles.fareLeft}>
+          <MaterialCommunityIcons name="credit-card-outline" size={20} color="#64748b" />
+          <View style={{ marginLeft: 10 }}>
+            <CustomText fontFamily="SemiBold" fontSize={13}>
+              {item?.paymentMethod === "MOBILE_MONEY" ? "Mobile money" : "Cash"}
+            </CustomText>
+            <CustomText fontSize={11} style={{ color: "#94a3b8", marginTop: 1 }}>
+              {item?.paymentMethod === "MOBILE_MONEY"
+                ? item?.paymentStatus === "PAID"
+                  ? "Paid"
+                  : "Pay when trip ends"
+                : "Pay driver directly"}
+            </CustomText>
+          </View>
+        </View>
+        <CustomText fontFamily="Bold" fontSize={17}>
+          {formatCurrency(item.fare)}
+        </CustomText>
+      </View>
+
+      {isCompleted && onRateDriver ? (
+        <TouchableOpacity style={styles.rateBtn} onPress={onRateDriver} activeOpacity={0.85}>
           <CustomText fontFamily="SemiBold" fontSize={16} style={{ color: "#fff" }}>
             {isParcel ? "Rate your courier" : "Rate your driver"}
           </CustomText>
@@ -296,45 +329,43 @@ const LiveTrackingSheet: FC<{
             {isParcel ? "How was the delivery?" : "How was your trip?"}
           </CustomText>
         </TouchableOpacity>
-      )}
+      ) : null}
 
-      <View style={rideStyles.bottomButtonContainer}>
-        {!isCompleted && (
-          <TouchableOpacity
-            style={rideStyles.cancelButton}
-            onPress={() => emit("cancelRide", item?._id)}
-          >
-            <CustomText style={rideStyles.cancelButtonText}>Cancel</CustomText>
-          </TouchableOpacity>
-        )}
-
-        <TouchableOpacity
-          style={[rideStyles.backButton2, isCompleted && { flex: 1 }]}
-          onPress={() => {
-            if (isCompleted) {
-              resetAndNavigate("/customer/home");
-            }
-          }}
+      {isActive ? (
+        <BottomSheetTouchable
+          style={styles.cancelBtn}
+          onPress={() => emit("cancelRide", item?._id)}
+          activeOpacity={0.85}
         >
-          <CustomText style={rideStyles.backButtonText}>
-            {isCompleted ? "Back to home" : "Back"}
+          <CustomText fontFamily="SemiBold" fontSize={15} style={styles.cancelText}>
+            Cancel trip
+          </CustomText>
+        </BottomSheetTouchable>
+      ) : (
+        <TouchableOpacity
+          style={styles.homeBtn}
+          onPress={() => resetAndNavigate("/customer/home")}
+          activeOpacity={0.85}
+        >
+          <CustomText fontFamily="SemiBold" fontSize={15} style={{ color: "#fff" }}>
+            Back to home
           </CustomText>
         </TouchableOpacity>
-      </View>
+      )}
 
-      {canChat && (
+      {canChat ? (
         <ChatModal
           visible={showChat}
           onClose={() => setShowChat(false)}
           rideId={item._id}
           otherUserId={item.rider?._id || item.rider}
-          otherUserName={item.rider?.name ?? (isParcel ? "Courier" : "Rider")}
+          otherUserName={riderName}
           otherUserPhone={item.rider?.phone}
           currentUserId={user?._id || user?.id}
           currentUserName={user?.name}
           maskedPhone={item.rider?.phone ? maskPhone(item.rider.phone) : undefined}
         />
-      )}
+      ) : null}
     </View>
   );
 };
@@ -342,24 +373,244 @@ const LiveTrackingSheet: FC<{
 export default LiveTrackingSheet;
 
 const styles = StyleSheet.create({
+  container: {
+    paddingHorizontal: 20,
+    paddingTop: 4,
+    paddingBottom: 28,
+  },
+  heroCard: {
+    backgroundColor: "#f8fafc",
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+  },
+  heroTop: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+  },
+  iconRing: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: "#fef9e7",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "#fde68a",
+  },
+  vehicleIcon: {
+    width: 34,
+    height: 34,
+    resizeMode: "contain",
+  },
+  heroText: {
+    flex: 1,
+  },
   phaseChip: {
     alignSelf: "flex-start",
-    paddingHorizontal: 10,
-    paddingVertical: 3,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
     borderRadius: 20,
-    marginBottom: 6,
+    marginBottom: 4,
   },
-  parcelMetaCard: {
-    marginTop: 8,
-    marginBottom: 6,
+  heroTitle: {
+    color: "#0f172a",
+  },
+  heroSubtitle: {
+    color: "#64748b",
+    marginTop: 2,
+  },
+  riderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 14,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: "#e2e8f0",
+  },
+  riderInfo: {
+    flex: 1,
+  },
+  riderActions: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  actionBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#fff",
+    alignItems: "center",
+    justifyContent: "center",
     borderWidth: 1,
-    borderColor: "#ddd6fe",
+    borderColor: "#e2e8f0",
+  },
+  otpCard: {
+    backgroundColor: "#fffbeb",
+    borderRadius: 16,
+    padding: 18,
+    marginBottom: 14,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#fde68a",
+  },
+  otpLabel: {
+    color: "#92400e",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  otpCode: {
+    color: Colors.primary,
+    marginVertical: 8,
+    letterSpacing: 8,
+  },
+  otpHint: {
+    color: "#78716c",
+    textAlign: "center",
+  },
+  codeWrap: {
+    marginBottom: 14,
+  },
+  recipientBanner: {
     backgroundColor: "#f5f3ff",
     borderRadius: 12,
-    padding: 10,
+    padding: 12,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: "#ddd6fe",
   },
-  routeRow: {
-    width: "90%",
-    marginTop: 14,
+  orderSummary: {
+    backgroundColor: "#f8fafc",
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 14,
+  },
+  routeCard: {
+    backgroundColor: "#f8fafc",
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+  },
+  routeCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  routeCardTitle: {
+    color: "#334155",
+  },
+  routeNavPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "#fff",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#fde68a",
+  },
+  stopRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+  },
+  timelineCol: {
+    alignItems: "center",
+    width: 14,
+    paddingTop: 4,
+  },
+  dot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  dotPickup: {
+    backgroundColor: "#22c55e",
+  },
+  dotDrop: {
+    backgroundColor: "#ef4444",
+  },
+  connector: {
+    width: 2,
+    flex: 1,
+    minHeight: 28,
+    backgroundColor: "#e2e8f0",
+    marginVertical: 4,
+  },
+  stopBody: {
+    flex: 1,
+    paddingBottom: 14,
+  },
+  stopLabel: {
+    color: "#94a3b8",
+    marginBottom: 3,
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+  },
+  stopAddress: {
+    color: "#1e293b",
+    lineHeight: 18,
+  },
+  navBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#fff",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    marginTop: 2,
+  },
+  fareCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#fff",
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+  },
+  fareLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  rateBtn: {
+    backgroundColor: Colors.primary,
+    paddingVertical: 16,
+    borderRadius: 14,
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  cancelBtn: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 14,
+    borderRadius: 14,
+    backgroundColor: "#fef2f2",
+    borderWidth: 1,
+    borderColor: "#fecaca",
+  },
+  cancelText: {
+    color: "#dc2626",
+  },
+  homeBtn: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 14,
+    borderRadius: 14,
+    backgroundColor: Colors.primary,
   },
 });

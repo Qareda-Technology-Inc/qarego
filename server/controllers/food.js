@@ -10,6 +10,7 @@ import {
   parseCoord,
 } from "../utils/deliveryFare.js";
 import { getSettings } from "../utils/tripSettlement.js";
+import { computeFoodOrderSplit } from "../utils/foodOrderSettlement.js";
 import { applyRestaurantAction } from "../utils/foodOrderFlow.js";
 import { computeOpenState } from "../utils/storeHours.js";
 import { inferVerticalFromCategoryName } from "../utils/commerceStoreTypes.js";
@@ -236,6 +237,10 @@ export const createFoodOrder = async (req, res) => {
   }
   const serviceFee = computeFoodServiceFee(subtotal, settings);
   const total = subtotal + serviceFee + deliveryFee;
+  const split = computeFoodOrderSplit(
+    { subtotal, deliveryFee, serviceFee },
+    settings
+  );
 
   const itemSummary = orderItems
     .map((i) => `${i.quantity}x ${i.name}`)
@@ -252,6 +257,7 @@ export const createFoodOrder = async (req, res) => {
     driverFee,
     deliveryDistanceKm,
     total,
+    ...split,
     delivery: {
       address: deliveryAddress,
       latitude: deliveryLat,

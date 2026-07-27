@@ -20,9 +20,10 @@ type Props = {
     parcelDescription?: string;
     parcelPhotoUrl?: string;
   };
+  variant?: "overlay" | "inline";
 };
 
-const RiderDeliveryBanner: FC<Props> = ({ ride }) => {
+const RiderDeliveryBanner: FC<Props> = ({ ride, variant = "overlay" }) => {
   const food = isFoodDelivery(ride);
   const isParcel = ride?.serviceType === "DELIVERY";
   const parcelMode = parseRideParcelMode(ride);
@@ -32,7 +33,7 @@ const RiderDeliveryBanner: FC<Props> = ({ ride }) => {
 
   if (food && ride.foodOrderSummary) {
     return (
-      <View style={[styles.card, styles.foodCard]}>
+      <View style={[styles.card, styles.foodCard, variant === "inline" && styles.inlineCard]}>
         <View style={styles.row}>
           <View style={styles.iconBadge}>
             <CustomText fontSize={18}>{commerceCopy.storeEmoji}</CustomText>
@@ -52,7 +53,7 @@ const RiderDeliveryBanner: FC<Props> = ({ ride }) => {
 
   if (isParcel && (ride.recipientName || photoUri || ride.parcelDescription)) {
     return (
-      <View style={[styles.card, styles.parcelCard]}>
+      <View style={[styles.card, styles.parcelCard, variant === "inline" && styles.inlineCard]}>
         <View style={styles.row}>
           <View style={[styles.iconBadge, styles.parcelBadge]}>
             <Ionicons name="cube-outline" size={20} color="#6d28d9" />
@@ -74,7 +75,7 @@ const RiderDeliveryBanner: FC<Props> = ({ ride }) => {
             ) : null}
           </View>
         </View>
-        {photoUri ? (
+        {photoUri && variant !== "inline" ? (
           <Image source={{ uri: photoUri }} style={styles.parcelPhoto} resizeMode="cover" />
         ) : null}
       </View>
@@ -104,6 +105,16 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.97)",
     borderWidth: 1,
     borderColor: "#ddd6fe",
+  },
+  inlineCard: {
+    position: "relative",
+    top: 0,
+    left: 0,
+    right: 0,
+    marginBottom: 10,
+    zIndex: 0,
+    shadowOpacity: 0,
+    elevation: 0,
   },
   row: {
     flexDirection: "row",

@@ -1,4 +1,4 @@
-import React, { FC } from "react";
+import React, { FC, useCallback, useEffect, useState } from "react";
 import {
   View,
   Modal,
@@ -15,6 +15,9 @@ import RoutesMap from "../customer/RoutesMap";
 import EarningsBreakdownStrip from "@/components/rider/EarningsBreakdownStrip";
 import type { EarningsBreakdown } from "@/utils/earningsBreakdown";
 import { breakdownFromDispatchMeta } from "@/utils/earningsBreakdown";
+import HubtelCheckoutModal from "./HubtelCheckoutModal";
+import { useMessage } from "@/context/MessageContext";
+import { initiateRidePayment, fetchRidePaymentStatus } from "@/service/rideService";
 
 interface RideReceiptModalProps {
   visible: boolean;
@@ -31,6 +34,91 @@ const RideReceiptModal: FC<RideReceiptModalProps> = ({
   onReBook,
   role = "customer",
 }) => {
+  const { showToast } = useMessage();
+  const rideId = ride?._id ? String(ride._id) : null;
+  const [payStatus, setPayStatus] = useState<string | null>(ride?.paymentStatus ?? null);
+  const [payBusy, setPayBusy] = useState(false);
+  const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
+  const [checkoutVisible, setCheckoutVisible] = useState(false);
+
+  const isCustomer = role === "customer";
+  const isMomo = ride?.paymentMethod === "MOBILE_MONEY";
+  const isCompleted = ride?.status === "COMPLETED";
+  const effectivePayStatus = payStatus ?? ride?.paymentStatus ?? "NOT_REQUIRED";
+  const paidWithMomo = isMomo && effectivePayStatus === "PAID";
+  const outstandingMomo =
+    isCustomer &&
+    isMomo &&
+    isCompleted &&
+    ["UNPAID", "PENDING", "FAILED"].includes(effectivePayStatus);
+
+  useEffect(() => {
+    setPayStatus(ride?.paymentStatus ?? null);
+  }, [ride?.paymentStatus, ride?._id]);
+
+  const refreshPayStatus = useCallback(async () => {
+    if (!rideId) return;
+    try {
+      const s = await fetchRidePaymentStatus(rideId);
+      setPayStatus(s.ridePaymentStatus);
+    } catch {
+      // ignore transient errors
+    }
+  }, [rideId]);
+
+  useEffect(() => {
+    if (visible && outstandingMomo) refreshPayStatus();
+  }, [visible, outstandingMomo, refreshPayStatus]);
+
+  const closeCheckout = useCallback(() => {
+    setCheckoutVisible(false);
+    setCheckoutUrl(null);
+  }, []);
+
+  const handlePayNow = useCallback(async () => {
+    if (!rideId) return;
+    setPayBusy(true);
+    try {
+      const payment = await initiateRidePayment(rideId);
+      if (payment?.status === "success") {
+        setPayStatus("PAID");
+        return;
+      }
+      const url = payment?.checkoutDirectUrl || payment?.checkoutUrl;
+      if (!url) {
+        showToast?.({
+          type: "error",
+          title: "Payment unavailable",
+          message: "Could not open payment. Please try again.",
+        });
+        return;
+      }
+      setCheckoutUrl(url);
+      setCheckoutVisible(true);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Could not start payment";
+      showToast?.({ type: "error", title: "Payment unavailable", message: msg });
+    } finally {
+      setPayBusy(false);
+    }
+  }, [rideId, showToast]);
+
+  const handleCheckoutSuccess = useCallback(async () => {
+    closeCheckout();
+    showToast?.({
+      type: "success",
+      title: "Payment received",
+      message: "Confirming your payment…",
+    });
+    setPayStatus("PAID");
+    await refreshPayStatus();
+  }, [closeCheckout, refreshPayStatus, showToast]);
+
+  const handleCheckoutCancel = useCallback(async () => {
+    closeCheckout();
+    await refreshPayStatus();
+  }, [closeCheckout, refreshPayStatus]);
+
   if (!ride) return null;
 
   const formatDate = (dateString: string) => {
@@ -308,9 +396,27 @@ const RideReceiptModal: FC<RideReceiptModalProps> = ({
                     </CustomText>
                   </View>
                   <View style={styles.paymentMethod}>
-                    <Ionicons name="cash-outline" size={16} color="#666" />
-                    <CustomText fontSize={12} color="#666" style={{ marginLeft: 5 }}>
-                      {ride.paymentMethod === "MOBILE_MONEY" ? "Mobile money" : "Cash"}
+                    <Ionicons
+                      name={isMomo ? "phone-portrait-outline" : "cash-outline"}
+                      size={16}
+                      color={paidWithMomo ? "#16a34a" : "#666"}
+                    />
+                    <CustomText
+                      fontSize={12}
+                      color={paidWithMomo ? "#16a34a" : "#666"}
+                      style={{ marginLeft: 5 }}
+                    >
+                      {isMomo
+                        ? paidWithMomo
+                          ? "Paid · Mobile money"
+                          : outstandingMomo
+                          ? `Mobile money · ${
+                              effectivePayStatus === "PENDING"
+                                ? "Awaiting confirmation"
+                                : "Not paid"
+                            }`
+                          : "Mobile money"
+                        : "Cash"}
                     </CustomText>
                   </View>
                 </View>
@@ -319,6 +425,19 @@ const RideReceiptModal: FC<RideReceiptModalProps> = ({
 
             {/* Action Buttons */}
             <View style={styles.actionButtons}>
+              {outstandingMomo && (
+                <TouchableOpacity
+                  style={[styles.button, styles.payButton, payBusy && { opacity: 0.7 }]}
+                  onPress={handlePayNow}
+                  disabled={payBusy}
+                >
+                  <Ionicons name="phone-portrait-outline" size={20} color="#fff" />
+                  <CustomText fontFamily="SemiBold" fontSize={14} style={{ color: "#fff", marginLeft: 8 }}>
+                    {payBusy ? "Opening…" : `Pay ${formatCurrency(ride.fare)}`}
+                  </CustomText>
+                </TouchableOpacity>
+              )}
+
               {onReBook && ride.status === "COMPLETED" && (
                 <TouchableOpacity
                   style={[styles.button, styles.rebookButton]}
@@ -343,6 +462,14 @@ const RideReceiptModal: FC<RideReceiptModalProps> = ({
           </ScrollView>
         </View>
       </View>
+
+      <HubtelCheckoutModal
+        visible={checkoutVisible}
+        checkoutUrl={checkoutUrl}
+        onSuccess={handleCheckoutSuccess}
+        onCancel={handleCheckoutCancel}
+        onClose={closeCheckout}
+      />
     </Modal>
   );
 };
@@ -463,6 +590,9 @@ const styles = StyleSheet.create({
   },
   rebookButton: {
     backgroundColor: Colors.primary,
+  },
+  payButton: {
+    backgroundColor: "#16a34a",
   },
   closeButtonStyle: {
     backgroundColor: "#f0f0f0",

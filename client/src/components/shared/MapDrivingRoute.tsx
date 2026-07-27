@@ -4,6 +4,7 @@ import MapViewDirections from "react-native-maps-directions";
 import { getPoints } from "@/utils/mapUtils";
 import {
   canRequestDrivingRoute,
+  coordKey,
   isDirectionsZeroResults,
   parseMapCoord,
   riderNearRoute,
@@ -29,8 +30,10 @@ const MapDrivingRoute: React.FC<Props> = ({
   lineDashPattern,
   onReady,
 }) => {
-  const o = useMemo(() => parseMapCoord(origin), [origin]);
-  const d = useMemo(() => parseMapCoord(destination), [destination]);
+  const originKey = coordKey(origin);
+  const destinationKey = coordKey(destination);
+  const o = useMemo(() => parseMapCoord(origin), [originKey]);
+  const d = useMemo(() => parseMapCoord(destination), [destinationKey]);
   const [fallback, setFallback] = useState(false);
 
   const usePolyline =
@@ -78,4 +81,4 @@ const MapDrivingRoute: React.FC<Props> = ({
 
 export default memo(MapDrivingRoute);
 
-export { parseMapCoord, riderNearRoute, type MapCoord };
+export { parseMapCoord, riderNearRoute, coordKey, type MapCoord };

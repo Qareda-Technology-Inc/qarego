@@ -11,6 +11,7 @@ import {
   generateOTP,
 } from "../utils/mapUtils.js";
 import { settleTrip, getSettings, getCommissionRateForService } from "../utils/tripSettlement.js";
+import { settleFoodOrderOnDelivery } from "../utils/foodOrderSettlement.js";
 import {
   canRiderReceiveOffer,
   getEligibilityRejectReason,
@@ -34,6 +35,7 @@ import { filterRidesForRider } from "../utils/rideOfferBroadcast.js";
 import {
   buildEarningsBreakdownForRide,
   buildEarningsBreakdownFromCommissionTxn,
+  buildSalesSummaryFromCommissionTxns,
 } from "../utils/earningsBreakdown.js";
 import {
   recordReliabilityEvent,
@@ -426,9 +428,30 @@ export const updateRideStatus = async (req, res) => {
       }
     }
 
-    // Trip completion: commission split, ledger, balance, debt check
+    // Trip completion: commission split, ledger, balance, debt check.
+    // For customer mobile-money rides/parcels, payment is collected AFTER
+    // completion — defer settlement until the payment is confirmed.
     if (status === "COMPLETED" && ride.rider) {
-      await settleTrip(ride);
+      const deferForMomo =
+        (ride.serviceType === "RIDE" || ride.serviceType === "DELIVERY") &&
+        ride.paymentMethod === "MOBILE_MONEY";
+      if (ride.serviceType === "FOOD" && ride.foodOrder) {
+        try {
+          const settlement = await settleFoodOrderOnDelivery(ride.foodOrder);
+          if (settlement?.settlementStatus === "failed") {
+            console.error("[ride] food settlement failed:", settlement);
+          }
+        } catch (err) {
+          console.error("[ride] food settlement error:", err);
+        }
+      } else if (deferForMomo) {
+        if (!ride.paymentStatus || ride.paymentStatus === "NOT_REQUIRED") {
+          ride.paymentStatus = "UNPAID";
+          await ride.save();
+        }
+      } else {
+        await settleTrip(ride);
+      }
       const settings = await getSettings();
       const riderIdForRel = ride.rider._id?.toString?.() ?? ride.rider.toString();
       await recordReliabilityEvent(
@@ -799,20 +822,17 @@ export const getMyTransactions = async (req, res) => {
       .limit(100);
     const currentBalance = Number(user?.balance ?? 0);
 
-    // Compute totals from commission debits (each = one completed trip)
     const commissionTxns = await Transaction.find({
       driver: driverId,
       type: "COMMISSION_DEBIT",
     })
-      .populate("ride", "fare")
+      .populate("ride", "fare paymentMethod")
       .lean();
-    let totalEarnings = 0; // Total fare from all trips (gross)
-    let totalCommission = 0; // Total commission owed/paid to company
-    for (const tx of commissionTxns) {
-      if (tx.ride?.fare != null) totalEarnings += Number(tx.ride.fare);
-      totalCommission += Math.abs(Number(tx.amount ?? 0));
-    }
-    const riderAmount = totalEarnings - totalCommission; // Rider's take-home from trips
+
+    const salesSummary = buildSalesSummaryFromCommissionTxns(commissionTxns);
+    const totalEarnings = salesSummary.total.gross;
+    const totalCommission = salesSummary.total.commission;
+    const riderAmount = salesSummary.total.net;
 
     const settings = await getSettings();
     const commissionByService = {
@@ -834,9 +854,13 @@ export const getMyTransactions = async (req, res) => {
 
     res.status(StatusCodes.OK).json({
       balance: currentBalance,
+      walletBalance: Math.max(0, currentBalance),
+      commissionOwed: currentBalance < 0 ? Math.abs(currentBalance) : 0,
+      minCashoutAmount: Number(settings.minCashoutAmount ?? 1),
       totalEarnings,
       totalCommission,
       riderAmount,
+      salesSummary,
       commissionByService,
       transactions: enrichedTransactions,
     });

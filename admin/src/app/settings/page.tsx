@@ -22,12 +22,14 @@ export default function SettingsPage() {
     commissionRate?: number;
     commissionByService?: Record<string, number>;
     debtLimit?: number;
+    minCashoutAmount?: number;
     fareRates?: Record<string, { baseFare: number; perKmRate: number; minimumFare: number }>;
     kitchenAlertSoundUrl?: string;
     riderAlertSoundUrl?: string;
     foodServiceFeeRate?: number;
     foodServiceFeeMin?: number;
     foodServiceFeeMax?: number;
+    foodDeliveryCommissionRate?: number;
     vehicleCapabilityPolicy?: { pragyaFoodEnabled?: boolean; comfortFoodEnabled?: boolean };
     serviceMaintenance?: Record<string, boolean>;
     dispatchRankingWeights?: Record<string, number>;
@@ -64,9 +66,11 @@ export default function SettingsPage() {
     commissionDelivery: '0.15',
     commissionFood: '0.15',
     debtLimit: '-100',
+    minCashoutAmount: '1',
     foodServiceFeeRate: '0.08',
     foodServiceFeeMin: '2',
     foodServiceFeeMax: '12',
+    foodDeliveryCommissionRate: '0',
     supportEmail: 'support@qarego.com',
     platformName: 'QareGO',
   });
@@ -90,9 +94,11 @@ export default function SettingsPage() {
           commissionDelivery: String(data.commissionByService?.DELIVERY ?? data.commissionRate ?? 0.15),
           commissionFood: String(data.commissionByService?.FOOD ?? data.commissionRate ?? 0.15),
           debtLimit: String(data.debtLimit ?? -100),
+          minCashoutAmount: String(data.minCashoutAmount ?? 1),
           foodServiceFeeRate: String(data.foodServiceFeeRate ?? 0.08),
           foodServiceFeeMin: String(data.foodServiceFeeMin ?? 2),
           foodServiceFeeMax: String(data.foodServiceFeeMax ?? 12),
+          foodDeliveryCommissionRate: String(data.foodDeliveryCommissionRate ?? 0),
         }));
         if (data.fareRates && typeof data.fareRates === 'object') {
           const next: Record<string, { baseFare: string; perKmRate: string; minimumFare: string }> = {};
@@ -291,6 +297,7 @@ export default function SettingsPage() {
       {
         commissionRate: parseFloat(settings.commissionRate) || 0.15,
         debtLimit: parseFloat(settings.debtLimit) ?? -100,
+        minCashoutAmount: parseFloat(settings.minCashoutAmount) ?? 1,
       },
       'Global commission and debt limit saved.'
     );
@@ -358,8 +365,9 @@ export default function SettingsPage() {
         foodServiceFeeRate: parseFloat(settings.foodServiceFeeRate) || 0.08,
         foodServiceFeeMin: parseFloat(settings.foodServiceFeeMin) || 2,
         foodServiceFeeMax: parseFloat(settings.foodServiceFeeMax) || 12,
+        foodDeliveryCommissionRate: parseFloat(settings.foodDeliveryCommissionRate) || 0,
       },
-      'Food service fee settings saved.'
+      'Food fee and delivery commission saved.'
     );
   };
 
@@ -395,6 +403,11 @@ export default function SettingsPage() {
                     <Label htmlFor="debtLimit">Debt Limit ({CURRENCY_SYMBOL})</Label>
                     <Input id="debtLimit" name="debtLimit" type="number" value={settings.debtLimit} onChange={handleChange} />
                     <p className="text-xs text-gray-500">Driver suspended when balance &lt; this (e.g. -100)</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="minCashoutAmount">Min Cash Out ({CURRENCY_SYMBOL})</Label>
+                    <Input id="minCashoutAmount" name="minCashoutAmount" type="number" min="0" step="0.01" value={settings.minCashoutAmount} onChange={handleChange} />
+                    <p className="text-xs text-gray-500">Minimum rider wallet withdrawal per request</p>
                   </div>
                   <div>
                     <Button type="button" onClick={handleSubmitGlobal} disabled={loading}>
@@ -443,7 +456,7 @@ export default function SettingsPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="commissionFood">Food (FOOD)</Label>
+                <Label htmlFor="commissionFood">Food restaurant (subtotal)</Label>
                 <Input
                   id="commissionFood"
                   name="commissionFood"
@@ -454,6 +467,7 @@ export default function SettingsPage() {
                   value={settings.commissionFood}
                   onChange={handleChange}
                 />
+                <p className="text-xs text-gray-500">Commission on menu subtotal at delivery settlement.</p>
               </div>
             </div>
             <Button type="button" onClick={handleSaveCommissionByService} disabled={loading}>
@@ -656,13 +670,13 @@ export default function SettingsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Food service fee</CardTitle>
+            <CardTitle>Food service fee & delivery commission</CardTitle>
             <CardDescription>
-              Platform fee on food subtotal, clamped between minimum and maximum.
+              Service fee on subtotal (customer checkout). Rider delivery commission applies to the delivery fee at settlement (0 = rider keeps full delivery fee).
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="foodServiceFeeRate">Rate (0-1)</Label>
                 <Input
@@ -700,6 +714,20 @@ export default function SettingsPage() {
                   value={settings.foodServiceFeeMax}
                   onChange={handleChange}
                 />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="foodDeliveryCommissionRate">Rider delivery commission (0-1)</Label>
+                <Input
+                  id="foodDeliveryCommissionRate"
+                  name="foodDeliveryCommissionRate"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="1"
+                  value={settings.foodDeliveryCommissionRate}
+                  onChange={handleChange}
+                />
+                <p className="text-xs text-gray-500">0 = rider keeps full delivery fee via Hubtel on delivery.</p>
               </div>
             </div>
             <Button type="button" onClick={handleSaveFoodServiceFee} disabled={loading}>

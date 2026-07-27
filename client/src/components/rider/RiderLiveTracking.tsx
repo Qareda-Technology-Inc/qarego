@@ -1,25 +1,24 @@
-import { View, TouchableOpacity, Image, Linking, Platform, Alert } from "react-native";
-import React, { FC, memo, useEffect, useRef, useState } from "react";
-import MapView, { Marker, Polyline, Callout } from "react-native-maps";
+import { View, TouchableOpacity, Image, StyleSheet } from "react-native";
+import React, { FC, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import MapView, { Marker, Polyline } from "react-native-maps";
 import { customMapStyle, indiaIntialRegion } from "@/utils/CustomMap";
 import CustomText from "../shared/CustomText";
-import { FontAwesome6, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { RFValue } from "react-native-responsive-fontsize";
 import { mapStyles } from "@/styles/mapStyles";
 import { Colors } from "@/utils/Constants";
-import { getPoints, getVehicleMarkerType } from "@/utils/mapUtils";
+import { getVehicleMarkerType } from "@/utils/mapUtils";
 import NearbyVehicleMarker from "@/components/customer/NearbyVehicleMarker";
 import {
   getRiderDropLabel,
   getRiderPickupLabel,
-  isFoodDelivery,
   RiderOfferRide,
 } from "@/utils/riderRideUtils";
-import { parseRideParcelMode } from "@/utils/parcelMode";
-import MapDrivingRoute, {
-  parseMapCoord,
-  riderNearRoute,
-} from "@/components/shared/MapDrivingRoute";
+import { coordKey, fetchDrivingPolyline } from "@/utils/mapDirections";
+import { useStableMapCoord } from "@/hooks/useStableMapCoord";
+import { openMapsToPoint } from "@/utils/openMapsNavigation";
+
+const MAP_BOTTOM_PAD = 300;
 
 const RiderLiveTracking: FC<{
   drop: any;
@@ -32,118 +31,109 @@ const RiderLiveTracking: FC<{
   restaurantName?: string;
   storeVertical?: RiderOfferRide["storeVertical"];
   foodOrderSummary?: string;
-}> = ({ drop, status, pickup, rider, vehicle, serviceType, parcelMode, restaurantName, storeVertical, foodOrderSummary }) => {
-  const rideMeta: RiderOfferRide = { serviceType, parcelMode, storeVertical, restaurantName, foodOrderSummary };
-  const food = isFoodDelivery(rideMeta);
-  const isParcel = serviceType === "DELIVERY";
-  const receiveParcel = isParcel && parseRideParcelMode(rideMeta) === "RECEIVE";
+}> = ({ drop, status, pickup, rider, vehicle, serviceType, parcelMode, restaurantName, storeVertical }) => {
+  const rideMeta: RiderOfferRide = { serviceType, parcelMode, storeVertical, restaurantName };
   const pickupLabel = getRiderPickupLabel(rideMeta);
   const dropLabel = getRiderDropLabel(rideMeta);
   const vehicleMarkerType = getVehicleMarkerType(vehicle ?? "motorcycle");
   const mapRef = useRef<MapView>(null);
-  const [isUserInteracting, setIsUserInteracting] = useState(false);
+  const isUserInteractingRef = useRef(false);
+  const [mapReady, setMapReady] = useState(false);
+  const [overlaysReady, setOverlaysReady] = useState(false);
+  const [routeCoords, setRouteCoords] = useState<{ latitude: number; longitude: number }[]>([]);
 
-  const pickupCoord = parseMapCoord(pickup);
-  const dropCoord = parseMapCoord(drop);
-  const riderCoord = parseMapCoord(rider);
-  const showRiderOnMap = riderNearRoute(riderCoord, pickupCoord, dropCoord);
+  const pickupKey = coordKey(pickup);
+  const dropKey = coordKey(drop);
+  const riderKey = coordKey(rider);
 
-  const fitToMarkers = async () => {
-    if (isUserInteracting) return;
+  const pickupCoord = useStableMapCoord(pickup);
+  const dropCoord = useStableMapCoord(drop);
+  const riderCoord = useStableMapCoord(rider);
 
+  const activeDestination = useMemo(() => {
+    if (status === "START") return pickupCoord;
+    if (status === "ARRIVED" || status === "IN_PROGRESS") return dropCoord;
+    return dropCoord ?? pickupCoord;
+  }, [status, pickupCoord, dropCoord]);
+
+  const routeOrigin = useMemo(() => {
+    if (status === "START" && riderCoord) return riderCoord;
+    if ((status === "ARRIVED" || status === "IN_PROGRESS") && pickupCoord) return pickupCoord;
+    return riderCoord ?? pickupCoord;
+  }, [status, riderKey, pickupKey]);
+
+  const routeDestination = useMemo(() => {
+    if (status === "START") return pickupCoord;
+    if (status === "ARRIVED" || status === "IN_PROGRESS") return dropCoord;
+    return dropCoord ?? pickupCoord;
+  }, [status, pickupKey, dropKey]);
+
+  const routeFetchKey = useMemo(() => {
+    if (!routeOrigin || !routeDestination) return "";
+    return `${status}|${routeOrigin.latitude},${routeOrigin.longitude}|${routeDestination.latitude},${routeDestination.longitude}`;
+  }, [status, routeOrigin, routeDestination]);
+
+  const fitToMarkers = useCallback(async () => {
+    if (isUserInteractingRef.current) return;
     const coordinates: { latitude: number; longitude: number }[] = [];
-
     if (pickupCoord) coordinates.push(pickupCoord);
     if (dropCoord) coordinates.push(dropCoord);
-
-    if (showRiderOnMap && riderCoord) {
-      coordinates.push(riderCoord);
-    }
-
+    if (riderCoord) coordinates.push(riderCoord);
     if (coordinates.length === 0) return;
-
     try {
       mapRef.current?.fitToCoordinates(coordinates, {
-        edgePadding: { top: 50, right: 50, bottom: 50, left: 50 },
+        edgePadding: { top: 72, right: 40, bottom: MAP_BOTTOM_PAD, left: 40 },
         animated: true,
       });
-    } catch (error) {
-      console.error("Error fitting to markers:", error);
+    } catch {
+      /* native not ready */
     }
-  };
+  }, [dropCoord, pickupCoord, riderCoord]);
 
-  const fitToMarkersWithDelay = () => {
-    setTimeout(() => {
-      fitToMarkers();
-    }, 500);
-  };
-
-  const openNavigationApp = () => {
-    if (!pickup?.latitude || !drop?.latitude) {
-      Alert.alert("Error", "Location information not available");
+  useEffect(() => {
+    if (!mapReady) {
+      setOverlaysReady(false);
       return;
     }
+    const t = setTimeout(() => setOverlaysReady(true), 280);
+    return () => clearTimeout(t);
+  }, [mapReady, status]);
 
-    // Determine destination based on status
-    let destination;
-    if (status === "START") {
-      destination = pickup; // Going to pickup
-    } else if (status === "ARRIVED" || status === "IN_PROGRESS") {
-      destination = drop; // Going to drop
-    } else {
-      destination = drop;
-    }
-    const destinationLat = destination.latitude;
-    const destinationLon = destination.longitude;
+  useEffect(() => {
+    if (!mapReady || !routeOrigin || !routeDestination || !routeFetchKey) return;
+    const fallback = [routeOrigin, routeDestination];
+    setRouteCoords(fallback);
+    let cancelled = false;
+    void fetchDrivingPolyline(routeOrigin, routeDestination, process.env.EXPO_PUBLIC_MAP_API_KEY || "").then(
+      (coords) => {
+        if (cancelled || !coords?.length) return;
+        setRouteCoords(coords);
+        void fitToMarkers();
+      }
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [mapReady, routeFetchKey, routeOrigin, routeDestination, fitToMarkers]);
 
-    // Try to open in Google Maps first, fallback to Apple Maps on iOS
-    const googleMapsUrl = Platform.select({
-      ios: `maps://app?daddr=${destinationLat},${destinationLon}&directionsmode=driving`,
-      android: `google.navigation:q=${destinationLat},${destinationLon}`,
-    });
-
-    const appleMapsUrl = `maps://app?daddr=${destinationLat},${destinationLon}&directionsmode=driving`;
-    const webMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${destinationLat},${destinationLon}&travelmode=driving`;
-
-    if (Platform.OS === "ios") {
-      // Try Apple Maps first on iOS
-      Linking.canOpenURL(appleMapsUrl)
-        .then((supported) => {
-          if (supported) {
-            return Linking.openURL(appleMapsUrl);
-          } else {
-            // Fallback to Google Maps
-            return Linking.openURL(googleMapsUrl || webMapsUrl);
-          }
-        })
-        .catch(() => {
-          // Final fallback to web
-          Linking.openURL(webMapsUrl);
-        });
-    } else {
-      // Android - try Google Maps
-      Linking.canOpenURL(googleMapsUrl || webMapsUrl)
-        .then((supported) => {
-          if (supported) {
-            return Linking.openURL(googleMapsUrl || webMapsUrl);
-          } else {
-            // Fallback to web
-            return Linking.openURL(webMapsUrl);
-          }
-        })
-        .catch(() => {
-          Linking.openURL(webMapsUrl);
-        });
-    }
-  };
+  useEffect(() => {
+    if (!mapReady || !pickupKey || !dropKey) return;
+    void fitToMarkers();
+  }, [pickupKey, dropKey, riderKey, status, mapReady, fitToMarkers]);
 
   const calculateInitialRegion = () => {
-    if (pickupCoord && dropCoord) {
-      const latitude = (pickupCoord.latitude + dropCoord.latitude) / 2;
-      const longitude = (pickupCoord.longitude + dropCoord.longitude) / 2;
+    if (activeDestination && riderCoord) {
       return {
-        latitude,
-        longitude,
+        latitude: (activeDestination.latitude + riderCoord.latitude) / 2,
+        longitude: (activeDestination.longitude + riderCoord.longitude) / 2,
+        latitudeDelta: 0.04,
+        longitudeDelta: 0.04,
+      };
+    }
+    if (pickupCoord && dropCoord) {
+      return {
+        latitude: (pickupCoord.latitude + dropCoord.latitude) / 2,
+        longitude: (pickupCoord.longitude + dropCoord.longitude) / 2,
         latitudeDelta: 0.05,
         longitudeDelta: 0.05,
       };
@@ -151,181 +141,161 @@ const RiderLiveTracking: FC<{
     return indiaIntialRegion;
   };
 
-  useEffect(() => {
-    if (pickupCoord && dropCoord) fitToMarkers();
-  }, [dropCoord?.latitude, pickupCoord?.latitude, riderCoord?.latitude, status]);
+  const openNavigationApp = () => {
+    const target =
+      status === "START"
+        ? pickup
+        : drop;
+    const label = status === "START" ? pickupLabel : dropLabel;
+    if (!target) return;
+    openMapsToPoint(target, label);
+  };
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={styles.wrap}>
       <MapView
         ref={mapRef}
-        followsUserLocation
-        style={{ flex: 1 }}
+        followsUserLocation={status === "START" || status === "IN_PROGRESS"}
+        style={styles.map}
         initialRegion={calculateInitialRegion()}
         provider="google"
         showsMyLocationButton={false}
         showsCompass={false}
         showsIndoors={false}
         customMapStyle={customMapStyle}
-        showsUserLocation={true}
-        onRegionChange={() => setIsUserInteracting(true)}
-        onRegionChangeComplete={() => setIsUserInteracting(false)}
+        showsUserLocation
+        onMapReady={() => {
+          setMapReady(true);
+          fitToMarkers();
+        }}
+        onRegionChange={() => {
+          isUserInteractingRef.current = true;
+        }}
+        onRegionChangeComplete={() => {
+          isUserInteractingRef.current = false;
+        }}
       >
-        {status === "START" && showRiderOnMap && riderCoord && pickupCoord ? (
-          <MapDrivingRoute
-            origin={riderCoord}
-            destination={pickupCoord}
-            strokeColor="#4CAF50"
+        {mapReady && overlaysReady && routeCoords.length >= 2 ? (
+          <Polyline
+            coordinates={routeCoords}
+            strokeColor={status === "START" ? "#16a34a" : "#0284c7"}
             strokeWidth={6}
-            onReady={fitToMarkersWithDelay}
+            lineCap="round"
+            lineJoin="round"
+            geodesic
           />
         ) : null}
 
-        {pickupCoord && dropCoord && (status === "IN_PROGRESS" || status === "ARRIVED") ? (
-          <MapDrivingRoute
-            origin={pickupCoord}
-            destination={dropCoord}
-            strokeColor="#FF9800"
-            strokeWidth={6}
-            onReady={fitToMarkersWithDelay}
-          />
-        ) : null}
-
-        {status === "IN_PROGRESS" && showRiderOnMap && riderCoord && dropCoord ? (
-          <MapDrivingRoute
-            origin={riderCoord}
-            destination={dropCoord}
-            strokeColor="#2196F3"
-            strokeWidth={5}
-            lineDashPattern={[5, 5]}
-            onReady={fitToMarkersWithDelay}
-          />
-        ) : null}
-
-        {dropCoord && (
+        {mapReady && overlaysReady && dropCoord ? (
           <Marker
             coordinate={dropCoord}
             anchor={{ x: 0.5, y: 1 }}
             zIndex={1}
             tracksViewChanges={false}
-            title={`End · ${dropLabel}`}
-            description={drop?.address || "Drop location"}
+            title={dropLabel}
           >
+            <View style={[styles.pinLabel, status !== "START" && styles.pinLabelActive]}>
+              <CustomText fontSize={9} fontFamily="Bold" style={styles.pinLabelText}>
+                {dropLabel}
+              </CustomText>
+            </View>
             <Image
               source={require("@/assets/icons/drop_marker.png")}
-              style={{ height: 30, width: 30, resizeMode: "contain" }}
+              style={styles.pinImage}
             />
-            <Callout tooltip>
-              <View style={{ padding: 10, maxWidth: 220, backgroundColor: "white", borderRadius: 8 }}>
-                <CustomText fontFamily="SemiBold" fontSize={13} style={{ marginBottom: 6, color: "#333" }}>
-                  End point · {dropLabel}
-                </CustomText>
-                <CustomText fontSize={11} numberOfLines={3} style={{ color: "#666" }}>
-                  {drop?.address || "Drop location"}
-                </CustomText>
-              </View>
-            </Callout>
           </Marker>
-        )}
+        ) : null}
 
-        {pickupCoord && (
+        {mapReady && overlaysReady && pickupCoord ? (
           <Marker
             coordinate={pickupCoord}
             anchor={{ x: 0.5, y: 1 }}
             zIndex={2}
             tracksViewChanges={false}
-            title={`Start · ${pickupLabel}`}
-            description={pickup?.address || "Pickup location"}
+            title={pickupLabel}
           >
+            <View style={[styles.pinLabel, status === "START" && styles.pinLabelActive]}>
+              <CustomText fontSize={9} fontFamily="Bold" style={styles.pinLabelText}>
+                {pickupLabel}
+              </CustomText>
+            </View>
             <Image
               source={require("@/assets/icons/marker.png")}
-              style={{ height: 30, width: 30, resizeMode: "contain" }}
+              style={styles.pinImage}
             />
-            <Callout tooltip>
-              <View style={{ padding: 10, maxWidth: 220, backgroundColor: "white", borderRadius: 8 }}>
-                <CustomText fontFamily="SemiBold" fontSize={13} style={{ marginBottom: 6, color: "#333" }}>
-                  Start point · {pickupLabel}
-                </CustomText>
-                <CustomText fontSize={11} numberOfLines={3} style={{ color: "#666" }}>
-                  {pickup?.address || "Pickup location"}
-                </CustomText>
-              </View>
-            </Callout>
           </Marker>
-        )}
+        ) : null}
 
-        {showRiderOnMap && riderCoord && (
-          <Marker
-            coordinate={riderCoord}
-            anchor={{ x: 0.5, y: 0.5 }}
-            zIndex={3}
-            tracksViewChanges={false}
-          >
+        {mapReady && overlaysReady && riderCoord ? (
+          <Marker coordinate={riderCoord} anchor={{ x: 0.5, y: 0.5 }} zIndex={3} tracksViewChanges={false}>
             <NearbyVehicleMarker type={vehicleMarkerType} rotation={rider?.heading || 0} />
-            <Callout>
-              <View style={{ padding: 8, maxWidth: 150 }}>
-                <CustomText fontFamily="SemiBold" fontSize={12} style={{ marginBottom: 4 }}>
-                  Your Location
-                </CustomText>
-                <CustomText fontSize={10}>
-                  {status === "START"
-                    ? food
-                      ? "Heading to restaurant"
-                      : isParcel
-                        ? receiveParcel
-                          ? "Heading to collect parcel"
-                          : "Heading to sender"
-                        : "Heading to pickup"
-                    : status === "ARRIVED"
-                    ? food
-                      ? "At restaurant"
-                      : isParcel
-                        ? receiveParcel
-                          ? "Parcel collected"
-                          : "Parcel collected from sender"
-                        : "At pickup location"
-                    : status === "IN_PROGRESS"
-                    ? isParcel
-                      ? receiveParcel
-                        ? "Delivering to customer"
-                        : "Delivering to recipient"
-                      : "On the way to destination"
-                    : "On the way"}
-                </CustomText>
-              </View>
-            </Callout>
           </Marker>
-        )}
-
-        {dropCoord && pickupCoord && !showRiderOnMap ? (
-          <Polyline
-            coordinates={getPoints([dropCoord, pickupCoord])}
-            strokeColor={Colors.text}
-            strokeWidth={2}
-            geodesic
-            lineDashPattern={[12, 10]}
-          />
         ) : null}
       </MapView>
 
       {(status === "START" || status === "ARRIVED" || status === "IN_PROGRESS") && (
-        <TouchableOpacity style={mapStyles.gpsLiveButton} onPress={openNavigationApp}>
-          <CustomText fontFamily="SemiBold" fontSize={10}>
-            Open Live GPS
+        <TouchableOpacity style={styles.navFab} onPress={openNavigationApp} activeOpacity={0.9}>
+          <Ionicons name="navigate" size={22} color="#fff" />
+          <CustomText fontFamily="Bold" fontSize={13} style={{ color: "#fff", marginLeft: 8 }}>
+            Directions
           </CustomText>
-          <FontAwesome6 name="location-arrow" size={RFValue(12)} color="#000" />
         </TouchableOpacity>
       )}
 
-      <TouchableOpacity style={mapStyles.gpsButton} onPress={fitToMarkers}>
-        <MaterialCommunityIcons
-          name="crosshairs-gps"
-          size={RFValue(16)}
-          color="#3C75BE"
-        />
+      <TouchableOpacity style={[mapStyles.gpsButton, styles.refitBtn]} onPress={fitToMarkers} activeOpacity={0.85}>
+        <MaterialCommunityIcons name="crosshairs-gps" size={RFValue(16)} color="#3C75BE" />
       </TouchableOpacity>
     </View>
   );
 };
+
+const styles = StyleSheet.create({
+  wrap: {
+    flex: 1,
+  },
+  map: {
+    flex: 1,
+  },
+  navFab: {
+    position: "absolute",
+    bottom: MAP_BOTTOM_PAD - 58,
+    alignSelf: "center",
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#0f766e",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 28,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 8,
+    zIndex: 8,
+  },
+  refitBtn: {
+    bottom: MAP_BOTTOM_PAD - 8,
+    zIndex: 8,
+  },
+  pinLabel: {
+    backgroundColor: "rgba(15,23,42,0.75)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    marginBottom: 2,
+    alignSelf: "center",
+  },
+  pinLabelActive: {
+    backgroundColor: Colors.primary,
+  },
+  pinLabelText: {
+    color: "#fff",
+  },
+  pinImage: {
+    height: 32,
+    width: 32,
+    resizeMode: "contain",
+  },
+});
 
 export default memo(RiderLiveTracking);

@@ -345,7 +345,11 @@ export default function RestaurantDetailPage({ params }: { params: Promise<{ id:
                 </label>
               </div>
               <div className="rounded-lg border border-gray-200 p-3 bg-gray-50 space-y-3">
-                <p className="text-sm font-medium text-gray-900">Instant merchant payout</p>
+                <p className="text-sm font-medium text-gray-900">Delivery settlement (Hubtel Send Money)</p>
+                <p className="text-xs text-gray-600">
+                  When a MoMo food order is marked delivered, the restaurant share is sent to this MoMo number.
+                  The instant-checkout toggle below is legacy — delivery payout uses recipient phone whenever it is set.
+                </p>
                 <label className="flex items-center gap-2 text-sm text-gray-700">
                   <input
                     type="checkbox"
@@ -361,7 +365,7 @@ export default function RestaurantDetailPage({ params }: { params: Promise<{ id:
                     }
                     className="rounded border-gray-300"
                   />
-                  Enable instant payout after successful checkout
+                  Legacy: instant payout flag (not used — delivery settlement applies)
                 </label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>

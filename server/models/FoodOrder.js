@@ -37,6 +37,28 @@ const foodOrderSchema = new Schema(
     /** Store → customer distance (km) when the order was quoted. */
     deliveryDistanceKm: { type: Number, default: null, min: 0 },
     total: { type: Number, required: true, min: 0 },
+    /** Frozen split at order creation (admin rates). */
+    restaurantCommissionRate: { type: Number, default: null, min: 0, max: 1 },
+    riderCommissionRate: { type: Number, default: null, min: 0, max: 1 },
+    restaurantCommission: { type: Number, default: null, min: 0 },
+    restaurantNet: { type: Number, default: null, min: 0 },
+    riderCommission: { type: Number, default: null, min: 0 },
+    riderNet: { type: Number, default: null, min: 0 },
+    platformNet: { type: Number, default: null, min: 0 },
+    settlementStatus: {
+      type: String,
+      enum: ["pending", "settled", "failed", "not_required"],
+      default: "pending",
+      index: true,
+    },
+    settlementMethod: {
+      type: String,
+      enum: ["momo", "cash", "cash_pickup", null],
+      default: null,
+    },
+    settledAt: { type: Date, default: null },
+    settlementError: { type: String, default: null },
+    settlementDetails: { type: Schema.Types.Mixed, default: null },
     delivery: {
       address: { type: String, required: true },
       latitude: { type: Number, required: true },

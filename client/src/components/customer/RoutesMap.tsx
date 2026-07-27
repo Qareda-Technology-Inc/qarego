@@ -9,13 +9,13 @@ import {
 } from "react-native";
 import React, { FC, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { customMapStyle, indiaIntialRegion } from "@/utils/CustomMap";
-import MapView, { Marker, Callout, Polyline } from "react-native-maps";
+import MapView, { Marker, Polyline } from "react-native-maps";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { RFValue } from "react-native-responsive-fontsize";
 import { mapStyles } from "@/styles/mapStyles";
-import MapViewDirections from "react-native-maps-directions";
 import CustomText from "../shared/CustomText";
 import { Colors } from "@/utils/Constants";
+import { fetchDrivingPolyline } from "@/utils/mapDirections";
 
 const apiKey = process.env.EXPO_PUBLIC_MAP_API_KEY || "";
 
@@ -119,6 +119,9 @@ const RoutesMap: FC<RoutesMapProps> = ({ drop, pickup, mapEdgePadding }) => {
   const routeCoordsRef = useRef<{ latitude: number; longitude: number }[]>([]);
   const { width: winW, height: winH } = useWindowDimensions();
   const [mapLayout, setMapLayout] = useState({ width: 0, height: 0 });
+  const [mapReady, setMapReady] = useState(false);
+  const [markersReady, setMarkersReady] = useState(false);
+  const [routeCoords, setRouteCoords] = useState<{ latitude: number; longitude: number }[]>([]);
   /** Custom markers often render blank on Google Maps if this stays false (bitmap never captured). */
   const [markerTracks, setMarkerTracks] = useState(true);
 
@@ -202,17 +205,33 @@ const RoutesMap: FC<RoutesMapProps> = ({ drop, pickup, mapEdgePadding }) => {
     [fitToCoordinates]
   );
 
-  const handleDirectionsReady = useCallback(
-    (result: { coordinates: { latitude: number; longitude: number }[] }) => {
-      const coords =
-        result?.coordinates?.length && result.coordinates.length >= 2
-          ? result.coordinates
-          : [origin, destination];
+  useEffect(() => {
+    if (!mapReady) return;
+    const base = [origin, destination];
+    routeCoordsRef.current = base;
+    setRouteCoords(base);
+
+    if (!showDirections) return;
+    let cancelled = false;
+    void fetchDrivingPolyline(origin, destination, apiKey).then((coords) => {
+      if (cancelled || !coords?.length) return;
       routeCoordsRef.current = coords;
+      setRouteCoords(coords);
       scheduleCameraFit(coords);
-    },
-    [scheduleCameraFit, origin, destination]
-  );
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [mapReady, showDirections, origin, destination, scheduleCameraFit, apiKey]);
+
+  useEffect(() => {
+    if (!mapReady) {
+      setMarkersReady(false);
+      return;
+    }
+    const t = setTimeout(() => setMarkersReady(true), 320);
+    return () => clearTimeout(t);
+  }, [mapReady, origin.latitude, origin.longitude, destination.latitude, destination.longitude]);
 
   const onMapWrapperLayout = useCallback((e: LayoutChangeEvent) => {
     const { width, height } = e.nativeEvent.layout;
@@ -223,6 +242,7 @@ const RoutesMap: FC<RoutesMapProps> = ({ drop, pickup, mapEdgePadding }) => {
 
   const onMapReady = useCallback(() => {
     mapReadyRef.current = true;
+    setMapReady(true);
     if (!Number.isFinite(origin.latitude) || !Number.isFinite(destination.latitude)) return;
     const pts = routeCoordsRef.current.length >= 2 ? routeCoordsRef.current : [origin, destination];
     scheduleCameraFit(pts);
@@ -249,12 +269,12 @@ const RoutesMap: FC<RoutesMapProps> = ({ drop, pickup, mapEdgePadding }) => {
 
   /** Straight-line fallback when directions are unavailable */
   useEffect(() => {
-    if (showDirections) return;
+    if (!mapReady || showDirections) return;
     routeCoordsRef.current = [origin, destination];
-    if (!mapReadyRef.current) return;
+    setRouteCoords([origin, destination]);
     const t = setTimeout(() => scheduleCameraFit([origin, destination]), 120);
     return () => clearTimeout(t);
-  }, [showDirections, origin, destination, scheduleCameraFit]);
+  }, [mapReady, showDirections, origin, destination, scheduleCameraFit]);
 
   /** Stop continuous marker re-rendering once labels have been captured */
   useEffect(() => {
@@ -323,33 +343,18 @@ const RoutesMap: FC<RoutesMapProps> = ({ drop, pickup, mapEdgePadding }) => {
         rotateEnabled={false}
         onMapReady={onMapReady}
       >
-        {showDirections ? (
-          <MapViewDirections
-            origin={origin}
-            destination={destination}
-            apikey={apiKey}
-            strokeWidth={ROUTE_WIDTH}
-            strokeColor={ROUTE_STROKE}
-            strokeColors={[ROUTE_STROKE]}
-            precision="high"
-            mode="DRIVING"
-            lineCap="round"
-            lineJoin="round"
-            onReady={handleDirectionsReady}
-            onError={() => scheduleCameraFit([origin, destination])}
-          />
-        ) : (
+        {mapReady && routeCoords.length >= 2 ? (
           <Polyline
-            coordinates={[origin, destination]}
+            coordinates={routeCoords}
             strokeColor={ROUTE_STROKE}
             strokeWidth={ROUTE_WIDTH}
             lineCap="round"
             lineJoin="round"
             geodesic
           />
-        )}
+        ) : null}
 
-        {drop?.latitude != null && (
+        {mapReady && markersReady && drop?.latitude != null ? (
           <Marker
             coordinate={{ latitude: Number(drop.latitude), longitude: Number(drop.longitude) }}
             anchor={{ x: 0.5, y: 1 }}
@@ -359,20 +364,10 @@ const RoutesMap: FC<RoutesMapProps> = ({ drop, pickup, mapEdgePadding }) => {
             description={drop?.address || "Dropoff"}
           >
             <LabeledPin label="Dropoff" variant="dropoff" icon={require("@/assets/icons/drop_marker.png")} />
-            <Callout tooltip>
-              <View style={pinStyles.calloutBox}>
-                <CustomText fontFamily="SemiBold" fontSize={13} style={pinStyles.calloutTitle}>
-                  Dropoff
-                </CustomText>
-                <CustomText fontSize={11} numberOfLines={3} style={pinStyles.calloutAddress}>
-                  {drop?.address || "Dropoff location"}
-                </CustomText>
-              </View>
-            </Callout>
           </Marker>
-        )}
+        ) : null}
 
-        {pickup?.latitude != null && (
+        {mapReady && markersReady && pickup?.latitude != null ? (
           <Marker
             coordinate={{
               latitude: Number(pickup.latitude),
@@ -385,18 +380,8 @@ const RoutesMap: FC<RoutesMapProps> = ({ drop, pickup, mapEdgePadding }) => {
             description={pickup?.address || "Pickup"}
           >
             <LabeledPin label="Pickup" variant="pickup" icon={require("@/assets/icons/marker.png")} />
-            <Callout tooltip>
-              <View style={pinStyles.calloutBox}>
-                <CustomText fontFamily="SemiBold" fontSize={13} style={pinStyles.calloutTitle}>
-                  Pickup
-                </CustomText>
-                <CustomText fontSize={11} numberOfLines={3} style={pinStyles.calloutAddress}>
-                  {pickup?.address || "Pickup location"}
-                </CustomText>
-              </View>
-            </Callout>
           </Marker>
-        )}
+        ) : null}
       </MapView>
 
       <TouchableOpacity
@@ -456,19 +441,6 @@ const pinStyles = StyleSheet.create({
     height: 30,
     width: 30,
     resizeMode: "contain",
-  },
-  calloutBox: {
-    padding: 10,
-    maxWidth: 220,
-    backgroundColor: "#fff",
-    borderRadius: 8,
-  },
-  calloutTitle: {
-    marginBottom: 6,
-    color: "#333",
-  },
-  calloutAddress: {
-    color: "#666",
   },
 });
 

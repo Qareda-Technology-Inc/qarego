@@ -25,10 +25,12 @@ const foodPaymentSchema = new Schema(
     callbackPayload: { type: Schema.Types.Mixed, default: null },
     statusPayload: { type: Schema.Types.Mixed, default: null },
     lastStatusCheckAt: { type: Date, default: null },
+    /** Stop polling txnstatus when Hubtel returns 403 for all credential types. */
+    statusCheckBlocked: { type: Boolean, default: false },
     payoutStatus: {
       type: String,
-      enum: ['not_applicable', 'pending', 'sent', 'failed'],
-      default: 'pending',
+      enum: ['not_applicable', 'pending', 'sent', 'failed', 'deferred'],
+      default: 'deferred',
       index: true,
     },
     payoutReference: { type: String, default: null },

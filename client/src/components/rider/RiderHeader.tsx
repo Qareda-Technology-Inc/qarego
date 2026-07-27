@@ -44,6 +44,8 @@ const RiderHeader = () => {
   const { emit, on, off } = useWS();
   const { openDrawer } = useRiderDrawer();
   const [riderAmount, setRiderAmount] = useState<number | null>(null);
+  const [walletBalance, setWalletBalance] = useState<number>(0);
+  const [commissionOwed, setCommissionOwed] = useState<number>(0);
   const [restoredDutySynced, setRestoredDutySynced] = useState(false);
   const [toggleBusy, setToggleBusy] = useState(false);
   const toggleBusyRef = useRef(false);
@@ -58,13 +60,20 @@ const RiderHeader = () => {
     try {
       const res = await appAxios.get("/ride/transactions");
       setRiderAmount(Number(res.data?.riderAmount ?? 0));
+      const currentBalance = Number(res.data?.balance ?? 0);
+      setWalletBalance(Number(res.data?.walletBalance ?? Math.max(0, currentBalance)));
+      setCommissionOwed(
+        Number(res.data?.commissionOwed ?? (currentBalance < 0 ? Math.abs(currentBalance) : 0))
+      );
     } catch {
       setRiderAmount(null);
+      setWalletBalance(0);
+      setCommissionOwed(0);
     }
   }, []);
 
   useEffect(() => {
-    if (!onDuty) fetchEarnings();
+    fetchEarnings();
   }, [onDuty, fetchEarnings]);
 
   const goOnDutyWithCoords = useCallback(
@@ -252,13 +261,18 @@ const RiderHeader = () => {
 
       <TouchableOpacity
         style={riderStyles?.earningContainer}
-        onPress={() => !onDuty && router.push("/rider/earnings")}
-        activeOpacity={onDuty ? 1 : 0.7}
-        disabled={onDuty}
+        onPress={() => router.push("/rider/earnings")}
+        activeOpacity={0.7}
         onLongPress={() => router.push("/rider/services")}
       >
         <CustomText fontSize={13} style={{ color: "#fff" }} fontFamily="Medium">
-          {onDuty ? "Active Status" : "Total Earnings"}
+          {onDuty
+            ? "Active Status"
+            : walletBalance > 0
+              ? "Wallet"
+              : commissionOwed > 0
+                ? "Commission Owed"
+                : "Total Earnings"}
         </CustomText>
 
         <View style={commonStyles?.flexRowGap}>
@@ -279,10 +293,18 @@ const RiderHeader = () => {
             <>
               <CustomText
                 fontSize={14}
-                style={{ color: "#fff" }}
+                style={{
+                  color: commissionOwed > 0 ? "#FCA5A5" : "#fff",
+                }}
                 fontFamily="Medium"
               >
-                {riderAmount !== null ? formatCurrency(riderAmount) : "—"}
+                {walletBalance > 0
+                  ? formatCurrency(walletBalance)
+                  : commissionOwed > 0
+                    ? formatCurrency(commissionOwed)
+                    : riderAmount !== null
+                      ? formatCurrency(riderAmount)
+                      : "—"}
               </CustomText>
               <MaterialIcons name="chevron-right" size={20} color="rgba(255,255,255,0.8)" />
             </>

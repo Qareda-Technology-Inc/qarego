@@ -98,7 +98,7 @@ export function getRiderSwipeTitle(ride?: CourierRide | null): string {
   if (status === "START") {
     if (isFood) return "Confirm pickup";
     if (isParcel) return "Confirm collection";
-    return "Confirm arrival";
+    return "I've arrived";
   }
   if (status === "ARRIVED") {
     if (isFood) return "Start delivery";

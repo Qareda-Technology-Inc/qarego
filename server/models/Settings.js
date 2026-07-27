@@ -30,6 +30,12 @@ const settingsSchema = new Schema(
       default: -100,
       // Negative number: e.g. -100 means driver blocked when balance < -100 (owes more than 100)
     },
+    /** Minimum rider wallet cash-out amount (GHS). */
+    minCashoutAmount: {
+      type: Number,
+      default: 1,
+      min: 0,
+    },
     /** Per-vehicle fare: { motorcycle: { baseFare, perKmRate, minimumFare }, pragya, comfort } */
     fareRates: {
       type: Schema.Types.Mixed,
@@ -51,6 +57,13 @@ const settingsSchema = new Schema(
       type: Number,
       default: 12,
       min: 0,
+    },
+    /** Rider commission on food delivery fee (0 = rider keeps full delivery fee). */
+    foodDeliveryCommissionRate: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 1,
     },
     /** URL path or absolute URL for merchant kitchen new-order alert (looped mp3) */
     kitchenAlertSoundUrl: {

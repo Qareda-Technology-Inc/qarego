@@ -27,8 +27,14 @@ import LiveTrackingSheet from "@/components/customer/LiveTrackingSheet";
 import { resetAndNavigate } from "@/utils/Helpers";
 import RatingModal from "@/components/shared/RatingModal";
 import RideCompletedModal from "@/components/shared/RideCompletedModal";
-import SafetyFeatures from "@/components/shared/SafetyFeatures";
-import { fetchCourierLocation, getRideById } from "@/service/rideService";
+import HubtelCheckoutModal from "@/components/shared/HubtelCheckoutModal";
+import { useMessage } from "@/context/MessageContext";
+import {
+  fetchCourierLocation,
+  getRideById,
+  initiateRidePayment,
+  fetchRidePaymentStatus,
+} from "@/service/rideService";
 import {
   coordsFromRideRider,
   courierCoordsChanged,
@@ -65,6 +71,11 @@ const LiveRide = () => {
   const [courierRevision, setCourierRevision] = useState(0);
   const [showCostPopup, setShowCostPopup] = useState(false);
   const [showRating, setShowRating] = useState(false);
+  const [ridePaymentStatus, setRidePaymentStatus] = useState<string | null>(null);
+  const [paymentBusy, setPaymentBusy] = useState(false);
+  const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
+  const [checkoutVisible, setCheckoutVisible] = useState(false);
+  const { showToast } = useMessage();
   const route = useRoute() as any;
   const urlParams = useLocalSearchParams<{ id?: string }>();
   const params = route?.params || {};
@@ -286,6 +297,95 @@ const LiveRide = () => {
     setShowRating(true);
   }, []);
 
+  const serviceType = rideData?.serviceType;
+  const isMomoPayableRide =
+    rideData?.paymentMethod === "MOBILE_MONEY" &&
+    (serviceType === "RIDE" || serviceType === "DELIVERY");
+  const effectivePaymentStatus = ridePaymentStatus || rideData?.paymentStatus || "NOT_REQUIRED";
+  const needsMomoPayment =
+    isMomoPayableRide &&
+    rideData?.status === "COMPLETED" &&
+    ["UNPAID", "PENDING", "FAILED", "NOT_REQUIRED"].includes(effectivePaymentStatus);
+
+  const loadRidePaymentStatus = useCallback(async () => {
+    if (!rideId) return;
+    try {
+      const status = await fetchRidePaymentStatus(rideId);
+      setRidePaymentStatus(status.ridePaymentStatus);
+    } catch {
+      // Ignore transient errors.
+    }
+  }, [rideId]);
+
+  useEffect(() => {
+    if (rideData?.status === "COMPLETED" && isMomoPayableRide) {
+      loadRidePaymentStatus();
+    }
+  }, [rideData?.status, isMomoPayableRide, loadRidePaymentStatus]);
+
+  useEffect(() => {
+    if (!isMomoPayableRide || effectivePaymentStatus !== "PENDING") return;
+    const t = setInterval(loadRidePaymentStatus, 4000);
+    return () => clearInterval(t);
+  }, [isMomoPayableRide, effectivePaymentStatus, loadRidePaymentStatus]);
+
+  const closeCheckout = useCallback(() => {
+    setCheckoutVisible(false);
+    setCheckoutUrl(null);
+  }, []);
+
+  const handlePayRide = useCallback(async () => {
+    if (!rideId) return;
+    setPaymentBusy(true);
+    try {
+      const payment = await initiateRidePayment(rideId);
+      if (payment?.status === "success") {
+        setRidePaymentStatus("PAID");
+        return;
+      }
+      const url = payment?.checkoutDirectUrl || payment?.checkoutUrl;
+      if (!url) {
+        showToast?.({
+          type: "error",
+          title: "Payment unavailable",
+          message: "Could not open payment. Please try again.",
+        });
+        return;
+      }
+      setShowCostPopup(false);
+      setCheckoutUrl(url);
+      setCheckoutVisible(true);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Could not start payment";
+      showToast?.({ type: "error", title: "Payment unavailable", message: msg });
+    } finally {
+      setPaymentBusy(false);
+    }
+  }, [rideId, showToast]);
+
+  const handleCheckoutSuccess = useCallback(async () => {
+    closeCheckout();
+    showToast?.({
+      type: "success",
+      title: "Payment received",
+      message: "Confirming your payment…",
+    });
+    setRidePaymentStatus("PAID");
+    await loadRidePaymentStatus();
+    setShowCostPopup(true);
+  }, [closeCheckout, loadRidePaymentStatus, showToast]);
+
+  const handleCheckoutCancel = useCallback(async () => {
+    closeCheckout();
+    showToast?.({
+      type: "info",
+      title: "Payment cancelled",
+      message: "You can still pay from this screen.",
+    });
+    await loadRidePaymentStatus();
+    setShowCostPopup(true);
+  }, [closeCheckout, loadRidePaymentStatus, showToast]);
+
   return (
     <View style={rideStyles.container}>
       <StatusBar style="light" backgroundColor="orange" translucent={false} />
@@ -303,16 +403,6 @@ const LiveRide = () => {
             pickup={pickup}
             rider={rider}
             courierRevision={courierRevision}
-          />
-          <SafetyFeatures
-            rideId={rideData._id}
-            pickup={pickup}
-            drop={drop}
-            riderInfo={{
-              name: rideData?.rider?.name,
-              phone: rideData?.rider?.phone,
-            }}
-            status={rideData?.status}
           />
           {rideData?.status === "COMPLETED" && customerRatesRiderForRide(rideData) ? (
             <TouchableOpacity
@@ -375,10 +465,19 @@ const LiveRide = () => {
       {showCostPopup && rideData?.status === "COMPLETED" ? (
         <RideCompletedModal
           visible={showCostPopup}
-          ride={rideData}
+          ride={{ ...rideData, paymentStatus: effectivePaymentStatus }}
           onClose={handleCostPopupClose}
+          onPay={needsMomoPayment ? handlePayRide : undefined}
+          payBusy={paymentBusy}
         />
       ) : null}
+      <HubtelCheckoutModal
+        visible={checkoutVisible}
+        checkoutUrl={checkoutUrl}
+        onSuccess={handleCheckoutSuccess}
+        onCancel={handleCheckoutCancel}
+        onClose={closeCheckout}
+      />
       {showRating && customerRatesRiderForRide(rideData) && (rideId || rideData?._id) ? (
         <RatingModal
           visible={showRating}

@@ -1,11 +1,8 @@
 import { View, Image, TouchableOpacity } from "react-native";
-import React, { FC, useCallback, useEffect, useRef, useState } from "react";
+import React, { FC, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import MapView, { Marker, Callout } from "react-native-maps";
 import { customMapStyle, indiaIntialRegion } from "@/utils/CustomMap";
-import MapDrivingRoute, {
-  parseMapCoord,
-  riderNearRoute,
-} from "@/components/shared/MapDrivingRoute";
+import MapDrivingRoute, { riderNearRoute } from "@/components/shared/MapDrivingRoute";
 import NearbyVehicleMarker from "@/components/customer/NearbyVehicleMarker";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { RFValue } from "react-native-responsive-fontsize";
@@ -14,6 +11,8 @@ import CustomText from "../shared/CustomText";
 import { parseRideParcelMode } from "@/utils/parcelMode";
 import { getCustomerRiderMapStatus, getCustomerRouteLabels } from "@/utils/customerCourierUi";
 import { getVehicleMarkerType } from "@/utils/mapUtils";
+import { coordKey } from "@/utils/mapDirections";
+import { useStableMapCoord } from "@/hooks/useStableMapCoord";
 
 const ACTIVE_STATUSES = new Set(["START", "ARRIVED", "IN_PROGRESS"]);
 
@@ -51,18 +50,28 @@ const LiveTrackingMap: FC<{
   const mapRef = useRef<MapView>(null);
   const fitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasFittedRef = useRef(false);
-  const [isUserInteracting, setIsUserInteracting] = useState(false);
+  const isUserInteractingRef = useRef(false);
+  const [mapReady, setMapReady] = useState(false);
+  const [overlaysReady, setOverlaysReady] = useState(false);
 
-  const pickupCoord = parseMapCoord(pickup);
-  const dropCoord = parseMapCoord(drop);
-  const riderCoord = parseMapCoord(rider);
-  const showRiderOnMap = riderNearRoute(riderCoord, pickupCoord, dropCoord);
+  const pickupKey = coordKey(pickup);
+  const dropKey = coordKey(drop);
+  const riderKey = coordKey(rider);
+
+  const pickupCoord = useStableMapCoord(pickup);
+  const dropCoord = useStableMapCoord(drop);
+  const riderCoord = useStableMapCoord(rider);
+
+  const showRiderOnMap = useMemo(
+    () => riderNearRoute(riderCoord, pickupCoord, dropCoord),
+    [riderKey, pickupKey, dropKey, riderCoord, pickupCoord, dropCoord]
+  );
   const isActiveRide = ACTIVE_STATUSES.has(status);
   const showRiderMarker = isActiveRide && !!riderCoord;
   const vehicleMarkerType = getVehicleMarkerType(vehicle);
 
   const fitToMarkers = useCallback(async () => {
-    if (isUserInteracting) return;
+    if (isUserInteractingRef.current) return;
 
     const coordinates: { latitude: number; longitude: number }[] = [];
     if (pickupCoord) coordinates.push(pickupCoord);
@@ -79,12 +88,12 @@ const LiveTrackingMap: FC<{
     } catch (error) {
       console.error("Error fitting to markers:", error);
     }
-  }, [dropCoord, pickupCoord, riderCoord, showRiderMarker, isUserInteracting]);
+  }, [dropCoord, pickupCoord, riderCoord, showRiderMarker]);
 
   const scheduleFit = useCallback(() => {
     if (fitTimerRef.current) clearTimeout(fitTimerRef.current);
     fitTimerRef.current = setTimeout(() => {
-      fitToMarkers();
+      void fitToMarkers();
     }, 600);
   }, [fitToMarkers]);
 
@@ -109,12 +118,12 @@ const LiveTrackingMap: FC<{
   };
 
   useEffect(() => {
-    if (!pickupCoord || !dropCoord) return;
+    if (!pickupKey || !dropKey) return;
     if (!hasFittedRef.current) scheduleFit();
-  }, [dropCoord?.latitude, dropCoord?.longitude, pickupCoord?.latitude, pickupCoord?.longitude, status, scheduleFit]);
+  }, [dropKey, pickupKey, status, scheduleFit]);
 
   useEffect(() => {
-    if (!riderCoord || !isActiveRide || isUserInteracting) return;
+    if (!riderCoord || !isActiveRide || isUserInteractingRef.current) return;
     mapRef.current?.animateCamera(
       {
         center: riderCoord,
@@ -122,13 +131,7 @@ const LiveTrackingMap: FC<{
       },
       { duration: 500 }
     );
-  }, [
-    riderCoord?.latitude,
-    riderCoord?.longitude,
-    courierRevision,
-    isActiveRide,
-    isUserInteracting,
-  ]);
+  }, [riderKey, courierRevision, isActiveRide, riderCoord]);
 
   useEffect(
     () => () => {
@@ -136,6 +139,15 @@ const LiveTrackingMap: FC<{
     },
     []
   );
+
+  useEffect(() => {
+    if (!mapReady) {
+      setOverlaysReady(false);
+      return;
+    }
+    const t = setTimeout(() => setOverlaysReady(true), 320);
+    return () => clearTimeout(t);
+  }, [mapReady, status, pickupKey, dropKey, riderKey]);
 
   return (
     <View style={{ height, width: "100%" }}>
@@ -150,10 +162,18 @@ const LiveTrackingMap: FC<{
         showsIndoors={false}
         customMapStyle={customMapStyle}
         showsUserLocation={!isActiveRide}
-        onRegionChange={() => setIsUserInteracting(true)}
-        onRegionChangeComplete={() => setIsUserInteracting(false)}
+        onMapReady={() => {
+          setMapReady(true);
+          scheduleFit();
+        }}
+        onRegionChange={() => {
+          isUserInteractingRef.current = true;
+        }}
+        onRegionChangeComplete={() => {
+          isUserInteractingRef.current = false;
+        }}
       >
-        {status === "START" && showRiderOnMap && riderCoord && pickupCoord ? (
+        {mapReady && overlaysReady && status === "START" && showRiderOnMap && riderCoord && pickupCoord ? (
           <MapDrivingRoute
             origin={riderCoord}
             destination={pickupCoord}
@@ -163,7 +183,7 @@ const LiveTrackingMap: FC<{
           />
         ) : null}
 
-        {(status === "IN_PROGRESS" || status === "ARRIVED") &&
+        {mapReady && overlaysReady && (status === "IN_PROGRESS" || status === "ARRIVED") &&
         showRiderOnMap &&
         riderCoord &&
         dropCoord ? (
@@ -176,7 +196,7 @@ const LiveTrackingMap: FC<{
           />
         ) : null}
 
-        {status === "IN_PROGRESS" && (!showRiderOnMap || !riderCoord) && pickupCoord && dropCoord ? (
+        {mapReady && overlaysReady && status === "IN_PROGRESS" && (!showRiderOnMap || !riderCoord) && pickupCoord && dropCoord ? (
           <MapDrivingRoute
             origin={pickupCoord}
             destination={dropCoord}
@@ -186,7 +206,7 @@ const LiveTrackingMap: FC<{
           />
         ) : null}
 
-        {dropCoord ? (
+        {mapReady && overlaysReady && dropCoord ? (
           <Marker
             coordinate={dropCoord}
             anchor={{ x: 0.5, y: 1 }}
@@ -212,7 +232,7 @@ const LiveTrackingMap: FC<{
           </Marker>
         ) : null}
 
-        {pickupCoord ? (
+        {mapReady && overlaysReady && pickupCoord ? (
           <Marker
             coordinate={pickupCoord}
             anchor={{ x: 0.5, y: 1 }}
@@ -238,7 +258,7 @@ const LiveTrackingMap: FC<{
           </Marker>
         ) : null}
 
-        {showRiderMarker && riderCoord ? (
+        {mapReady && overlaysReady && showRiderMarker && riderCoord ? (
           <Marker
             key={`courier-${courierRevision}`}
             coordinate={riderCoord}

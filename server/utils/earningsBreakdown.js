@@ -38,3 +38,41 @@ export function buildEarningsBreakdownFromCommissionTxn(tx) {
     serviceType,
   };
 }
+
+function emptySalesBucket() {
+  return { gross: 0, commission: 0, net: 0, trips: 0 };
+}
+
+/** Lifetime sales totals split by cash vs mobile money from settled trips. */
+export function buildSalesSummaryFromCommissionTxns(commissionTxns = []) {
+  const sales = {
+    total: emptySalesBucket(),
+    cash: emptySalesBucket(),
+    momo: emptySalesBucket(),
+  };
+
+  for (const tx of commissionTxns) {
+    const fare = Number(tx?.ride?.fare ?? 0);
+    const commission = Math.abs(Number(tx?.amount ?? 0));
+    const net = Math.round((fare - commission) * 100) / 100;
+    const bucket = tx?.ride?.paymentMethod === "MOBILE_MONEY" ? "momo" : "cash";
+
+    sales.total.gross += fare;
+    sales.total.commission += commission;
+    sales.total.net += net;
+    sales.total.trips += 1;
+
+    sales[bucket].gross += fare;
+    sales[bucket].commission += commission;
+    sales[bucket].net += net;
+    sales[bucket].trips += 1;
+  }
+
+  for (const key of ["total", "cash", "momo"]) {
+    sales[key].gross = Math.round(sales[key].gross * 100) / 100;
+    sales[key].commission = Math.round(sales[key].commission * 100) / 100;
+    sales[key].net = Math.round(sales[key].net * 100) / 100;
+  }
+
+  return sales;
+}

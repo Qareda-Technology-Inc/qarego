@@ -6,6 +6,7 @@ import { StatusCodes } from "http-status-codes";
 import { formatCurrency } from "../utils/currency.js";
 import { getCommissionRateForService, getSettings } from "../utils/tripSettlement.js";
 import { generateOTP } from "../utils/mapUtils.js";
+import { appendWebhookToken } from "../middleware/hubtelWebhookAuth.js";
 import {
   canRiderReceiveOffer,
   getEligibilityRejectReason,
@@ -23,7 +24,7 @@ import { isFirebaseConfigured } from "../utils/firebaseAdmin.js";
 import PushBroadcast from "../models/PushBroadcast.js";
 import FoodPayment from "../models/FoodPayment.js";
 import FoodOrder from "../models/FoodOrder.js";
-import Restaurant from "../models/Restaurant.js";
+import { settleFoodOrderOnDelivery } from "../utils/foodOrderSettlement.js";
 import { sendPayment } from "../utils/hubtelService.js";
 import {
   BROADCAST_AUDIENCE_IDS,
@@ -31,14 +32,6 @@ import {
   getBroadcastAudienceStats,
   sendBroadcastPush,
 } from "../utils/pushBroadcast.js";
-
-function computeFoodMerchantPayout(order, settings) {
-  const subtotal = Number(order?.subtotal ?? 0);
-  const commissionRate = getCommissionRateForService(settings, "FOOD");
-  const commission = subtotal * commissionRate;
-  const payoutAmount = Math.max(0, Number((subtotal - commission).toFixed(2)));
-  return { payoutAmount, commission, commissionRate };
-}
 
 export const getDashboardStats = async (req, res) => {
   try {
@@ -278,12 +271,14 @@ export const updateSettingsAdmin = async (req, res) => {
     const {
       commissionRate,
       debtLimit,
+      minCashoutAmount,
       fareRates,
       kitchenAlertSoundUrl,
       riderAlertSoundUrl,
       foodServiceFeeRate,
       foodServiceFeeMin,
       foodServiceFeeMax,
+      foodDeliveryCommissionRate,
       commissionByService,
       vehicleCapabilityPolicy,
       serviceMaintenance,
@@ -302,6 +297,9 @@ export const updateSettingsAdmin = async (req, res) => {
     }
     if (typeof debtLimit === 'number') {
       settings.debtLimit = debtLimit;
+    }
+    if (typeof minCashoutAmount === 'number' && minCashoutAmount >= 0) {
+      settings.minCashoutAmount = minCashoutAmount;
     }
     if (commissionByService && typeof commissionByService === 'object') {
       const normalizedCommission = {};
@@ -338,6 +336,9 @@ export const updateSettingsAdmin = async (req, res) => {
     }
     if (typeof foodServiceFeeMax === 'number' && foodServiceFeeMax >= 0) {
       settings.foodServiceFeeMax = foodServiceFeeMax;
+    }
+    if (typeof foodDeliveryCommissionRate === 'number' && foodDeliveryCommissionRate >= 0 && foodDeliveryCommissionRate <= 1) {
+      settings.foodDeliveryCommissionRate = foodDeliveryCommissionRate;
     }
     if (settings.foodServiceFeeMax < settings.foodServiceFeeMin) {
       settings.foodServiceFeeMax = settings.foodServiceFeeMin;
@@ -721,7 +722,7 @@ export const getFoodPaymentsAdmin = async (req, res) => {
         .limit(nLimit)
         .populate("restaurant", "name payoutConfig")
         .populate("customer", "name phone")
-        .populate("order", "status total subtotal paymentStatus createdAt")
+        .populate("order", "status total subtotal paymentStatus settlementStatus settledAt createdAt")
         .lean(),
       FoodPayment.countDocuments(query),
     ]);
@@ -740,7 +741,7 @@ export const getFoodPaymentsAdmin = async (req, res) => {
   }
 };
 
-/** POST /admin/food-payments/:id/retry-payout - retry instant merchant payout */
+/** POST /admin/food-payments/:id/retry-payout - retry delivery-time food settlement disbursement */
 export const retryFoodPaymentPayoutAdmin = async (req, res) => {
   try {
     const payment = await FoodPayment.findById(req.params.id);
@@ -752,91 +753,45 @@ export const retryFoodPaymentPayoutAdmin = async (req, res) => {
         .status(StatusCodes.BAD_REQUEST)
         .json({ message: "Cannot retry payout before payment success" });
     }
-    if (payment.payoutStatus === "sent") {
-      return res.status(StatusCodes.OK).json({ message: "Payout already sent", payment });
-    }
 
-    const [order, restaurant, settings] = await Promise.all([
-      FoodOrder.findById(payment.order),
-      Restaurant.findById(payment.restaurant).lean(),
-      getSettings(),
-    ]);
-
+    const order = await FoodOrder.findById(payment.order);
     if (!order) {
       return res.status(StatusCodes.BAD_REQUEST).json({ message: "Order not found" });
     }
-    if (!restaurant) {
-      return res.status(StatusCodes.BAD_REQUEST).json({ message: "Restaurant not found" });
-    }
 
-    const instantEnabled = Boolean(restaurant?.payoutConfig?.instantPayoutEnabled);
-    const recipientMsisdn = String(restaurant?.payoutConfig?.recipientMsisdn || "");
-    const recipientName =
-      String(restaurant?.payoutConfig?.recipientName || "").trim() ||
-      restaurant.name ||
-      "Merchant";
-    const channel = String(restaurant?.payoutConfig?.channel || "mtn-gh");
-
-    if (!instantEnabled || !recipientMsisdn) {
-      return res.status(StatusCodes.BAD_REQUEST).json({
-        message: "Restaurant instant payout is disabled or missing payout phone",
-      });
-    }
-
-    const { payoutAmount } = computeFoodMerchantPayout(order, settings);
-    if (payoutAmount <= 0) {
-      payment.payoutStatus = "not_applicable";
-      payment.payoutAmount = 0;
-      await payment.save();
+    if (order.settlementStatus === "settled") {
       return res.status(StatusCodes.OK).json({
-        message: "No payout amount due",
+        message: "Order already settled",
+        order,
         payment,
       });
     }
 
-    payment.payoutAmount = payoutAmount;
-    payment.payoutStatus = "pending";
-    payment.payoutAttemptedAt = new Date();
-    payment.payoutError = null;
-    if (!payment.payoutReference) {
-      payment.payoutReference = `fop_${payment.clientReference}`.slice(0, 32);
+    if (order.settlementStatus === "failed") {
+      order.settlementStatus = "pending";
+      order.settlementError = null;
+      await order.save();
     }
-    await payment.save();
 
-    const callback =
-      process.env.HUBTEL_PAYOUT_CALLBACK_URL ||
-      (process.env.BASE_URL ? `${process.env.BASE_URL}/webhooks/hubtel-payout` : undefined);
-
-    const payout = await sendPayment({
-      RecipientName: recipientName,
-      RecipientMsisdn: recipientMsisdn,
-      Amount: payoutAmount,
-      PrimaryCallbackUrl: callback,
-      Description: `QareGO order payout ${order._id}`,
-      ClientReference: payment.payoutReference,
-      Channel: channel,
-    });
-
-    payment.payoutResponse = payout.data || null;
-    if (payout.success) {
-      payment.payoutStatus = "sent";
-      payment.payoutCompletedAt = new Date();
-      payment.payoutError = null;
-    } else {
-      payment.payoutStatus = "failed";
-      payment.payoutError = payout.error || "Payout retry failed";
-    }
-    await payment.save();
+    const result = await settleFoodOrderOnDelivery(order._id);
+    const refreshedOrder = await FoodOrder.findById(order._id).lean();
 
     res.status(StatusCodes.OK).json({
-      message: payout.success ? "Payout sent" : "Payout retry failed",
+      message:
+        refreshedOrder?.settlementStatus === "settled"
+          ? "Settlement completed"
+          : refreshedOrder?.settlementStatus === "failed"
+            ? "Settlement failed — check restaurant/rider payout phones and Hubtel balance"
+            : "Settlement pending — order may not be delivered yet",
+      result,
+      order: refreshedOrder,
       payment,
     });
   } catch (error) {
     console.error("Retry food payout admin error:", error);
     res
       .status(StatusCodes.INTERNAL_SERVER_ERROR)
-      .json({ message: "Failed to retry payout" });
+      .json({ message: "Failed to retry food settlement" });
   }
 };
 
@@ -1005,7 +960,9 @@ export const runWeeklyPayouts = async (req, res) => {
   try {
     const { sendPayment } = await import('../utils/hubtelService.js');
     const baseUrl = process.env.BASE_URL || process.env.API_BASE_URL || 'http://localhost:3000';
-    const callbackUrl = `${baseUrl.replace(/\/$/, '')}/webhooks/hubtel-payout`;
+    const callbackUrl = appendWebhookToken(
+      `${baseUrl.replace(/\/$/, '')}/webhooks/hubtel-payout`
+    );
 
     const drivers = await User.find({ role: 'rider', balance: { $gt: 0 } }).select('name phone balance');
     const results = { processed: 0, failed: 0, errors: [] };
@@ -1032,6 +989,7 @@ export const runWeeklyPayouts = async (req, res) => {
           amount: -amount,
           type: 'PAYOUT',
           note: 'Weekly payout (Hubtel)',
+          reference: clientReference,
           balanceAfter: 0,
         });
         results.processed++;

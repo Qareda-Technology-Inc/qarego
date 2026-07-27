@@ -2,9 +2,11 @@ import React, { FC, useCallback, useEffect, useRef } from "react";
 import { View, Image, StyleSheet } from "react-native";
 import MapView, { Marker } from "react-native-maps";
 import { customMapStyle, indiaIntialRegion } from "@/utils/CustomMap";
-import MapDrivingRoute, { parseMapCoord } from "@/components/shared/MapDrivingRoute";
+import MapDrivingRoute from "@/components/shared/MapDrivingRoute";
 import LiveTrackingMap from "@/components/customer/LiveTrackingMap";
 import type { FoodOrderMapPoint } from "@/utils/foodOrderTracking";
+import { coordKey } from "@/utils/mapDirections";
+import { useStableMapCoord } from "@/hooks/useStableMapCoord";
 
 type LiveRideProps = {
   mode: "live";
@@ -29,8 +31,10 @@ type Props = LiveRideProps | StaticProps;
 
 const FoodOrderStaticMap: FC<StaticProps> = ({ height, pickup, drop }) => {
   const mapRef = useRef<MapView>(null);
-  const pickupCoord = parseMapCoord(pickup);
-  const dropCoord = parseMapCoord(drop);
+  const pickupCoord = useStableMapCoord(pickup);
+  const dropCoord = useStableMapCoord(drop);
+  const pickupKey = coordKey(pickup);
+  const dropKey = coordKey(drop);
 
   const fitToMarkers = useCallback(() => {
     const coords = [pickupCoord, dropCoord].filter(Boolean) as {
@@ -45,9 +49,10 @@ const FoodOrderStaticMap: FC<StaticProps> = ({ height, pickup, drop }) => {
   }, [dropCoord, pickupCoord]);
 
   useEffect(() => {
+    if (!pickupKey || !dropKey) return;
     const t = setTimeout(fitToMarkers, 400);
     return () => clearTimeout(t);
-  }, [fitToMarkers]);
+  }, [pickupKey, dropKey, fitToMarkers]);
 
   const initialRegion = () => {
     if (pickupCoord && dropCoord) {

@@ -5,6 +5,9 @@ import {
   TouchableOpacity,
   StyleSheet,
   Platform,
+  KeyboardAvoidingView,
+  TouchableWithoutFeedback,
+  Keyboard,
 } from "react-native";
 import React, { memo, useRef, useState, useEffect } from "react";
 import { Ionicons } from "@expo/vector-icons";
@@ -33,8 +36,24 @@ const OtpInputModal: React.FC<OtpInputModalProps> = ({
   const inputs = useRef<Array<TextInput | null>>([]);
 
   useEffect(() => {
-    if (!visible) setOtp(["", "", "", ""]);
+    if (!visible) {
+      setOtp(["", "", "", ""]);
+      return;
+    }
+    const t = setTimeout(() => inputs.current[0]?.focus(), 300);
+    return () => clearTimeout(t);
   }, [visible]);
+
+  useEffect(() => {
+    const code = otp.join("");
+    if (visible && code.length === 4) {
+      const t = setTimeout(() => {
+        Keyboard.dismiss();
+        onConfirm(code);
+      }, 180);
+      return () => clearTimeout(t);
+    }
+  }, [otp, visible, onConfirm]);
 
   const handleOtpChange = (value: string, index: number) => {
     if (/^\d$/.test(value) || value === "") {
@@ -53,6 +72,7 @@ const OtpInputModal: React.FC<OtpInputModalProps> = ({
   const handleConfirm = () => {
     const otpValue = otp.join("");
     if (otpValue.length === 4) {
+      Keyboard.dismiss();
       onConfirm(otpValue);
     }
   };
@@ -64,24 +84,27 @@ const OtpInputModal: React.FC<OtpInputModalProps> = ({
       transparent
       onRequestClose={onClose}
     >
-      <View style={styles.overlay}>
-        <View style={styles.card}>
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
+        <TouchableWithoutFeedback onPress={onClose} accessible={false}>
+          <View style={styles.backdrop} />
+        </TouchableWithoutFeedback>
+        <View style={styles.sheet}>
+          <View style={styles.sheetHandle} />
           <TouchableOpacity
             style={styles.closeButton}
             onPress={onClose}
             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           >
-            <Ionicons name="close" size={26} color={Colors.text} />
+            <Ionicons name="close" size={24} color={Colors.text} />
           </TouchableOpacity>
-
-          <View style={styles.iconWrap}>
-            <Ionicons name="keypad" size={40} color={Colors.primary} />
-          </View>
 
           <CustomText fontFamily="Bold" fontSize={20} style={styles.title}>
             {title}
           </CustomText>
-          <CustomText fontSize={14} color="#666" style={styles.subtitle}>
+          <CustomText fontSize={14} color="#64748b" style={styles.subtitle}>
             {subtitle}
           </CustomText>
 
@@ -92,10 +115,16 @@ const OtpInputModal: React.FC<OtpInputModalProps> = ({
                 ref={(ref) => (inputs.current[index] = ref)}
                 value={digit}
                 onChangeText={(value) => handleOtpChange(value, index)}
+                onKeyPress={({ nativeEvent }) => {
+                  if (nativeEvent.key === "Backspace" && !otp[index] && index > 0) {
+                    inputs.current[index - 1]?.focus();
+                  }
+                }}
                 style={[styles.otpInput, digit ? styles.otpInputFilled : null]}
-                keyboardType="numeric"
+                keyboardType="number-pad"
                 maxLength={1}
                 selectTextOnFocus
+                returnKeyType="done"
               />
             ))}
           </View>
@@ -105,57 +134,66 @@ const OtpInputModal: React.FC<OtpInputModalProps> = ({
             onPress={handleConfirm}
             disabled={otp.join("").length !== 4}
           />
+
+          <TouchableOpacity
+            style={styles.dismissRow}
+            onPress={Keyboard.dismiss}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="chevron-down" size={16} color="#999" />
+            <CustomText fontSize={12} color="#999" style={{ marginLeft: 4 }}>
+              Hide keypad
+            </CustomText>
+          </TouchableOpacity>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 };
 
 const styles = StyleSheet.create({
-  overlay: {
+  flex: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "center",
-    paddingHorizontal: 28,
+    justifyContent: "flex-end",
   },
-  card: {
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.45)",
+  },
+  sheet: {
     backgroundColor: "#fff",
-    borderRadius: 24,
-    paddingHorizontal: 28,
-    paddingVertical: 28,
-    paddingTop: 44,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 16,
-    elevation: 8,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 24,
+    paddingTop: 12,
+    paddingBottom: Platform.OS === "ios" ? 32 : 24,
+  },
+  sheetHandle: {
+    alignSelf: "center",
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#e2e8f0",
+    marginBottom: 16,
   },
   closeButton: {
     position: "absolute",
-    top: 16,
+    top: 14,
     right: 20,
     zIndex: 10,
     padding: 4,
-  },
-  iconWrap: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: "#fef9e7",
-    justifyContent: "center",
-    alignItems: "center",
-    alignSelf: "center",
-    marginBottom: 20,
   },
   title: {
     textAlign: "center",
     marginBottom: 8,
     color: Colors.text,
+    paddingHorizontal: 24,
   },
   subtitle: {
     textAlign: "center",
-    marginBottom: 24,
+    marginBottom: 20,
     lineHeight: 20,
+    paddingHorizontal: 8,
   },
   otpRow: {
     flexDirection: "row",
@@ -178,6 +216,12 @@ const styles = StyleSheet.create({
   otpInputFilled: {
     borderColor: Colors.primary,
     backgroundColor: "#fff",
+  },
+  dismissRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 14,
   },
 });
 

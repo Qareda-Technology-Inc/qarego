@@ -42,6 +42,12 @@ const transactionSchema = new Schema(
       type: String,
       default: null,
     },
+    /** External reference (e.g. Hubtel payout ClientReference) for reconciliation. */
+    reference: {
+      type: String,
+      default: null,
+      index: true,
+    },
     balanceAfter: {
       type: Number,
       default: null,

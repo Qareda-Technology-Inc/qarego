@@ -10,11 +10,9 @@ import { rideStyles } from "@/styles/rideStyles";
 import RiderLiveTracking from "@/components/rider/RiderLiveTracking";
 import RiderDeliveryBanner from "@/components/rider/RiderDeliveryBanner";
 import { updateRideStatus, getRideById } from "@/service/rideService";
-import CustomText from "@/components/shared/CustomText";
 import RiderActionButton from "@/components/rider/RiderActionButton";
 import OtpInputModal from "@/components/rider/OtpInputModal";
 import RideCompletedModal from "@/components/shared/RideCompletedModal";
-import SafetyFeatures from "@/components/shared/SafetyFeatures";
 import ChatModal from "@/components/shared/ChatModal";
 import { Ionicons } from "@expo/vector-icons";
 import { maskPhone } from "@/utils/maskPhone";
@@ -244,41 +242,13 @@ const LiveRide = () => {
               heading: location?.heading,
             }}
           />
-          {rideData?.status ? (
-            <View style={deliveryStyles.statusPill}>
-              <Ionicons name="navigate" size={14} color="#fff" style={{ marginRight: 6 }} />
-              <CustomText fontSize={12} fontFamily="SemiBold" style={{ color: "#fff" }}>
-                {deliveryPhase.phaseLabel}
-              </CustomText>
-            </View>
-          ) : null}
-          <RiderDeliveryBanner ride={rideData} />
-          <SafetyFeatures
-            rideId={rideData._id}
-            pickup={{
-              latitude: parseFloat(rideData?.pickup?.latitude),
-              longitude: parseFloat(rideData?.pickup?.longitude),
-              address: rideData?.pickup?.address,
-            }}
-            drop={{
-              latitude: parseFloat(rideData?.drop?.latitude),
-              longitude: parseFloat(rideData?.drop?.longitude),
-              address: rideData?.drop?.address,
-            }}
-            riderInfo={{
-              name: rideData?.customer?.name ?? "Customer",
-              phone: rideData?.customer?.phone,
-              maskedPhone: rideData?.customer?.phone ? maskPhone(rideData.customer.phone) : undefined,
-            }}
-            status={rideData?.status}
-          />
           {canChat && (
             <TouchableOpacity
               onPress={() => setShowChat(true)}
               style={deliveryStyles.chatFab}
               activeOpacity={0.85}
             >
-              <Ionicons name="chatbubble-ellipses" size={24} color="#0f172a" />
+              <Ionicons name="chatbubble-ellipses" size={22} color="#0f172a" />
             </TouchableOpacity>
           )}
         </>
@@ -286,12 +256,17 @@ const LiveRide = () => {
 
       <RiderActionButton
         ride={rideData}
-        title={rideData ? getRiderSwipeTitle(rideData) : "LOADING…"}
+        actionLabel={rideData ? getRiderSwipeTitle(rideData) : "Loading…"}
         meetLabel={courierUi.meetLabel}
         contactPhone={courierUi.contactPhone}
         pickupLabel={courierUi.pickupLabel}
         dropLabel={courierUi.dropLabel}
-        onPress={async () => {
+        banner={
+          rideData && (isFood || isParcel) ? (
+            <RiderDeliveryBanner ride={rideData} variant="inline" />
+          ) : undefined
+        }
+        onAction={async () => {
           if (rideData?.status === "START") {
             if (isFood || isParcel) {
               const result = await updateRideStatus(rideData?._id, "ARRIVED");
@@ -343,22 +318,22 @@ const LiveRide = () => {
             return;
           }
         }}
-        swipeColor={deliveryPhase.swipeColor}
+        actionColor={deliveryPhase.swipeColor}
       />
 
       {isOtpModalVisible && (
         <OtpInputModal
           visible={isOtpModalVisible}
           onClose={() => setOtpModalVisible(false)}
-          title={otpPurpose === "delivery" ? "Enter delivery code" : "Enter OTP Below"}
+          title={otpPurpose === "delivery" ? "Enter delivery code" : "Confirm arrival"}
           subtitle={
             otpPurpose === "delivery"
               ? isParcel
                 ? getRiderParcelOtpSubtitle(parcelMode)
-                : "Ask the customer for their 4-digit delivery code shown in the app before handing over the food."
-              : undefined
+                : "Ask the customer for their 4-digit delivery code before handing over the food."
+              : "Ask the customer for the 4-digit code on their screen."
           }
-          confirmLabel={otpPurpose === "delivery" ? "Confirm delivery" : "Confirm arrival"}
+          confirmLabel={otpPurpose === "delivery" ? "Complete delivery" : "Confirm"}
           onConfirm={async (otp) => {
             if (otpPurpose === "delivery") {
               const result = await updateRideStatus(rideData?._id, "COMPLETED", otp);

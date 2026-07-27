@@ -128,6 +128,44 @@ export const getRideById = async (rideId: string): Promise<any | null> => {
   }
 };
 
+export type RidePaymentInit = {
+  status: "pending" | "success" | "failed" | "cancelled" | "initiated";
+  clientReference: string;
+  checkoutId?: string | null;
+  checkoutUrl?: string | null;
+  checkoutDirectUrl?: string | null;
+};
+
+export type RidePaymentStatus = {
+  ridePaymentStatus:
+    | "NOT_REQUIRED"
+    | "UNPAID"
+    | "PENDING"
+    | "PAID"
+    | "FAILED"
+    | "REFUNDED";
+  paymentMethod: "CASH" | "MOBILE_MONEY";
+  paymentReference?: string | null;
+};
+
+export const initiateRidePayment = async (
+  rideId: string
+): Promise<RidePaymentInit> => {
+  const res = await appAxios.post(`/ride/${rideId}/payment/initiate`);
+  return res.data?.payment;
+};
+
+export const fetchRidePaymentStatus = async (
+  rideId: string
+): Promise<RidePaymentStatus> => {
+  const res = await appAxios.get(`/ride/${rideId}/payment-status`);
+  return {
+    ridePaymentStatus: res.data?.ridePaymentStatus ?? "NOT_REQUIRED",
+    paymentMethod: res.data?.paymentMethod ?? "CASH",
+    paymentReference: res.data?.paymentReference ?? null,
+  };
+};
+
 export type CourierLiveCoords = {
   latitude: number;
   longitude: number;

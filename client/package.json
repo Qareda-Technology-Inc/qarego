@@ -18,9 +18,9 @@
     "android:emulator": "npm run setup:android && scripts/with-java.sh expo run:android",
     "android:device": "npm run usb:reverse && npm run setup:android && scripts/with-java.sh expo run:android --device",
     "android:rebuild": "npm run prebuild:android && npm run android:device",
-    "ios": "node scripts/ensure-ios-codegen.js && expo run:ios",
+    "ios": "node scripts/patch-react-native-maps.js && node scripts/ensure-ios-codegen.js && expo run:ios",
     "ios:codegen": "node scripts/ensure-ios-codegen.js",
-    "ios:fix": "node scripts/ensure-ios-codegen.js && cd ios && pod install && cd ..",
+    "ios:fix": "node scripts/patch-react-native-maps.js && node scripts/ensure-ios-codegen.js && cd ios && pod install && cd ..",
     "start:ios": "npm run ios:fix && expo start --ios",
     "web": "expo start --web",
     "test": "jest --watchAll",
@@ -29,7 +29,7 @@
     "eas:firebase-env:android": "eas env:create --name GOOGLE_SERVICES_JSON --type file --value ./google-services.json --environment production --visibility secret && eas env:create --name GOOGLE_SERVICES_JSON --type file --value ./google-services.json --environment preview --visibility secret && eas env:create --name GOOGLE_SERVICES_JSON --type file --value ./google-services.json --environment development --visibility secret",
     "eas:firebase-env:ios": "eas env:create --name GOOGLE_SERVICE_INFO_PLIST --type file --value ./GoogleService-Info.plist --environment production --visibility secret && eas env:create --name GOOGLE_SERVICE_INFO_PLIST --type file --value ./GoogleService-Info.plist --environment preview --visibility secret && eas env:create --name GOOGLE_SERVICE_INFO_PLIST --type file --value ./GoogleService-Info.plist --environment development --visibility secret",
     "eas:api-url": "echo 'Run: eas env:create --name EXPO_PUBLIC_PRODUCTION_API_URL --value https://YOUR_API --environment production --visibility plaintext && eas env:create --name EXPO_PUBLIC_PRODUCTION_API_URL --value https://YOUR_API --environment preview --visibility plaintext'",
-    "postinstall": "node scripts/patch-expo-localization.js && node scripts/ensure-ios-codegen.js"
+    "postinstall": "node scripts/patch-expo-localization.js && node scripts/patch-react-native-maps.js && node scripts/ensure-ios-codegen.js"
   },
   "jest": {
     "preset": "jest-expo"

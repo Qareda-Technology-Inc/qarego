@@ -247,6 +247,20 @@ const RideBooking = () => {
     setSelectedOption(type);
   }, []);
 
+  const getOptionMeta = useCallback(
+    (ride: (typeof displayOptions)[number]) => {
+      const parts: string[] = [];
+      if ("capacity" in ride && typeof ride.capacity === "number") {
+        parts.push(`${ride.capacity} seat${ride.capacity > 1 ? "s" : ""}`);
+      } else if ("detail" in ride && ride.detail) {
+        parts.push(ride.detail);
+      }
+      parts.push(ride.eta != null ? `${ride.eta} min` : "-- min");
+      return parts.join("  ·  ");
+    },
+    []
+  );
+
   const openExternalRoute = useCallback(() => {
     if (!pickup || !drop) {
       Alert.alert("Route unavailable", "Pickup or destination is missing.");
@@ -546,52 +560,28 @@ const RideBooking = () => {
                   >
                     <Image source={ride.icon} style={styles.optionIcon} />
                     <View style={styles.optionInfo}>
-                      <CustomText fontFamily="SemiBold" fontSize={15}>
-                        {ride.label}
-                      </CustomText>
-                      <View style={styles.optionMetaRow}>
-                        {"capacity" in ride && typeof ride.capacity === "number" ? (
-                          <View style={styles.capacityChip}>
-                            <Ionicons name="people-outline" size={13} color="#64748b" />
-                            <CustomText fontSize={11} fontFamily="SemiBold" style={styles.capacityText}>
-                              {ride.capacity}
-                            </CustomText>
-                          </View>
-                        ) : (
-                          <CustomText fontSize={12} color="#888" numberOfLines={1}>
-                            {ride.detail}
-                          </CustomText>
-                        )}
-                        <View style={styles.timeChip}>
-                          <Ionicons name="time-outline" size={13} color="#64748b" />
-                          <CustomText fontSize={11} fontFamily="SemiBold" style={styles.timeText}>
-                            {ride.eta != null ? `${ride.eta} min` : "-- min"}
-                          </CustomText>
-                        </View>
-                        {isBusy ? (
-                          <View style={styles.busyBadge}>
-                            <CustomText fontFamily="SemiBold" fontSize={10} style={styles.busyBadgeText}>
-                              Busy
+                      <View style={styles.optionTitleRow}>
+                        <CustomText fontFamily="SemiBold" fontSize={15} numberOfLines={1}>
+                          {ride.label}
+                        </CustomText>
+                        {isFastest && !isBusy ? (
+                          <View style={styles.fastestBadgeInline}>
+                            <CustomText fontFamily="SemiBold" fontSize={9} style={styles.fastestBadgeText}>
+                              Fastest
                             </CustomText>
                           </View>
                         ) : null}
                       </View>
-                      {isFastest ? (
-                        <View style={styles.optionTagRow}>
-                          <View style={styles.fastestBadgeInline}>
-                            <CustomText fontFamily="SemiBold" fontSize={10} style={styles.fastestBadgeText}>
-                              Fastest
-                            </CustomText>
-                          </View>
-                        </View>
-                      ) : null}
+                      <CustomText fontSize={12} color="#94a3b8" numberOfLines={1} style={styles.optionMeta}>
+                        {isBusy ? "Currently unavailable" : getOptionMeta(ride)}
+                      </CustomText>
                     </View>
                     <View style={styles.optionRight}>
                       <CustomText fontFamily="Bold" fontSize={17} style={[styles.optionPrice, isBusy && styles.optionPriceBusy]}>
                         {isBusy ? "Busy" : formatCurrency(Math.round(Number(ride?.price ?? 0)))}
                       </CustomText>
                       {isSelected ? (
-                        <Ionicons name="checkmark-circle" size={24} color={accentColor} style={styles.optionCheck} />
+                        <Ionicons name="checkmark-circle" size={22} color={accentColor} style={styles.optionCheck} />
                       ) : null}
                     </View>
                   </TouchableOpacity>
@@ -600,36 +590,33 @@ const RideBooking = () => {
             </View>
 
             {/* Payment */}
-            <View style={styles.section}>
-              <CustomText fontFamily="SemiBold" fontSize={14} style={styles.sectionTitle}>
-                Payment
-              </CustomText>
-              <View style={[styles.paymentRow, isSmallScreen && styles.paymentRowCompact]}>
+            <View style={styles.paymentSection}>
+              <View style={styles.paymentToggle}>
                 <TouchableOpacity
                   onPress={() => setPaymentMethod("CASH")}
                   style={[
-                    styles.paymentOption,
-                    paymentMethod === "CASH" && styles.paymentOptionActive,
-                    paymentMethod === "CASH" && serviceType === "DELIVERY" && styles.paymentOptionParcelActive,
+                    styles.paymentSeg,
+                    paymentMethod === "CASH" && styles.paymentSegActive,
+                    paymentMethod === "CASH" && serviceType === "DELIVERY" && styles.paymentSegParcelActive,
                   ]}
                   activeOpacity={0.8}
                 >
-                  <Ionicons name="cash-outline" size={24} color={paymentMethod === "CASH" ? accentColor : "#666"} />
-                  <CustomText fontFamily="Medium" fontSize={14} style={{ color: paymentMethod === "CASH" ? Colors.text : "#666" }}>
+                  <Ionicons name="cash-outline" size={18} color={paymentMethod === "CASH" ? accentColor : "#94a3b8"} />
+                  <CustomText fontFamily="SemiBold" fontSize={13} style={{ color: paymentMethod === "CASH" ? Colors.text : "#94a3b8" }}>
                     Cash
                   </CustomText>
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={() => setPaymentMethod("MOBILE_MONEY")}
                   style={[
-                    styles.paymentOption,
-                    paymentMethod === "MOBILE_MONEY" && styles.paymentOptionActive,
-                    paymentMethod === "MOBILE_MONEY" && serviceType === "DELIVERY" && styles.paymentOptionParcelActive,
+                    styles.paymentSeg,
+                    paymentMethod === "MOBILE_MONEY" && styles.paymentSegActive,
+                    paymentMethod === "MOBILE_MONEY" && serviceType === "DELIVERY" && styles.paymentSegParcelActive,
                   ]}
                   activeOpacity={0.8}
                 >
-                  <Ionicons name="phone-portrait-outline" size={24} color={paymentMethod === "MOBILE_MONEY" ? accentColor : "#666"} />
-                  <CustomText fontFamily="Medium" fontSize={14} style={{ color: paymentMethod === "MOBILE_MONEY" ? Colors.text : "#666" }}>
+                  <Ionicons name="phone-portrait-outline" size={18} color={paymentMethod === "MOBILE_MONEY" ? accentColor : "#94a3b8"} />
+                  <CustomText fontFamily="SemiBold" fontSize={13} style={{ color: paymentMethod === "MOBILE_MONEY" ? Colors.text : "#94a3b8" }}>
                     Mobile Money
                   </CustomText>
                 </TouchableOpacity>
@@ -806,11 +793,11 @@ const styles = StyleSheet.create({
     color: Colors.text,
   },
   section: {
-    marginBottom: 22,
+    marginBottom: 16,
   },
   sectionTitle: {
     color: Colors.text,
-    marginBottom: 14,
+    marginBottom: 10,
   },
   input: {
     backgroundColor: "#f5f5f5",
@@ -826,12 +813,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#f8f9fa",
-    borderRadius: 18,
-    padding: 18,
-    marginBottom: 12,
+    borderRadius: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginBottom: 10,
     borderWidth: 2,
     borderColor: "transparent",
-    minHeight: 86,
+    minHeight: 68,
   },
   optionCardBusy: {
     opacity: 0.72,
@@ -847,47 +835,19 @@ const styles = StyleSheet.create({
     borderColor: P.accent,
   },
   optionIcon: {
-    width: 48,
-    height: 48,
+    width: 40,
+    height: 40,
     resizeMode: "contain",
-    marginRight: 16,
+    marginRight: 14,
   },
   optionInfo: { flex: 1 },
-  optionMetaRow: {
+  optionTitleRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    marginTop: 3,
-    marginBottom: 2,
+    gap: 8,
   },
-  optionTagRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 4,
-  },
-  capacityChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    backgroundColor: "#f1f5f9",
-    borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-  },
-  capacityText: {
-    color: "#475569",
-  },
-  timeChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    backgroundColor: "#f8fafc",
-    borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-  },
-  timeText: {
-    color: "#475569",
+  optionMeta: {
+    marginTop: 2,
   },
   optionRight: {
     alignItems: "flex-end",
@@ -899,57 +859,50 @@ const styles = StyleSheet.create({
     marginRight: 0,
   },
   optionPriceBusy: {
-    color: "#64748b",
+    color: "#94a3b8",
+    fontSize: 13,
   },
-  optionCheck: { marginTop: 4 },
+  optionCheck: { marginTop: 2 },
   fastestBadgeInline: {
     backgroundColor: Colors.primary,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
     borderRadius: 999,
   },
   fastestBadgeText: {
     color: "#fff",
   },
-  busyBadge: {
-    backgroundColor: "#e2e8f0",
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 999,
+  paymentSection: {
+    marginBottom: 14,
   },
-  busyBadgeText: {
-    color: "#475569",
-  },
-  paymentRow: {
+  paymentToggle: {
     flexDirection: "row",
-    gap: 14,
+    backgroundColor: "#f1f5f9",
+    borderRadius: 14,
+    padding: 4,
+    gap: 4,
   },
-  paymentRowCompact: {
-    flexDirection: "column",
-    gap: 10,
-  },
-  paymentOption: {
+  paymentSeg: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 10,
-    paddingVertical: 18,
-    borderRadius: 16,
-    backgroundColor: "#f8f9fa",
-    borderWidth: 2,
+    gap: 8,
+    paddingVertical: 11,
+    borderRadius: 11,
+    borderWidth: 1.5,
     borderColor: "transparent",
   },
-  paymentOptionActive: {
-    backgroundColor: "#fefce8",
+  paymentSegActive: {
+    backgroundColor: "#fff",
     borderColor: Colors.primary,
   },
-  paymentOptionParcelActive: {
-    backgroundColor: P.accentSoft,
+  paymentSegParcelActive: {
+    backgroundColor: "#fff",
     borderColor: P.accent,
   },
   ctaWrap: {
-    marginTop: 12,
+    marginTop: 8,
     marginBottom: 8,
   },
 });

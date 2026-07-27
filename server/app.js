@@ -88,6 +88,9 @@ EventEmitter.defaultMaxListeners = 20;
 
 const app = express();
 
+// Behind Render's proxy: makes req.ip / X-Forwarded-For reflect the real client.
+app.set('trust proxy', true);
+
 const allowedOrigins = [
   "http://localhost:3000",
   "http://127.0.0.1:3000",

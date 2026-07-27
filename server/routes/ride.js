@@ -1,6 +1,6 @@
 import express from 'express';
 import { createRide, getFareRates, getRideById, getCourierLocation, updateRideStatus, acceptRide, getMyRides, getPendingRideOffers, rateRide, updateRiderStatus, getMyTransactions, getRiderAlertSound, getRiderServicePreferences, updateRiderServicePreferences, getRiderReliability, getRiderDispatchAnalytics, declineRideOffer } from '../controllers/ride.js';
-import { initiateTopUp } from '../controllers/payment.js';
+import { initiateTopUp, getTopUpStatus, initiateCashout, initiateRidePayment, getRidePaymentStatus } from '../controllers/payment.js';
 
 const router = express.Router();
 
@@ -19,12 +19,16 @@ router.post('/offers/:rideId/decline', declineRideOffer);
 router.get('/rider-alert-sound', getRiderAlertSound);
 router.get('/transactions', getMyTransactions);
 router.post('/top-up', initiateTopUp);
+router.get('/top-up/status', getTopUpStatus);
+router.post('/cashout', initiateCashout);
 router.patch('/rider-status', updateRiderStatus);
 router.get('/service-preferences', getRiderServicePreferences);
 router.patch('/service-preferences', updateRiderServicePreferences);
 router.patch('/accept/:rideId', acceptRide);
 router.patch('/update/:rideId', updateRideStatus);
 router.post('/:rideId/rate', rateRide);
+router.post('/:rideId/payment/initiate', initiateRidePayment);
+router.get('/:rideId/payment-status', getRidePaymentStatus);
 router.get('/:rideId/courier-location', getCourierLocation);
 router.get('/:rideId', getRideById);
 

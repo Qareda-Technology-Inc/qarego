@@ -11,6 +11,7 @@ import {
   notifyRiderAssignedFoodDelivery,
 } from "./pushNotifications.js";
 import { cancelCourierRideForOrder } from "./releaseCourierRide.js";
+import { settleFoodOrderOnDelivery } from "./foodOrderSettlement.js";
 import {
   canRiderReceiveOffer,
   getEligibilityRejectReason,
@@ -282,5 +283,14 @@ export async function applyRestaurantAction(orderId, action, io, options = {}) {
 
   await foodOrder.save();
   const populated = await emitFoodOrderUpdated(io, orderId);
+
+  if (action === "ready" && foodOrder.fulfillmentType === "PICKUP") {
+    try {
+      await settleFoodOrderOnDelivery(orderId);
+    } catch (err) {
+      console.error("Food pickup settlement error:", err);
+    }
+  }
+
   return { order: populated };
 }

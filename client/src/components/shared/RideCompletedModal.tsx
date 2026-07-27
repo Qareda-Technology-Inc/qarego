@@ -6,25 +6,47 @@ import { Ionicons } from "@expo/vector-icons";
 
 interface RideCompletedModalProps {
   visible: boolean;
-  ride: { fare?: number } | null;
+  ride: {
+    fare?: number;
+    serviceType?: string;
+    paymentMethod?: "CASH" | "MOBILE_MONEY";
+    paymentStatus?: string;
+  } | null;
   onClose: () => void;
+  /** When provided and payment is outstanding, shows a "Pay now" action. */
+  onPay?: () => void;
+  payBusy?: boolean;
 }
 
 const RideCompletedModal: FC<RideCompletedModalProps> = ({
   visible,
   ride,
   onClose,
+  onPay,
+  payBusy,
 }) => {
   if (!ride) return null;
 
   const fare = ride.fare != null ? Number(ride.fare) : 0;
+  const isDelivery = ride.serviceType === "DELIVERY";
+  const isMomo = ride.paymentMethod === "MOBILE_MONEY";
+  const isPaid = isMomo && ride.paymentStatus === "PAID";
+  const needsPayment =
+    !!onPay &&
+    isMomo &&
+    ["UNPAID", "PENDING", "FAILED"].includes(String(ride.paymentStatus));
+
+  const title = isDelivery ? "Delivery completed" : "Ride completed";
+  const subtitle = needsPayment
+    ? "Amount to pay with mobile money"
+    : "Total cost for this trip";
 
   return (
     <Modal
       visible={visible}
       animationType="fade"
       transparent
-      onRequestClose={onClose}
+      onRequestClose={needsPayment ? undefined : onClose}
     >
       <View style={styles.overlay}>
         <View style={styles.card}>
@@ -32,25 +54,52 @@ const RideCompletedModal: FC<RideCompletedModalProps> = ({
             <Ionicons name="checkmark-circle" size={56} color={Colors.primary} />
           </View>
           <CustomText fontFamily="Bold" variant="h5" style={styles.title}>
-            Ride completed
+            {title}
           </CustomText>
           <CustomText fontSize={14} color="#666" style={styles.subtitle}>
-            Total cost for this ride
+            {subtitle}
           </CustomText>
           <View style={styles.fareWrap}>
             <CustomText fontFamily="Bold" fontSize={28} style={styles.fare}>
               {formatCurrency(fare)}
             </CustomText>
           </View>
-          <TouchableOpacity
-            style={styles.button}
-            onPress={onClose}
-            activeOpacity={0.8}
-          >
-            <CustomText fontFamily="SemiBold" fontSize={16} style={styles.buttonText}>
-              OK
-            </CustomText>
-          </TouchableOpacity>
+
+          {isMomo ? (
+            <View style={styles.payRow}>
+              <Ionicons
+                name={isPaid ? "checkmark-circle" : "phone-portrait-outline"}
+                size={16}
+                color={isPaid ? "#16a34a" : "#666"}
+              />
+              <CustomText fontSize={13} color={isPaid ? "#16a34a" : "#666"} style={{ marginLeft: 6 }}>
+                {isPaid ? "Paid with mobile money" : "Mobile money"}
+              </CustomText>
+            </View>
+          ) : null}
+
+          {needsPayment ? (
+            <TouchableOpacity
+              style={[styles.button, payBusy && { opacity: 0.7 }]}
+              onPress={onPay}
+              disabled={payBusy}
+              activeOpacity={0.8}
+            >
+              <CustomText fontFamily="SemiBold" fontSize={16} style={styles.buttonText}>
+                {payBusy ? "Opening…" : `Pay ${formatCurrency(fare)} with mobile money`}
+              </CustomText>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={styles.button}
+              onPress={onClose}
+              activeOpacity={0.8}
+            >
+              <CustomText fontFamily="SemiBold" fontSize={16} style={styles.buttonText}>
+                OK
+              </CustomText>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
     </Modal>
@@ -98,6 +147,11 @@ const styles = StyleSheet.create({
   },
   fare: {
     color: Colors.primary,
+  },
+  payRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 16,
   },
   button: {
     backgroundColor: Colors.primary,
