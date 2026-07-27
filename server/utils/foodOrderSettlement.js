@@ -8,7 +8,11 @@ import Restaurant from "../models/Restaurant.js";
 import Ride from "../models/Ride.js";
 import User from "../models/User.js";
 import Transaction from "../models/Transaction.js";
-import { formatPhoneForHubtel, sendPayment } from "./hubtelService.js";
+import {
+  detectGhMomoChannel,
+  formatPhoneForHubtel,
+  sendPayment,
+} from "./hubtelService.js";
 import { getCommissionRateForService, getSettings } from "./tripSettlement.js";
 import { appendWebhookToken } from "../middleware/hubtelWebhookAuth.js";
 
@@ -69,11 +73,21 @@ function makeSettlementRef(prefix, orderId) {
   return `${prefix}${tail}${stamp}`.slice(0, 32);
 }
 
-function getPayoutCallbackUrl() {
-  return appendWebhookToken(
-    process.env.HUBTEL_PAYOUT_CALLBACK_URL ||
-      (process.env.BASE_URL ? `${process.env.BASE_URL}/webhooks/hubtel-payout` : null)
+function resolvePublicBaseUrl() {
+  return (
+    process.env.BASE_URL ||
+    process.env.PUBLIC_API_URL ||
+    process.env.API_BASE_URL ||
+    null
   );
+}
+
+function getPayoutCallbackUrl() {
+  const explicit = process.env.HUBTEL_PAYOUT_CALLBACK_URL;
+  const base = resolvePublicBaseUrl();
+  const url =
+    explicit || (base ? `${String(base).replace(/\/$/, "")}/webhooks/hubtel-payout` : null);
+  return appendWebhookToken(url);
 }
 
 function resolveRestaurantPayoutTarget(restaurant) {
@@ -93,8 +107,17 @@ function resolveRestaurantPayoutTarget(restaurant) {
 function legSucceeded(leg, amountDue) {
   if (amountDue <= 0) return true;
   if (!leg) return false;
-  if (leg.status === "sent") return true;
+  // "sent" = Hubtel payout webhook confirmed. "pending" = API accepted, awaiting callback.
+  if (leg.status === "sent" || leg.status === "pending") return true;
   return Boolean(leg.success);
+}
+
+function legNeedsDisbursement(leg, amountDue) {
+  if (amountDue <= 0) return false;
+  if (!leg) return true;
+  // Do not re-send while Hubtel is in-flight or already confirmed.
+  if (leg.status === "sent" || leg.status === "pending") return false;
+  return true;
 }
 
 async function disburseToRecipient({
@@ -214,7 +237,7 @@ async function applyMomoSettlement(order, restaurant, ride) {
 
   const results = { restaurant: null, rider: null };
 
-  if (restaurantNet > 0 && details.restaurant?.status !== "sent") {
+  if (restaurantNet > 0 && legNeedsDisbursement(details.restaurant, restaurantNet)) {
     const { msisdn, name, channel } = resolveRestaurantPayoutTarget(restaurant);
     const ref =
       details.restaurant?.reference ||
@@ -235,18 +258,19 @@ async function applyMomoSettlement(order, restaurant, ride) {
   }
 
   const riderId = ride?.rider?._id || ride?.rider;
-  if (riderNet > 0 && riderId && details.rider?.status !== "sent") {
+  if (riderNet > 0 && riderId && legNeedsDisbursement(details.rider, riderNet)) {
     const rider = ride?.rider?.phone
       ? ride.rider
       : await User.findById(riderId).select("name phone").lean();
+    const msisdn = rider?.phone || "";
     const ref =
       details.rider?.reference || makeSettlementRef("fosd_", order._id);
 
     results.rider = await disburseToRecipient({
       amount: riderNet,
       name: rider?.name || "Rider",
-      msisdn: rider?.phone || "",
-      channel: "mtn-gh",
+      msisdn,
+      channel: detectGhMomoChannel(msisdn),
       description: `QareGO food delivery fee ${order._id}`,
       clientReference: ref,
     });
@@ -279,7 +303,8 @@ function buildSettlementDetails(momoResult) {
     details.restaurant = {
       amount: r.amount ?? 0,
       reference: r.reference || null,
-      status: r.skipped ? "not_applicable" : r.success ? "sent" : "failed",
+      // API accept → pending until /webhooks/hubtel-payout confirms "sent".
+      status: r.skipped ? "not_applicable" : r.success ? "pending" : "failed",
       error: r.error || null,
       response: r.response || null,
     };
@@ -289,7 +314,7 @@ function buildSettlementDetails(momoResult) {
     details.rider = {
       amount: d.amount ?? 0,
       reference: d.reference || null,
-      status: d.skipped ? "not_applicable" : d.success ? "sent" : "failed",
+      status: d.skipped ? "not_applicable" : d.success ? "pending" : "failed",
       error: d.error || null,
       response: d.response || null,
     };
@@ -301,14 +326,34 @@ function buildSettlementDetails(momoResult) {
  * Idempotent settlement when a food order is fulfilled (DELIVERED or pickup ready).
  */
 export async function settleFoodOrderOnDelivery(orderId) {
-  const order = await FoodOrder.findById(orderId);
-  if (!order) return { skipped: true, reason: "not_found" };
+  // Atomically claim the order so concurrent callers (delivery + payment webhook + admin)
+  // cannot double-disburse.
+  const claimed = await FoodOrder.findOneAndUpdate(
+    {
+      _id: orderId,
+      settlementStatus: { $in: ["pending", "failed"] },
+    },
+    { $set: { settlementStatus: "processing", settlementError: null } },
+    { new: true }
+  );
 
-  if (order.settlementStatus === "settled") {
-    return { skipped: true, reason: "already_settled" };
+  if (!claimed) {
+    const existing = await FoodOrder.findById(orderId).select("settlementStatus status").lean();
+    if (!existing) return { skipped: true, reason: "not_found" };
+    if (existing.settlementStatus === "settled") {
+      return { skipped: true, reason: "already_settled" };
+    }
+    if (existing.settlementStatus === "processing") {
+      return { skipped: true, reason: "in_flight" };
+    }
+    return { skipped: true, reason: "not_claimable", status: existing.settlementStatus };
   }
 
+  const order = claimed;
+
   if (!isOrderReadyForSettlement(order)) {
+    order.settlementStatus = "pending";
+    await order.save();
     return { skipped: true, reason: "not_ready", status: order.status };
   }
 
@@ -339,17 +384,36 @@ export async function settleFoodOrderOnDelivery(orderId) {
     order.settlementDetails = details;
     order.settlementMethod = "momo";
 
-    if (outcome.success) {
+    const restaurantOk =
+      !details.restaurant ||
+      ["sent", "not_applicable", "pending"].includes(details.restaurant.status);
+    const riderOk =
+      !details.rider ||
+      ["sent", "not_applicable", "pending"].includes(details.rider.status);
+    const anyFailed =
+      details.restaurant?.status === "failed" || details.rider?.status === "failed";
+    const anyPending =
+      details.restaurant?.status === "pending" || details.rider?.status === "pending";
+    const allConfirmed =
+      (!details.restaurant || ["sent", "not_applicable"].includes(details.restaurant.status)) &&
+      (!details.rider || ["sent", "not_applicable"].includes(details.rider.status));
+
+    if (allConfirmed && !anyFailed) {
+      // Both legs already confirmed (e.g. zero amounts / prior webhook).
       order.settlementStatus = "settled";
       order.settledAt = new Date();
       order.settlementError = null;
-    } else if (outcome.anyAttempted) {
+    } else if (anyFailed) {
       order.settlementStatus = "failed";
       order.settlementError =
         outcome.error ||
         details.restaurant?.error ||
         details.rider?.error ||
         "Disbursement failed";
+    } else if (anyPending && restaurantOk && riderOk) {
+      // Hubtel accepted — wait for payout webhook before marking settled.
+      order.settlementStatus = "processing";
+      order.settlementError = null;
     } else {
       order.settlementStatus = "pending";
       order.settlementError = outcome.error || "Payment required before disbursement";

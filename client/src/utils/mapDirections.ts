@@ -22,6 +22,21 @@ export function coordKey(point: unknown): string {
   return `${lat},${lng}`;
 }
 
+/**
+ * Snap coords to a ~N-meter grid for Directions fetch keys.
+ * Prevents refetching the polyline on every GPS tick while the rider is en route.
+ */
+export function snapCoordKey(point: unknown, meters = 80): string {
+  const c = parseMapCoord(point);
+  if (!c) return "";
+  // ~111_320 m per degree latitude; longitude scales with cos(lat).
+  const latStep = meters / 111_320;
+  const lngStep = meters / (111_320 * Math.max(0.2, Math.cos((c.latitude * Math.PI) / 180)));
+  const lat = Math.round(c.latitude / latStep) * latStep;
+  const lng = Math.round(c.longitude / lngStep) * lngStep;
+  return `${lat.toFixed(5)},${lng.toFixed(5)}`;
+}
+
 export function distanceKm(a: MapCoord, b: MapCoord): number {
   const toRad = (d: number) => (d * Math.PI) / 180;
   const R = 6371;

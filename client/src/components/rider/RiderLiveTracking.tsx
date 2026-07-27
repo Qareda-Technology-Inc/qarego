@@ -14,7 +14,7 @@ import {
   getRiderPickupLabel,
   RiderOfferRide,
 } from "@/utils/riderRideUtils";
-import { coordKey, fetchDrivingPolyline } from "@/utils/mapDirections";
+import { coordKey, fetchDrivingPolyline, snapCoordKey } from "@/utils/mapDirections";
 import { useStableMapCoord } from "@/hooks/useStableMapCoord";
 import { openMapsToPoint } from "@/utils/openMapsNavigation";
 
@@ -60,17 +60,21 @@ const RiderLiveTracking: FC<{
     if (status === "START" && riderCoord) return riderCoord;
     if ((status === "ARRIVED" || status === "IN_PROGRESS") && pickupCoord) return pickupCoord;
     return riderCoord ?? pickupCoord;
-  }, [status, riderKey, pickupKey]);
+  }, [status, riderCoord, pickupCoord]);
 
   const routeDestination = useMemo(() => {
     if (status === "START") return pickupCoord;
     if (status === "ARRIVED" || status === "IN_PROGRESS") return dropCoord;
     return dropCoord ?? pickupCoord;
-  }, [status, pickupKey, dropKey]);
+  }, [status, pickupCoord, dropCoord]);
 
   const routeFetchKey = useMemo(() => {
     if (!routeOrigin || !routeDestination) return "";
-    return `${status}|${routeOrigin.latitude},${routeOrigin.longitude}|${routeDestination.latitude},${routeDestination.longitude}`;
+    // While riding to pickup, snap GPS so we don't hit Directions on every tick.
+    const originKey =
+      status === "START" ? snapCoordKey(routeOrigin, 80) : coordKey(routeOrigin);
+    const destKey = coordKey(routeDestination);
+    return `${status}|${originKey}|${destKey}`;
   }, [status, routeOrigin, routeDestination]);
 
   const fitToMarkers = useCallback(async () => {

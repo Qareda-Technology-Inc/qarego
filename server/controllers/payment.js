@@ -11,13 +11,15 @@ import { StatusCodes } from 'http-status-codes';
 import { BadRequestError, NotFoundError } from '../errors/index.js';
 import {
   checkOnlineCheckoutStatus,
+  detectGhMomoChannel,
   extractCheckoutStatusFromHubtelPayload,
   formatPhoneForHubtel,
   initiateOnlineCheckout,
+  makeShortHubtelRef,
   receivePayment,
   sendPayment,
 } from '../utils/hubtelService.js';
-import { getCommissionRateForService, getSettings, settleTrip } from '../utils/tripSettlement.js';
+import { getSettings, settleTrip } from '../utils/tripSettlement.js';
 import { settleFoodOrderOnDelivery } from '../utils/foodOrderSettlement.js';
 import { appendWebhookToken } from '../middleware/hubtelWebhookAuth.js';
 
@@ -139,33 +141,37 @@ function isHubtelConfigured() {
 
 /** Credit driver balance when Hubtel confirms a debt top-up. */
 async function completePendingTopUp(pending, hubtelResponse = null) {
-  if (!pending || pending.status !== 'pending') return false;
+  if (!pending?._id) return false;
 
-  const driver = await User.findById(pending.driver).select('balance driverDetails');
+  // Atomic claim — prevents double-credit from concurrent webhook + poll.
+  const claimed = await PendingTopUp.findOneAndUpdate(
+    { _id: pending._id, status: 'pending' },
+    { $set: { status: 'completed', hubtelResponse: hubtelResponse || pending.hubtelResponse } },
+    { new: true }
+  );
+  if (!claimed) return false;
+
+  const driver = await User.findById(claimed.driver).select('balance driverDetails');
   if (!driver) {
-    pending.status = 'failed';
-    pending.hubtelResponse = hubtelResponse;
-    await pending.save();
+    await PendingTopUp.findByIdAndUpdate(claimed._id, { status: 'failed' });
     return false;
   }
 
   const currentBalance = Number(driver.balance ?? 0);
-  const newBalance = currentBalance + pending.amount;
-  await User.findByIdAndUpdate(pending.driver, { balance: newBalance });
+  const newBalance = currentBalance + claimed.amount;
+  await User.findByIdAndUpdate(claimed.driver, { balance: newBalance });
   await Transaction.create({
-    driver: pending.driver,
-    amount: pending.amount,
+    driver: claimed.driver,
+    amount: claimed.amount,
     type: 'TOP_UP',
     note: 'Clear debt (Hubtel)',
+    reference: claimed.clientReference,
     balanceAfter: newBalance,
   });
   if (driver.driverDetails?.status === 'suspended_debt' && newBalance >= 0) {
-    await User.findByIdAndUpdate(pending.driver, { 'driverDetails.status': 'active' });
+    await User.findByIdAndUpdate(claimed.driver, { 'driverDetails.status': 'active' });
   }
 
-  pending.status = 'completed';
-  pending.hubtelResponse = hubtelResponse;
-  await pending.save();
   return true;
 }
 
@@ -208,7 +214,7 @@ export const initiateTopUp = async (req, res) => {
     throw new BadRequestError('Invalid amount');
   }
   const amountToClear = requested > 0 ? Math.min(requested, Math.abs(balance)) : Math.abs(balance);
-  const clientReference = `topup_${driverId}_${Date.now()}`;
+  const clientReference = makeShortHubtelRef('tu', driverId);
 
   const pending = await PendingTopUp.create({
     driver: driverId,
@@ -227,6 +233,7 @@ export const initiateTopUp = async (req, res) => {
     PrimaryCallbackUrl: callbackUrl,
     Description: 'QareGO Clear Commission Debt',
     ClientReference: clientReference,
+    Channel: detectGhMomoChannel(user.phone),
   });
 
   if (!result.success) {
@@ -336,7 +343,7 @@ export const initiateCashout = async (req, res) => {
   }
 
   const newBalance = Number(updated.balance);
-  const clientReference = `cashout_${driverId}_${Date.now()}`;
+  const clientReference = makeShortHubtelRef('co', driverId);
 
   await Transaction.create({
     driver: driverId,
@@ -358,6 +365,7 @@ export const initiateCashout = async (req, res) => {
     PrimaryCallbackUrl: callbackUrl,
     Description: 'QareGO Wallet Cash Out',
     ClientReference: clientReference,
+    Channel: detectGhMomoChannel(user.phone),
   });
 
   if (!result.success) {
@@ -772,12 +780,15 @@ export const hubtelPayoutWebhook = async (req, res) => {
     }
 
     // Driver payout (admin weekly or rider cash-out). On failure restore balance.
+    // Legacy: payout_ / cashout_; short: po… / co…
     if (
       String(clientReference).startsWith('payout_') ||
-      String(clientReference).startsWith('cashout_')
+      String(clientReference).startsWith('cashout_') ||
+      String(clientReference).startsWith('po') ||
+      String(clientReference).startsWith('co')
     ) {
       if (!success) {
-        const reversalRef = `reversal_${clientReference}`;
+        const reversalRef = `reversal_${clientReference}`.slice(0, 64);
         const alreadyReversed = await Transaction.findOne({ reference: reversalRef });
         const original = await Transaction.findOne({
           reference: clientReference,
@@ -831,7 +842,11 @@ export const hubtelWebhook = async (req, res) => {
       return res.status(StatusCodes.OK).json({ received: true });
     }
 
-    if (String(clientReference).startsWith('topup_')) {
+    // Legacy topup_… or short tu… references.
+    if (
+      String(clientReference).startsWith('topup_') ||
+      String(clientReference).startsWith('tu')
+    ) {
       const pending = await PendingTopUp.findOne({ clientReference, status: 'pending' });
       if (!pending) {
         return res.status(StatusCodes.OK).json({ received: true });

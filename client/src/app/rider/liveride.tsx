@@ -1,5 +1,5 @@
 import { View, Alert, TouchableOpacity } from "react-native";
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useRiderStore } from "@/store/riderStore";
 import { useWS } from "@/service/WSProvider";
 import { useRoute } from "@react-navigation/native";
@@ -44,12 +44,18 @@ const LiveRide = () => {
   const [otpPurpose, setOtpPurpose] = useState<OtpPurpose>("pickup");
   const [showCostPopup, setShowCostPopup] = useState(false);
   const [showChat, setShowChat] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
   const { location, setLocation, setOnDuty, user } = useRiderStore();
   const { emit, on, off } = useWS();
   const [rideData, setRideData] = useState<any>(null);
+  const rideDataRef = useRef<any>(null);
   const route = useRoute() as any;
   const params = route?.params || {};
   const id = params.id;
+
+  useEffect(() => {
+    rideDataRef.current = rideData;
+  }, [rideData]);
 
   useEffect(() => {
     void stopRiderOfferRing();
@@ -138,72 +144,75 @@ const LiveRide = () => {
   }, []);
 
   useEffect(() => {
-    if (id) {
-      emit("subscribeRide", id);
+    if (!id) return;
 
-      getRideById(id).then((ride) => {
-        if (!ride) {
-          resetAndNavigate("/rider/home");
-          return;
-        }
-        if (ride.status === "COMPLETED") {
-          handleDeliveryComplete(ride);
-          return;
-        }
-        if (
-          !ACTIVE_RIDER_RIDE_STATUSES.includes(
-            ride.status as (typeof ACTIVE_RIDER_RIDE_STATUSES)[number]
-          )
-        ) {
-          resetAndNavigate("/rider/home");
-          Alert.alert("Delivery ended", "This trip is no longer active.");
-          return;
-        }
-        setRideData(ride);
-      });
+    emit("subscribeRide", id);
 
-      on("rideData", (data) => {
-        setRideData(data);
-        if (data?.status === "COMPLETED") {
-          handleDeliveryComplete(data);
-        }
-      });
-
-      on("rideCanceled", (error) => {
-        console.log("Ride error:", error);
+    getRideById(id).then((ride) => {
+      if (!ride) {
         resetAndNavigate("/rider/home");
-        Alert.alert("Ride Canceled");
-      });
-
-      on("rideUpdate", (data) => {
-        if (
-          data?.status &&
-          !ACTIVE_RIDER_RIDE_STATUSES.includes(
-            data.status as (typeof ACTIVE_RIDER_RIDE_STATUSES)[number]
-          ) &&
-          data?.status !== "COMPLETED"
-        ) {
-          resetAndNavigate("/rider/home");
-          return;
-        }
-        setRideData(data);
-        if (data?.status === "COMPLETED") {
-          handleDeliveryComplete(data);
-        }
-      });
-
-      on("error", (error) => {
-        console.log("Ride error:", error);
+        return;
+      }
+      if (ride.status === "COMPLETED") {
+        handleDeliveryComplete(ride);
+        return;
+      }
+      if (
+        !ACTIVE_RIDER_RIDE_STATUSES.includes(
+          ride.status as (typeof ACTIVE_RIDER_RIDE_STATUSES)[number]
+        )
+      ) {
         resetAndNavigate("/rider/home");
-        Alert.alert("Oh Dang! There was an error");
-      });
-    }
+        Alert.alert("Delivery ended", "This trip is no longer active.");
+        return;
+      }
+      setRideData(ride);
+    });
+
+    const onRideData = (data: any) => {
+      setRideData(data);
+      if (data?.status === "COMPLETED") {
+        handleDeliveryComplete(data);
+      }
+    };
+
+    const onRideCanceled = () => {
+      resetAndNavigate("/rider/home");
+      Alert.alert("Ride Canceled");
+    };
+
+    const onRideUpdate = (data: any) => {
+      if (
+        data?.status &&
+        !ACTIVE_RIDER_RIDE_STATUSES.includes(
+          data.status as (typeof ACTIVE_RIDER_RIDE_STATUSES)[number]
+        ) &&
+        data?.status !== "COMPLETED"
+      ) {
+        resetAndNavigate("/rider/home");
+        return;
+      }
+      setRideData(data);
+      if (data?.status === "COMPLETED") {
+        handleDeliveryComplete(data);
+      }
+    };
+
+    const onSocketError = () => {
+      resetAndNavigate("/rider/home");
+      Alert.alert("Oh Dang! There was an error");
+    };
+
+    on("rideData", onRideData);
+    on("rideCanceled", onRideCanceled);
+    on("rideUpdate", onRideUpdate);
+    on("error", onSocketError);
 
     return () => {
-      off("rideData");
-      off("rideUpdate");
-      off("rideCanceled");
-      off("error");
+      off("rideData", onRideData);
+      off("rideUpdate", onRideUpdate);
+      off("rideCanceled", onRideCanceled);
+      off("error", onSocketError);
     };
   }, [id, emit, on, off, handleDeliveryComplete]);
 
@@ -211,6 +220,108 @@ const LiveRide = () => {
     setShowCostPopup(false);
     resetAndNavigate("/rider/home");
   };
+
+  const handlePrimaryAction = useCallback(async () => {
+    const current = rideDataRef.current;
+    if (!current || actionLoading) return;
+
+    const food = current.serviceType === "FOOD";
+    const parcel = current.serviceType === "DELIVERY";
+    const mode = parseRideParcelMode(current);
+
+    setActionLoading(true);
+    try {
+      if (current.status === "START") {
+        if (food || parcel) {
+          const result = await updateRideStatus(current._id, "ARRIVED");
+          if (result.ok) {
+            if (result.ride) setRideData(result.ride);
+            if (parcel) {
+              const alert = getRiderParcelCollectedAlert(mode);
+              Alert.alert(alert.title, alert.message);
+            } else {
+              Alert.alert("Picked up", "Food collected — head to the customer");
+            }
+          }
+        } else {
+          setOtpPurpose("pickup");
+          setOtpModalVisible(true);
+        }
+        return;
+      }
+      if (current.status === "ARRIVED") {
+        const result = await updateRideStatus(current._id, "IN_PROGRESS");
+        if (result.ok) {
+          if (result.ride) setRideData(result.ride);
+          if (parcel) {
+            const alert = getRiderParcelDeliveryStartedAlert(mode);
+            Alert.alert(alert.title, alert.message);
+          } else {
+            Alert.alert(
+              food ? "On the way" : "Ride Started!",
+              food ? "Deliver to the customer address" : "Safe journey to the destination"
+            );
+          }
+        } else {
+          Alert.alert("There was an error");
+        }
+        return;
+      }
+      if (current.status === "IN_PROGRESS") {
+        if (food || parcel) {
+          setOtpPurpose("delivery");
+          setOtpModalVisible(true);
+        } else {
+          const result = await updateRideStatus(current._id, "COMPLETED");
+          if (result.ok) {
+            handleDeliveryComplete(result.ride ?? current);
+          } else {
+            Alert.alert("There was an error");
+          }
+        }
+      }
+    } finally {
+      setActionLoading(false);
+    }
+  }, [actionLoading, handleDeliveryComplete]);
+
+  const handleOtpConfirm = useCallback(
+    async (otp: string) => {
+      const current = rideDataRef.current;
+      if (!current) return;
+      const parcel = current.serviceType === "DELIVERY";
+      const mode = parseRideParcelMode(current);
+
+      if (otpPurpose === "delivery") {
+        const result = await updateRideStatus(current._id, "COMPLETED", otp);
+        if (result.ok) {
+          handleDeliveryComplete(result.ride ?? { ...current, status: "COMPLETED" });
+        } else {
+          Alert.alert(
+            "Invalid code",
+            result.message ||
+              (parcel
+                ? getRiderParcelOtpError(mode)
+                : "Ask the customer for the correct delivery code.")
+          );
+        }
+        return;
+      }
+
+      if (otp === current.otp) {
+        const result = await updateRideStatus(current._id, "ARRIVED", otp);
+        if (result.ok) {
+          setOtpModalVisible(false);
+          if (result.ride) setRideData(result.ride);
+        } else {
+          Alert.alert("Technical Error", result.message || "Could not verify OTP.");
+        }
+      } else {
+        Alert.alert("Wrong OTP");
+      }
+    },
+    [otpPurpose, handleDeliveryComplete]
+  );
 
   return (
     <View style={rideStyles.container}>
@@ -261,63 +372,13 @@ const LiveRide = () => {
         contactPhone={courierUi.contactPhone}
         pickupLabel={courierUi.pickupLabel}
         dropLabel={courierUi.dropLabel}
+        actionLoading={actionLoading}
         banner={
           rideData && (isFood || isParcel) ? (
             <RiderDeliveryBanner ride={rideData} variant="inline" />
           ) : undefined
         }
-        onAction={async () => {
-          if (rideData?.status === "START") {
-            if (isFood || isParcel) {
-              const result = await updateRideStatus(rideData?._id, "ARRIVED");
-              if (result.ok) {
-                if (isParcel) {
-                  const alert = getRiderParcelCollectedAlert(parcelMode);
-                  Alert.alert(alert.title, alert.message);
-                } else {
-                  Alert.alert("Picked up", "Food collected — head to the customer");
-                }
-              }
-            } else {
-              setOtpPurpose("pickup");
-              setOtpModalVisible(true);
-            }
-            return;
-          }
-          if (rideData?.status === "ARRIVED") {
-            const result = await updateRideStatus(rideData?._id, "IN_PROGRESS");
-            if (result.ok) {
-              if (isParcel) {
-                const alert = getRiderParcelDeliveryStartedAlert(parcelMode);
-                Alert.alert(alert.title, alert.message);
-              } else {
-                Alert.alert(
-                  isFood ? "On the way" : "Ride Started!",
-                  isFood
-                    ? "Deliver to the customer address"
-                    : "Safe journey to the destination"
-                );
-              }
-            } else {
-              Alert.alert("There was an error");
-            }
-            return;
-          }
-          if (rideData?.status === "IN_PROGRESS") {
-            if (isFood || isParcel) {
-              setOtpPurpose("delivery");
-              setOtpModalVisible(true);
-            } else {
-              const result = await updateRideStatus(rideData?._id, "COMPLETED");
-              if (result.ok) {
-                handleDeliveryComplete(result.ride ?? rideData);
-              } else {
-                Alert.alert("There was an error");
-              }
-            }
-            return;
-          }
-        }}
+        onAction={handlePrimaryAction}
         actionColor={deliveryPhase.swipeColor}
       />
 
@@ -334,34 +395,7 @@ const LiveRide = () => {
               : "Ask the customer for the 4-digit code on their screen."
           }
           confirmLabel={otpPurpose === "delivery" ? "Complete delivery" : "Confirm"}
-          onConfirm={async (otp) => {
-            if (otpPurpose === "delivery") {
-              const result = await updateRideStatus(rideData?._id, "COMPLETED", otp);
-              if (result.ok) {
-                handleDeliveryComplete(result.ride ?? { ...rideData, status: "COMPLETED" });
-              } else {
-                Alert.alert(
-                  "Invalid code",
-                  result.message ||
-                    (isParcel
-                      ? getRiderParcelOtpError(parcelMode)
-                      : "Ask the customer for the correct delivery code.")
-                );
-              }
-              return;
-            }
-            if (otp === rideData?.otp) {
-              const result = await updateRideStatus(rideData?._id, "ARRIVED", otp);
-              if (result.ok) {
-                setOtpModalVisible(false);
-                if (result.ride) setRideData(result.ride);
-              } else {
-                Alert.alert("Technical Error", result.message || "Could not verify OTP.");
-              }
-            } else {
-              Alert.alert("Wrong OTP");
-            }
-          }}
+          onConfirm={handleOtpConfirm}
         />
       )}
 

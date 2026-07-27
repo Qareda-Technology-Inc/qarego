@@ -9,7 +9,7 @@ import {
   TouchableWithoutFeedback,
   Keyboard,
 } from "react-native";
-import React, { memo, useRef, useState, useEffect } from "react";
+import React, { memo, useRef, useState, useEffect, useCallback } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import CustomText from "@/components/shared/CustomText";
 import CustomButton from "@/components/shared/CustomButton";
@@ -21,7 +21,7 @@ interface OtpInputModalProps {
   title: string;
   subtitle?: string;
   confirmLabel?: string;
-  onConfirm: (otp: string) => void;
+  onConfirm: (otp: string) => void | Promise<void>;
 }
 
 const OtpInputModal: React.FC<OtpInputModalProps> = ({
@@ -33,33 +33,58 @@ const OtpInputModal: React.FC<OtpInputModalProps> = ({
   onConfirm,
 }) => {
   const [otp, setOtp] = useState(["", "", "", ""]);
+  const [submitting, setSubmitting] = useState(false);
   const inputs = useRef<Array<TextInput | null>>([]);
+  const onConfirmRef = useRef(onConfirm);
+  const submittedCodeRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    onConfirmRef.current = onConfirm;
+  }, [onConfirm]);
 
   useEffect(() => {
     if (!visible) {
       setOtp(["", "", "", ""]);
+      setSubmitting(false);
+      submittedCodeRef.current = null;
       return;
     }
     const t = setTimeout(() => inputs.current[0]?.focus(), 300);
     return () => clearTimeout(t);
   }, [visible]);
 
+  const submitCode = useCallback(async (code: string) => {
+    if (code.length !== 4) return;
+    // Guard against re-fire from parent re-renders (GPS ticks) while modal stays open.
+    if (submitting || submittedCodeRef.current === code) return;
+    submittedCodeRef.current = code;
+    setSubmitting(true);
+    Keyboard.dismiss();
+    try {
+      await onConfirmRef.current(code);
+    } finally {
+      setSubmitting(false);
+      // Keep submittedCodeRef until digits change — prevents auto-retry storm on wrong OTP.
+    }
+  }, [submitting]);
+
   useEffect(() => {
     const code = otp.join("");
-    if (visible && code.length === 4) {
-      const t = setTimeout(() => {
-        Keyboard.dismiss();
-        onConfirm(code);
-      }, 180);
-      return () => clearTimeout(t);
-    }
-  }, [otp, visible, onConfirm]);
+    if (!visible || code.length !== 4 || submitting) return;
+    if (submittedCodeRef.current === code) return;
+    const t = setTimeout(() => {
+      void submitCode(code);
+    }, 180);
+    return () => clearTimeout(t);
+  }, [otp, visible, submitting, submitCode]);
 
   const handleOtpChange = (value: string, index: number) => {
     if (/^\d$/.test(value) || value === "") {
       const newOtp = [...otp];
       newOtp[index] = value;
       setOtp(newOtp);
+      // User edited — allow a fresh submit attempt.
+      submittedCodeRef.current = null;
       if (value && index < inputs.current.length - 1) {
         inputs.current[index + 1]?.focus();
       }
@@ -70,11 +95,8 @@ const OtpInputModal: React.FC<OtpInputModalProps> = ({
   };
 
   const handleConfirm = () => {
-    const otpValue = otp.join("");
-    if (otpValue.length === 4) {
-      Keyboard.dismiss();
-      onConfirm(otpValue);
-    }
+    submittedCodeRef.current = null;
+    void submitCode(otp.join(""));
   };
 
   return (
@@ -124,15 +146,16 @@ const OtpInputModal: React.FC<OtpInputModalProps> = ({
                 keyboardType="number-pad"
                 maxLength={1}
                 selectTextOnFocus
+                editable={!submitting}
                 returnKeyType="done"
               />
             ))}
           </View>
 
           <CustomButton
-            title={confirmLabel}
+            title={submitting ? "Checking…" : confirmLabel}
             onPress={handleConfirm}
-            disabled={otp.join("").length !== 4}
+            disabled={otp.join("").length !== 4 || submitting}
           />
 
           <TouchableOpacity

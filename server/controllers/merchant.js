@@ -903,6 +903,11 @@ export const myOrderAction = async (req, res) => {
   if (result.error === "invalid_transition") {
     throw new BadRequestError("Cannot perform this action for the current order status");
   }
+  if (result.error === "payment_required") {
+    throw new BadRequestError(
+      result.message || "Customer must complete MoMo payment before accepting this order"
+    );
+  }
   if (result.error === "driver_not_found") {
     throw new BadRequestError("Driver not found");
   }

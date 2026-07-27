@@ -29,6 +29,7 @@ const RideCompletedModal: FC<RideCompletedModalProps> = ({
 
   const fare = ride.fare != null ? Number(ride.fare) : 0;
   const isDelivery = ride.serviceType === "DELIVERY";
+  const isFood = ride.serviceType === "FOOD";
   const isMomo = ride.paymentMethod === "MOBILE_MONEY";
   const isPaid = isMomo && ride.paymentStatus === "PAID";
   const needsPayment =
@@ -36,7 +37,11 @@ const RideCompletedModal: FC<RideCompletedModalProps> = ({
     isMomo &&
     ["UNPAID", "PENDING", "FAILED"].includes(String(ride.paymentStatus));
 
-  const title = isDelivery ? "Delivery completed" : "Ride completed";
+  const title = isFood
+    ? "Order delivered"
+    : isDelivery
+      ? "Delivery completed"
+      : "Ride completed";
   const subtitle = needsPayment
     ? "Amount to pay with mobile money"
     : "Total cost for this trip";
@@ -46,7 +51,7 @@ const RideCompletedModal: FC<RideCompletedModalProps> = ({
       visible={visible}
       animationType="fade"
       transparent
-      onRequestClose={needsPayment ? undefined : onClose}
+      onRequestClose={onClose}
     >
       <View style={styles.overlay}>
         <View style={styles.card}>
@@ -79,16 +84,27 @@ const RideCompletedModal: FC<RideCompletedModalProps> = ({
           ) : null}
 
           {needsPayment ? (
-            <TouchableOpacity
-              style={[styles.button, payBusy && { opacity: 0.7 }]}
-              onPress={onPay}
-              disabled={payBusy}
-              activeOpacity={0.8}
-            >
-              <CustomText fontFamily="SemiBold" fontSize={16} style={styles.buttonText}>
-                {payBusy ? "Opening…" : `Pay ${formatCurrency(fare)} with mobile money`}
-              </CustomText>
-            </TouchableOpacity>
+            <>
+              <TouchableOpacity
+                style={[styles.button, payBusy && { opacity: 0.7 }]}
+                onPress={onPay}
+                disabled={payBusy}
+                activeOpacity={0.8}
+              >
+                <CustomText fontFamily="SemiBold" fontSize={16} style={styles.buttonText}>
+                  {payBusy ? "Opening…" : `Pay ${formatCurrency(fare)} with mobile money`}
+                </CustomText>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.secondaryButton}
+                onPress={onClose}
+                activeOpacity={0.8}
+              >
+                <CustomText fontFamily="Medium" fontSize={14} style={styles.secondaryButtonText}>
+                  Pay later
+                </CustomText>
+              </TouchableOpacity>
+            </>
           ) : (
             <TouchableOpacity
               style={styles.button}
@@ -160,6 +176,16 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     width: "100%",
     alignItems: "center",
+  },
+  secondaryButton: {
+    marginTop: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 24,
+    width: "100%",
+    alignItems: "center",
+  },
+  secondaryButtonText: {
+    color: "#64748b",
   },
   buttonText: {
     color: Colors.text,

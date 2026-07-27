@@ -51,6 +51,8 @@ const LiveTrackingMap: FC<{
   const fitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasFittedRef = useRef(false);
   const isUserInteractingRef = useRef(false);
+  const lastCameraAtRef = useRef(0);
+  const lastCameraCoordRef = useRef<{ latitude: number; longitude: number } | null>(null);
   const [mapReady, setMapReady] = useState(false);
   const [overlaysReady, setOverlaysReady] = useState(false);
 
@@ -124,12 +126,22 @@ const LiveTrackingMap: FC<{
 
   useEffect(() => {
     if (!riderCoord || !isActiveRide || isUserInteractingRef.current) return;
+    const now = Date.now();
+    const prev = lastCameraCoordRef.current;
+    const movedEnough =
+      !prev ||
+      Math.abs(prev.latitude - riderCoord.latitude) > 0.00025 ||
+      Math.abs(prev.longitude - riderCoord.longitude) > 0.00025;
+    // Throttle follow-camera so 2s courier polls don't yank the map.
+    if (!movedEnough || now - lastCameraAtRef.current < 2500) return;
+    lastCameraAtRef.current = now;
+    lastCameraCoordRef.current = riderCoord;
     mapRef.current?.animateCamera(
       {
         center: riderCoord,
         zoom: 15,
       },
-      { duration: 500 }
+      { duration: 800 }
     );
   }, [riderKey, courierRevision, isActiveRide, riderCoord]);
 
@@ -173,7 +185,11 @@ const LiveTrackingMap: FC<{
           isUserInteractingRef.current = false;
         }}
       >
-        {mapReady && overlaysReady && status === "START" && showRiderOnMap && riderCoord && pickupCoord ? (
+        {mapReady && overlaysReady &&
+        (status === "START" || (status === "ARRIVED" && serviceType === "RIDE")) &&
+        showRiderOnMap &&
+        riderCoord &&
+        pickupCoord ? (
           <MapDrivingRoute
             origin={riderCoord}
             destination={pickupCoord}
@@ -183,7 +199,9 @@ const LiveTrackingMap: FC<{
           />
         ) : null}
 
-        {mapReady && overlaysReady && (status === "IN_PROGRESS" || status === "ARRIVED") &&
+        {mapReady && overlaysReady &&
+        (status === "IN_PROGRESS" ||
+          (status === "ARRIVED" && (serviceType === "FOOD" || serviceType === "DELIVERY"))) &&
         showRiderOnMap &&
         riderCoord &&
         dropCoord ? (
@@ -260,7 +278,7 @@ const LiveTrackingMap: FC<{
 
         {mapReady && overlaysReady && showRiderMarker && riderCoord ? (
           <Marker
-            key={`courier-${courierRevision}`}
+            key="courier-marker"
             coordinate={riderCoord}
             anchor={{ x: 0.5, y: 0.5 }}
             zIndex={3}

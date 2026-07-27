@@ -767,7 +767,21 @@ export const retryFoodPaymentPayoutAdmin = async (req, res) => {
       });
     }
 
-    if (order.settlementStatus === "failed") {
+    if (order.settlementStatus === "failed" || order.settlementStatus === "processing") {
+      // Allow reclaim when a leg failed, or when Hubtel accepted but callback never arrived.
+      const details = { ...(order.settlementDetails || {}) };
+      for (const field of ["restaurant", "rider"]) {
+        if (details[field]?.status === "pending") {
+          details[field] = {
+            ...details[field],
+            status: "failed",
+            error: "Retry: previous payout unconfirmed",
+            // New ClientReference on next send (Hubtel may reject duplicate refs).
+            reference: null,
+          };
+        }
+      }
+      order.settlementDetails = details;
       order.settlementStatus = "pending";
       order.settlementError = null;
       await order.save();
@@ -782,7 +796,9 @@ export const retryFoodPaymentPayoutAdmin = async (req, res) => {
           ? "Settlement completed"
           : refreshedOrder?.settlementStatus === "failed"
             ? "Settlement failed — check restaurant/rider payout phones and Hubtel balance"
-            : "Settlement pending — order may not be delivered yet",
+            : refreshedOrder?.settlementStatus === "processing"
+              ? "Disbursement submitted — waiting for Hubtel payout callback"
+              : "Settlement pending — order may not be delivered yet",
       result,
       order: refreshedOrder,
       payment,
@@ -958,8 +974,12 @@ export const assignRideToDriver = async (req, res) => {
 /** POST /admin/payouts/run - Execute weekly payouts: send balance to drivers via Hubtel (MoMo). */
 export const runWeeklyPayouts = async (req, res) => {
   try {
-    const { sendPayment } = await import('../utils/hubtelService.js');
-    const baseUrl = process.env.BASE_URL || process.env.API_BASE_URL || 'http://localhost:3000';
+    const { sendPayment, makeShortHubtelRef, detectGhMomoChannel } = await import('../utils/hubtelService.js');
+    const baseUrl =
+      process.env.BASE_URL ||
+      process.env.PUBLIC_API_URL ||
+      process.env.API_BASE_URL ||
+      'http://localhost:3000';
     const callbackUrl = appendWebhookToken(
       `${baseUrl.replace(/\/$/, '')}/webhooks/hubtel-payout`
     );
@@ -971,7 +991,7 @@ export const runWeeklyPayouts = async (req, res) => {
       const amount = Number(driver.balance);
       if (amount <= 0 || !driver.phone) continue;
 
-      const clientReference = `payout_${driver._id}_${Date.now()}`;
+      const clientReference = makeShortHubtelRef('po', driver._id);
       const result = await sendPayment({
         RecipientName: driver.name || 'Driver',
         RecipientMsisdn: driver.phone,
@@ -979,6 +999,7 @@ export const runWeeklyPayouts = async (req, res) => {
         PrimaryCallbackUrl: callbackUrl,
         Description: 'QareGO Weekly Payout',
         ClientReference: clientReference,
+        Channel: detectGhMomoChannel(driver.phone),
       });
 
       if (result.success) {

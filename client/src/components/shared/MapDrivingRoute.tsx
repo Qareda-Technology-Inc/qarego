@@ -1,4 +1,4 @@
-import React, { memo, useMemo, useState } from "react";
+import React, { memo, useEffect, useMemo, useState } from "react";
 import { Polyline } from "react-native-maps";
 import MapViewDirections from "react-native-maps-directions";
 import { getPoints } from "@/utils/mapUtils";
@@ -35,6 +35,11 @@ const MapDrivingRoute: React.FC<Props> = ({
   const o = useMemo(() => parseMapCoord(origin), [originKey]);
   const d = useMemo(() => parseMapCoord(destination), [destinationKey]);
   const [fallback, setFallback] = useState(false);
+
+  // New origin/destination must retry Directions — don't stick on a prior ZERO_RESULTS.
+  useEffect(() => {
+    setFallback(false);
+  }, [originKey, destinationKey]);
 
   const usePolyline =
     fallback ||

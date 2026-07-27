@@ -487,6 +487,11 @@ export const adminRestaurantOrderAction = async (req, res) => {
   if (result.error === "invalid_transition") {
     throw new BadRequestError("Cannot perform this action for the current order status");
   }
+  if (result.error === "payment_required") {
+    throw new BadRequestError(
+      result.message || "Customer must complete MoMo payment before accepting this order"
+    );
+  }
   if (result.error) throw new BadRequestError(result.error);
 
   res.status(StatusCodes.OK).json({ message: `Order ${action}`, order: result.order });

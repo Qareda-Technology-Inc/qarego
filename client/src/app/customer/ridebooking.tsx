@@ -6,7 +6,6 @@ import {
   Platform,
   useWindowDimensions,
   Alert,
-  Linking,
 } from "react-native";
 import React, { memo, useCallback, useMemo, useState, useEffect } from "react";
 import { useLocalSearchParams } from "expo-router";
@@ -28,6 +27,7 @@ import { RideHomeTheme as T } from "@/styles/rideHomeTheme";
 import { ParcelTheme as P } from "@/styles/parcelTheme";
 import { pickParcelImage } from "@/utils/pickParcelImage";
 import { uploadMediaUri } from "@/service/mediaUpload";
+import { openMapsRoute } from "@/utils/openMapsNavigation";
 import { parseParcelMode, parcelModeLabels, type ParcelMode } from "@/utils/parcelMode";
 import BottomSheet, { BottomSheetScrollView } from "@gorhom/bottom-sheet";
 
@@ -261,37 +261,6 @@ const RideBooking = () => {
     []
   );
 
-  const openExternalRoute = useCallback(() => {
-    if (!pickup || !drop) {
-      Alert.alert("Route unavailable", "Pickup or destination is missing.");
-      return;
-    }
-    const sLat = Number(pickup.latitude);
-    const sLng = Number(pickup.longitude);
-    const dLat = Number(drop.latitude);
-    const dLng = Number(drop.longitude);
-    const googleMapsUrl = Platform.select({
-      ios: `comgooglemaps://?saddr=${sLat},${sLng}&daddr=${dLat},${dLng}&directionsmode=driving`,
-      android: `google.navigation:q=${dLat},${dLng}`,
-    });
-    const appleMapsUrl = `maps://app?saddr=${sLat},${sLng}&daddr=${dLat},${dLng}&dirflg=d`;
-    const webMapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${sLat},${sLng}&destination=${dLat},${dLng}&travelmode=driving`;
-
-    if (Platform.OS === "ios") {
-      Linking.canOpenURL(googleMapsUrl || webMapsUrl)
-        .then((ok) =>
-          ok
-            ? Linking.openURL(googleMapsUrl || webMapsUrl)
-            : Linking.openURL(appleMapsUrl).catch(() => Linking.openURL(webMapsUrl))
-        )
-        .catch(() => Linking.openURL(webMapsUrl));
-      return;
-    }
-    Linking.canOpenURL(googleMapsUrl || webMapsUrl)
-      .then((ok) => Linking.openURL(ok ? (googleMapsUrl || webMapsUrl) : webMapsUrl))
-      .catch(() => Linking.openURL(webMapsUrl));
-  }, [pickup, drop]);
-
   const handlePickParcelPhoto = useCallback(async () => {
     const uri = await pickParcelImage();
     if (!uri) return;
@@ -338,6 +307,14 @@ const RideBooking = () => {
     }
     return null;
   }, [item?.drop_latitude, item?.drop_longitude, item?.drop_address]);
+
+  const openExternalRoute = useCallback(() => {
+    if (!pickup || !drop) {
+      Alert.alert("Route unavailable", "Pickup or destination is missing.");
+      return;
+    }
+    openMapsRoute(pickup, drop);
+  }, [pickup, drop]);
 
   const handleRideBooking = async () => {
     if (!pickup || !drop) {

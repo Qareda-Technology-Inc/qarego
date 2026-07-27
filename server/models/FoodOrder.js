@@ -47,7 +47,7 @@ const foodOrderSchema = new Schema(
     platformNet: { type: Number, default: null, min: 0 },
     settlementStatus: {
       type: String,
-      enum: ["pending", "settled", "failed", "not_required"],
+      enum: ["pending", "processing", "settled", "failed", "not_required"],
       default: "pending",
       index: true,
     },

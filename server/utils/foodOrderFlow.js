@@ -218,6 +218,15 @@ export async function applyRestaurantAction(orderId, action, io, options = {}) {
   switch (action) {
     case "accept":
       if (foodOrder.status !== "PLACED") return { error: "invalid_transition" };
+      if (
+        foodOrder.paymentMethod === "MOBILE_MONEY" &&
+        foodOrder.paymentStatus !== "PAID"
+      ) {
+        return {
+          error: "payment_required",
+          message: "Customer must complete MoMo payment before the kitchen can accept this order",
+        };
+      }
       foodOrder.status = "PREPARING";
       scheduleCourierBroadcast(foodOrder, restaurant);
       break;

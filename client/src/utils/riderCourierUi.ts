@@ -168,7 +168,7 @@ export function getRiderDeliveryPhase(ride?: CourierRide | null): RiderDeliveryP
         ? "Ask the customer for their 4-digit code before handing over"
         : isParcel
           ? "Enter the recipient's delivery code to finish"
-          : "Swipe when you've reached the destination",
+          : "Tap when you've reached the destination",
       accentColor: "#16a34a",
       swipeColor: "#15803d",
     };

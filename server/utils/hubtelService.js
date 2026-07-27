@@ -95,6 +95,29 @@ export function formatPhoneForHubtel(phone) {
 }
 
 /**
+ * Infer Ghana MoMo channel from MSISDN prefix when the user has no stored channel.
+ * Falls back to mtn-gh when unknown.
+ */
+export function detectGhMomoChannel(phone) {
+  const cleaned = formatPhoneForHubtel(phone);
+  const local = cleaned.startsWith('233') ? cleaned.slice(3) : cleaned;
+  const prefix2 = local.slice(0, 2);
+  // Vodafone / Telecel
+  if (['20', '50'].includes(prefix2)) return 'vodafone-gh';
+  // AirtelTigo
+  if (['26', '27', '56', '57'].includes(prefix2)) return 'airteltigo-gh';
+  // MTN (24, 25, 53, 54, 55, 59, …)
+  return 'mtn-gh';
+}
+
+/** Short Hubtel ClientReference (max 32 chars). */
+export function makeShortHubtelRef(prefix, id) {
+  const tail = String(id || '').replace(/\W/g, '').slice(-10);
+  const stamp = Date.now().toString(36).slice(-6);
+  return `${prefix}${tail}${stamp}`.slice(0, 32);
+}
+
+/**
  * Receive payment (collect from driver for top-up). Driver gets MoMo prompt.
  * @param {Object} opts - CustomerMsisdn (233...), Amount, PrimaryCallbackUrl, Description, ClientReference, CustomerName
  * @returns {Promise<{ success: boolean, data?: any, error?: string }>}
@@ -124,6 +147,14 @@ export async function receivePayment(opts) {
       headers: { ...auth, 'Content-Type': 'application/json' },
       timeout: 15000,
     });
+    if (!isHubtelPayoutAccepted(res.data)) {
+      const msg = hubtelResponseError(res.data, 'Hubtel receive rejected');
+      console.error('[Hubtel] Receive rejected:', msg, {
+        clientReference: opts.ClientReference,
+        response: res.data,
+      });
+      return { success: false, error: msg, data: res.data };
+    }
     return { success: true, data: res.data };
   } catch (err) {
     const msg = extractHubtelError(err, 'Hubtel receive request failed');

@@ -25,6 +25,11 @@
           "NSAllowsArbitraryLoads": true,
           "NSAllowsLocalNetworking": true
         },
+        "LSApplicationQueriesSchemes": [
+          "comgooglemaps",
+          "googlechromes",
+          "googlegmail"
+        ],
         "NSPhoneNumberUsageDescription": "We need access to your phone number to pre-fill the login form for faster authentication.",
         "NSPhotoLibraryUsageDescription": "We need access to your photo library to upload your profile picture and documents.",
         "NSCameraUsageDescription": "We need access to your camera to take pictures of your documents."
