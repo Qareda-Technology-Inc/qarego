@@ -118,7 +118,7 @@ export default function ImageUploadField({
             {uploading ? "Uploading…" : value ? "Replace image" : "Upload image"}
           </Button>
           {uploading ? (
-            <p className="text-xs text-gray-500 max-w-xs">
+            <p className="text-xs text-muted max-w-xs">
               Sending to {getMediaUploadBaseUrl()} — can take up to a minute on slow networks.
             </p>
           ) : null}
@@ -148,7 +148,7 @@ export default function ImageUploadField({
         </p>
       ) : null}
       {value ? (
-        <p className="text-xs text-gray-500 break-all max-w-lg">Saved: {value}</p>
+        <p className="text-xs text-muted break-all max-w-lg">Saved: {value}</p>
       ) : null}
     </div>
   );

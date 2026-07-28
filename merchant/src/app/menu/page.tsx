@@ -248,14 +248,14 @@ export default function MenuPage() {
     <div className="max-w-4xl">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <UtensilsCrossed className="h-7 w-7 text-orange-500" />
+          <UtensilsCrossed className="h-7 w-7 text-brand" />
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">{copy.menuNav}</h1>
-            <p className="text-sm text-gray-500 mt-0.5">{copy.menuSubtitle}</p>
+            <h1 className="text-2xl font-bold text-foreground">{copy.menuNav}</h1>
+            <p className="text-sm text-muted mt-0.5">{copy.menuSubtitle}</p>
           </div>
         </div>
         {isOwner && (
-          <Button onClick={openAdd} className="bg-orange-500 hover:bg-orange-600">
+          <Button onClick={openAdd}>
             <Plus className="h-4 w-4 mr-1 inline" /> {copy.menuAddLabel}
           </Button>
         )}
@@ -264,11 +264,11 @@ export default function MenuPage() {
       {isOwner && <MenuCategoryManager onCategoriesChange={setCategories} />}
 
       {isOwner && categories.length > 0 ? (
-        <h2 className="text-sm font-semibold text-gray-900 mb-3">2. Dishes</h2>
+        <h2 className="text-sm font-semibold text-foreground mb-3">2. Dishes</h2>
       ) : null}
 
       {!isOwner && (
-        <p className="text-sm text-gray-500 mb-4">
+        <p className="text-sm text-muted mb-4">
           As a cook you can mark items sold out or available. Ask the owner to change prices.
         </p>
       )}
@@ -276,13 +276,13 @@ export default function MenuPage() {
       {loading ? (
         <p className="text-gray-500">Loading menu…</p>
       ) : items.length === 0 ? (
-        <div className="bg-white rounded-xl border p-12 text-center text-gray-500">
+        <div className="bg-white rounded-2xl border border-border p-12 text-center text-gray-500">
           {categories.length === 0
             ? "Create a category first, then add dishes."
             : "No dishes yet — add your first item."}
         </div>
       ) : (
-        <div className="bg-white rounded-xl border p-4 space-y-6">
+        <div className="bg-white rounded-2xl border border-border p-4 space-y-6">
           {grouped.order.map((category) => {
             const catItems = grouped.acc[category] || [];
             if (!catItems.length) return null;
@@ -305,7 +305,7 @@ export default function MenuPage() {
                     ) : null}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-medium text-gray-900">{item.name}</span>
+                        <span className="font-medium text-foreground">{item.name}</span>
                         {!item.isAvailable && (
                           <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700">
                             Sold out
@@ -319,14 +319,14 @@ export default function MenuPage() {
                         {(item.tags || []).map((t) => (
                           <span
                             key={t}
-                            className="text-xs px-2 py-0.5 rounded-full bg-orange-100 text-orange-800 capitalize"
+                            className="text-xs px-2 py-0.5 rounded-full bg-brand/10 text-brand capitalize"
                           >
                             {t}
                           </span>
                         ))}
                       </div>
                       {item.description ? (
-                        <p className="text-sm text-gray-500 mt-0.5">{item.description}</p>
+                        <p className="text-sm text-muted mt-0.5">{item.description}</p>
                       ) : null}
                       {modifierSummary(item.modifierGroups || []) ? (
                         <p className="text-xs text-indigo-700 mt-1">
@@ -528,7 +528,7 @@ export default function MenuPage() {
             <Button type="button" variant="outline" onClick={() => setModalOpen(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={saving} className="bg-orange-500 hover:bg-orange-600">
+            <Button type="submit" disabled={saving}>
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
             </Button>
           </div>

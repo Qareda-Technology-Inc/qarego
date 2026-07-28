@@ -11,6 +11,7 @@ import {
   createMyCategory,
   deleteMyCategory,
   getMyOverview,
+  getMyFinance,
   getMyRestaurant,
   updateMyRestaurant,
   setAcceptingOrders,
@@ -51,6 +52,7 @@ router.delete("/categories/:id", requireOwner, deleteMyCategory);
 
 // Owner dashboard across all stores
 router.get("/overview", requireOwner, getMyOverview);
+router.get("/finance", requireOwner, getMyFinance);
 
 // Platform kitchen alert (configured by admin)
 router.get("/kitchen-alert-sound", requireMerchantRole, getKitchenAlertSound);

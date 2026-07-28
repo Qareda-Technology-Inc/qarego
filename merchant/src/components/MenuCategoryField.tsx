@@ -19,7 +19,7 @@ export const MENU_ITEM_CATEGORIES = [
 ];
 
 const selectClassName =
-  "flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500";
+  "flex h-11 w-full rounded-xl border border-border bg-white px-3.5 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-brand";
 
 interface MenuCategoryFieldProps {
   id: string;
@@ -43,7 +43,7 @@ export default function MenuCategoryField({
     return Array.from(set);
   }, [value]);
 
-  const ring = accent === "indigo" ? "focus:ring-indigo-500" : "focus:ring-orange-500";
+  const ring = accent === "indigo" ? "focus:ring-indigo-500" : "focus:ring-brand";
 
   return (
     <div>
@@ -52,7 +52,7 @@ export default function MenuCategoryField({
         id={id}
         value={value || "Mains"}
         onChange={(e) => onChange(e.target.value)}
-        className={selectClassName.replace("focus:ring-orange-500", ring)}
+        className={selectClassName.replace("focus:ring-brand", ring)}
         required
       >
         {options.map((c) => (

@@ -92,26 +92,26 @@ export default function OrderHistoryPage() {
   return (
     <div className="max-w-5xl">
       <div className="flex items-center gap-3 mb-2 flex-wrap">
-        <History className="h-7 w-7 text-orange-500" />
-        <h1 className="text-2xl font-bold text-gray-900">Order history</h1>
+        <History className="h-7 w-7 text-brand" />
+        <h1 className="text-2xl font-bold text-foreground">Order history</h1>
         {activeRestaurant && (
-          <span className="text-sm text-gray-500">
+          <span className="text-sm text-muted">
             {activeRestaurant.imageEmoji} {activeRestaurant.name}
           </span>
         )}
         <Link
           href="/orders"
-          className="ml-auto text-sm text-orange-600 hover:underline font-medium"
+          className="ml-auto text-sm text-brand hover:underline font-medium"
         >
           ← {copy.backToOrders}
         </Link>
       </div>
-      <p className="text-gray-600 mb-6">
+      <p className="text-muted mb-6">
         Completed and cancelled orders. Filter by date, status, payment, or search by customer or
         order ID.
       </p>
 
-      <div className="bg-white rounded-xl border p-4 mb-6 space-y-4">
+      <div className="bg-white rounded-2xl border border-border p-4 mb-6 space-y-4">
         <div className="flex flex-col sm:flex-row gap-2">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -121,10 +121,10 @@ export default function OrderHistoryPage() {
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && applySearch()}
-              className="w-full pl-9 pr-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+              className="w-full pl-9 pr-3 py-2.5 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand bg-white"
             />
           </div>
-          <Button onClick={applySearch} className="bg-gray-900 hover:bg-gray-800">
+          <Button onClick={applySearch} variant="secondary">
             Search
           </Button>
         </div>
@@ -171,7 +171,7 @@ export default function OrderHistoryPage() {
             ]}
           />
           <div>
-            <label className="text-xs text-gray-500 block mb-1">From date</label>
+            <label className="text-xs text-muted block mb-1">From date</label>
             <input
               type="date"
               value={from}
@@ -179,11 +179,11 @@ export default function OrderHistoryPage() {
                 setPage(1);
                 setFrom(e.target.value);
               }}
-              className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+              className="w-full border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand bg-white"
             />
           </div>
           <div>
-            <label className="text-xs text-gray-500 block mb-1">To date</label>
+            <label className="text-xs text-muted block mb-1">To date</label>
             <input
               type="date"
               value={to}
@@ -191,7 +191,7 @@ export default function OrderHistoryPage() {
                 setPage(1);
                 setTo(e.target.value);
               }}
-              className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+              className="w-full border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand bg-white"
             />
           </div>
         </div>
@@ -211,7 +211,7 @@ export default function OrderHistoryPage() {
               Clear filters
             </button>
           )}
-          <span className="text-sm text-gray-500 ml-auto">
+          <span className="text-sm text-muted ml-auto">
             {total} order{total === 1 ? "" : "s"}
           </span>
         </div>
@@ -220,13 +220,13 @@ export default function OrderHistoryPage() {
       {loading ? (
         <p className="text-gray-500">Loading orders…</p>
       ) : orders.length === 0 ? (
-        <div className="bg-white rounded-xl border p-12 text-center text-gray-500">
+        <div className="bg-white rounded-2xl border border-border p-12 text-center text-gray-500">
           No orders match your filters
         </div>
       ) : (
         <div className="space-y-4">
           {orders.map((order) => (
-            <div key={order._id} className="bg-white rounded-xl border shadow-sm p-5">
+            <div key={order._id} className="bg-white rounded-2xl border border-border shadow-sm p-5">
               <div className="flex items-start justify-between gap-3 flex-wrap">
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
@@ -241,7 +241,7 @@ export default function OrderHistoryPage() {
                   </div>
                   <p className="text-sm text-gray-600 mt-1">{order.customer?.phone || "—"}</p>
                   {order.delivery?.address && (
-                    <p className="text-sm text-gray-500 mt-1">{order.delivery.address}</p>
+                    <p className="text-sm text-muted mt-1">{order.delivery.address}</p>
                   )}
                 </div>
                 <div className="text-right">
@@ -271,7 +271,7 @@ export default function OrderHistoryPage() {
               </ul>
 
               {order.notes ? (
-                <p className="text-sm text-orange-700 mt-2">Note: {order.notes}</p>
+                <p className="text-sm text-brand mt-2">Note: {order.notes}</p>
               ) : null}
 
               <div className="flex flex-wrap gap-4 mt-3 text-sm text-gray-600">
@@ -331,11 +331,11 @@ function FilterSelect({
 }) {
   return (
     <div>
-      <label className="text-xs text-gray-500 block mb-1">{label}</label>
+      <label className="text-xs text-muted block mb-1">{label}</label>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white"
+        className="w-full border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand bg-white"
       >
         {options.map((o) => (
           <option key={o.value || "all"} value={o.value}>

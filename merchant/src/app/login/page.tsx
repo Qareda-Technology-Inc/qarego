@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/Card";
 import { unlockRestaurantAudio } from "@/lib/sound";
-import { Store, AlertCircle, Loader2 } from "lucide-react";
+import { AlertCircle, Loader2 } from "lucide-react";
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -36,30 +36,33 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-orange-50 to-amber-50 px-4 py-12">
+    <div className="merchant-atmosphere flex min-h-screen items-center justify-center px-4 py-12">
       <div className="w-full max-w-md space-y-8">
-        <div className="flex flex-col items-center">
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-orange-500 shadow-lg mb-6">
-            <Store className="h-8 w-8 text-white" />
+        <div className="flex flex-col items-center text-center">
+          <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-brand-yellow shadow-md ring-1 ring-black/5">
+            <span className="text-2xl font-bold tracking-tight text-foreground">Q</span>
           </div>
-          <h2 className="text-3xl font-bold tracking-tight text-gray-900">QareGO Merchant</h2>
-          <p className="mt-2 text-sm text-gray-600">Manage orders and your product catalog</p>
+          <h1 className="text-4xl font-bold tracking-tight text-foreground">QareGO</h1>
+          <p className="mt-1 text-sm font-medium text-brand">Merchant</p>
+          <p className="mt-3 text-sm text-muted">Orders, menu & kitchen — all in one place</p>
         </div>
 
-        <Card className="border-0 shadow-xl ring-1 ring-gray-900/5">
-          <CardHeader className="space-y-1 pb-6">
-            <CardTitle className="text-xl font-semibold text-center">Sign in</CardTitle>
-            <CardDescription className="text-center">Use the login your administrator gave you</CardDescription>
+        <Card className="border border-border shadow-lg ring-1 ring-slate-900/5">
+          <CardHeader className="space-y-1 pb-4">
+            <CardTitle className="text-xl text-center">Welcome back</CardTitle>
+            <CardDescription className="text-center">
+              Sign in with the login your administrator gave you
+            </CardDescription>
           </CardHeader>
           <CardContent className="pt-0">
             <form onSubmit={handleSubmit} className="space-y-4">
-              {error && (
-                <div className="flex items-center gap-2 rounded-md bg-red-50 p-3 text-sm text-red-700">
+              {error ? (
+                <div className="flex items-center gap-2 rounded-xl bg-red-50 border border-red-100 p-3 text-sm text-red-700">
                   <AlertCircle className="h-4 w-4 flex-shrink-0" />
                   {error}
                 </div>
-              )}
-              <div>
+              ) : null}
+              <div className="space-y-1.5">
                 <Label htmlFor="username">Username</Label>
                 <Input
                   id="username"
@@ -70,7 +73,7 @@ export default function LoginPage() {
                   placeholder="mamas_kitchen"
                 />
               </div>
-              <div>
+              <div className="space-y-1.5">
                 <Label htmlFor="password">Password</Label>
                 <Input
                   id="password"
@@ -81,10 +84,10 @@ export default function LoginPage() {
                   required
                 />
               </div>
-              <Button type="submit" disabled={loading} className="w-full bg-orange-500 hover:bg-orange-600">
+              <Button type="submit" disabled={loading} className="w-full" size="lg">
                 {loading ? (
                   <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Signing in...
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Signing in…
                   </>
                 ) : (
                   "Sign in"
@@ -93,6 +96,8 @@ export default function LoginPage() {
             </form>
           </CardContent>
         </Card>
+
+        <p className="text-center text-xs text-slate-400">Sponsored by Qaretech</p>
       </div>
     </div>
   );

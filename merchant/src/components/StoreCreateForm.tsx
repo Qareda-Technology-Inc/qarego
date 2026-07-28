@@ -40,10 +40,10 @@ const THEME_STYLES = {
     summaryMuted: "text-indigo-700",
   },
   merchant: {
-    accent: "bg-orange-500 hover:bg-orange-600",
-    ring: "focus:ring-orange-500",
-    summary: "border-orange-100 bg-orange-50 text-orange-900",
-    summaryMuted: "text-orange-700",
+    accent: "bg-brand hover:bg-brand/90",
+    ring: "focus:ring-brand",
+    summary: "border-brand/15 bg-brand/5 text-brand",
+    summaryMuted: "text-brand",
   },
 };
 
@@ -75,8 +75,8 @@ export default function StoreCreateForm({
     <form onSubmit={onSubmit} className="space-y-6">
       <section className="space-y-3">
         <div>
-          <h4 className="text-sm font-semibold text-gray-900">1. Module & category tags</h4>
-          <p className="text-xs text-gray-500 mt-0.5">
+          <h4 className="text-sm font-semibold text-foreground">1. Module & category tags</h4>
+          <p className="text-xs text-muted mt-0.5">
             Choose your module, then select every tag that fits — e.g. Fast Food, Pizza, and Desserts
             for a burger & pizza spot.
           </p>
@@ -116,7 +116,7 @@ export default function StoreCreateForm({
                     selected
                       ? theme === "admin"
                         ? "border-indigo-500 bg-indigo-50 text-indigo-800"
-                        : "border-orange-500 bg-orange-50 text-orange-800"
+                        : "border-brand bg-brand/5 text-brand"
                       : "border-gray-200 bg-white text-gray-700 hover:border-gray-300"
                   }`}
                 >
@@ -126,10 +126,10 @@ export default function StoreCreateForm({
             })}
           </div>
         ) : (
-          <p className="text-xs text-gray-500">Select a module first, then pick one or more tags.</p>
+          <p className="text-xs text-muted">Select a module first, then pick one or more tags.</p>
         )}
         {showAdminStoreTypesLink ? (
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-muted">
             Missing a tag? Add it under{" "}
             <Link href="/store-types" className="text-indigo-600 font-medium hover:underline">
               Store types
@@ -137,7 +137,7 @@ export default function StoreCreateForm({
             .
           </p>
         ) : (
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-muted">
             Pick every tag that describes what you sell so customers can find you in search.
           </p>
         )}
@@ -153,8 +153,8 @@ export default function StoreCreateForm({
 
       <section className="space-y-3">
         <div>
-          <h4 className="text-sm font-semibold text-gray-900">2. Store details</h4>
-          <p className="text-xs text-gray-500 mt-0.5">Name and short description customers will see.</p>
+          <h4 className="text-sm font-semibold text-foreground">2. Store details</h4>
+          <p className="text-xs text-muted mt-0.5">Name and short description customers will see.</p>
         </div>
         <div>
           <Label htmlFor="storeName">Store name</Label>
@@ -191,8 +191,8 @@ export default function StoreCreateForm({
 
       <section className="space-y-3">
         <div>
-          <h4 className="text-sm font-semibold text-gray-900">3. Delivery settings</h4>
-          <p className="text-xs text-gray-500 mt-0.5">Fees and timing shown at checkout.</p>
+          <h4 className="text-sm font-semibold text-foreground">3. Delivery settings</h4>
+          <p className="text-xs text-muted mt-0.5">Fees and timing shown at checkout.</p>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div>
@@ -211,7 +211,7 @@ export default function StoreCreateForm({
               disabled={vertical === "FOOD" || !hasTags}
             />
             {vertical === "FOOD" ? (
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-muted mt-1">
                 Food delivery cost is calculated automatically on the customer cart using distance.
               </p>
             ) : null}
@@ -254,8 +254,8 @@ export default function StoreCreateForm({
 
       <section className="space-y-3">
         <div>
-          <h4 className="text-sm font-semibold text-gray-900">4. Store location</h4>
-          <p className="text-xs text-gray-500 mt-0.5">Search or tap the map — riders use this for pickup.</p>
+          <h4 className="text-sm font-semibold text-foreground">4. Store location</h4>
+          <p className="text-xs text-muted mt-0.5">Search or tap the map — riders use this for pickup.</p>
         </div>
         <StoreLocationPicker
           value={location}

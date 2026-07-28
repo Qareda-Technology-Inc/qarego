@@ -121,21 +121,21 @@ export default function StoresPage() {
     <div className="max-w-4xl">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-2">
         <div className="flex items-center gap-3">
-          <Store className="h-7 w-7 text-orange-500 shrink-0" />
-          <h1 className="text-2xl font-bold text-gray-900">Stores</h1>
+          <Store className="h-7 w-7 text-brand shrink-0" />
+          <h1 className="text-2xl font-bold text-foreground">Stores</h1>
         </div>
-        <Button onClick={openAdd} className="bg-orange-500 hover:bg-orange-600 w-full sm:w-auto">
+        <Button onClick={openAdd} className="w-full sm:w-auto">
           <Plus className="h-4 w-4 mr-1 inline" /> Add store
         </Button>
       </div>
-      <p className="text-gray-600 mb-6">
+      <p className="text-muted mb-6">
         Each store has its own menu, pickup location, and orders. Switch the active store in the sidebar, or open settings below.
       </p>
 
       {loading ? (
         <p className="text-gray-500">Loading stores…</p>
       ) : stores.length === 0 ? (
-        <div className="bg-white rounded-xl border p-12 text-center text-gray-500">
+        <div className="bg-white rounded-2xl border border-border p-12 text-center text-gray-500">
           You have no stores yet. Add your first one to start taking orders.
         </div>
       ) : (
@@ -145,17 +145,17 @@ export default function StoresPage() {
             return (
               <div
                 key={s._id}
-                className={`bg-white rounded-xl border p-5 ${isActive ? "ring-2 ring-orange-400" : ""}`}
+                className={`bg-white rounded-2xl border border-border p-5 ${isActive ? "ring-2 ring-brand" : ""}`}
               >
                 <div className="flex items-start justify-between">
                   <div className="min-w-0">
-                    <p className="text-lg font-semibold text-gray-900 truncate">
+                    <p className="text-lg font-semibold text-foreground truncate">
                       {s.imageEmoji} {s.name}
                     </p>
-                    <p className="text-sm text-gray-500 truncate">{s.address}</p>
+                    <p className="text-sm text-muted truncate">{s.address}</p>
                   </div>
                   {isActive && (
-                    <span className="text-xs font-medium text-orange-600 flex items-center gap-1 shrink-0">
+                    <span className="text-xs font-medium text-brand flex items-center gap-1 shrink-0">
                       <CheckCircle2 className="h-4 w-4" /> Active
                     </span>
                   )}
@@ -188,7 +188,7 @@ export default function StoresPage() {
                     </Button>
                   ) : (
                     <Button
-                      className="w-full bg-orange-500 hover:bg-orange-600"
+                      className="w-full"
                       onClick={() => setActiveRestaurant(s._id, "/orders")}
                     >
                       Switch to this store

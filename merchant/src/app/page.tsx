@@ -18,6 +18,7 @@ import {
   Plus,
   ChefHat,
   ArrowRight,
+  Wallet,
 } from "lucide-react";
 
 type StoreOverview = {
@@ -87,10 +88,19 @@ export default function HomePage() {
   return (
     <div className="max-w-6xl">
       <div className="flex items-center gap-3 mb-2">
-        <LayoutDashboard className="h-7 w-7 text-orange-500" />
-        <h1 className="text-2xl font-bold text-gray-900">Overview</h1>
+        <LayoutDashboard className="h-7 w-7 text-brand" />
+        <h1 className="text-2xl font-bold text-foreground">Overview</h1>
+        <Button
+          variant="outline"
+          size="sm"
+          className="ml-auto"
+          onClick={() => router.push("/transactions")}
+        >
+          <Wallet className="h-4 w-4 mr-1 inline" />
+          Transactions
+        </Button>
       </div>
-      <p className="text-gray-600 mb-6">
+      <p className="text-muted mb-6">
         Welcome back{user?.name ? `, ${user.name}` : ""}. Here&apos;s how all your stores are doing today.
       </p>
 
@@ -112,7 +122,7 @@ export default function HomePage() {
       </div>
 
       <div className="flex items-center justify-between mb-3">
-        <h2 className="text-lg font-semibold text-gray-900">Your stores</h2>
+        <h2 className="text-lg font-semibold text-foreground">Your stores</h2>
         <Button variant="outline" onClick={() => router.push("/stores")}>
           <Plus className="h-4 w-4 mr-1 inline" /> Add store
         </Button>
@@ -121,9 +131,9 @@ export default function HomePage() {
       {loading ? (
         <p className="text-gray-500">Loading…</p>
       ) : stores.length === 0 ? (
-        <div className="bg-white rounded-xl border p-12 text-center text-gray-500">
+        <div className="bg-white rounded-2xl border border-border p-12 text-center text-gray-500">
           You don&apos;t have any stores yet.{" "}
-          <button onClick={() => router.push("/stores")} className="text-orange-600 font-medium hover:underline">
+          <button onClick={() => router.push("/stores")} className="text-brand font-medium hover:underline">
             Create your first store
           </button>
           .
@@ -135,16 +145,16 @@ export default function HomePage() {
             return (
             <div
               key={s._id}
-              className={`bg-white rounded-xl border p-5 ${
-                s._id === activeRestaurantId ? "ring-2 ring-orange-300" : ""
+              className={`bg-white rounded-2xl border border-border p-5 ${
+                s._id === activeRestaurantId ? "ring-2 ring-brand/40" : ""
               }`}
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-lg font-semibold text-gray-900 truncate">
+                  <p className="text-lg font-semibold text-foreground truncate">
                     {s.imageEmoji} {s.name}
                   </p>
-                  <p className="text-sm text-gray-500 truncate">{s.address || s.cuisine}</p>
+                  <p className="text-sm text-muted truncate">{s.address || s.cuisine}</p>
                 </div>
                 <div className="flex flex-col items-end gap-1 shrink-0">
                   <span
@@ -184,7 +194,7 @@ export default function HomePage() {
 
               <div className="mt-4">
                 <Button
-                  className="w-full bg-orange-500 hover:bg-orange-600"
+                  className="w-full"
                   onClick={() => openKitchen(s._id)}
                 >
                   {storeCopy.openOrders} <ArrowRight className="h-4 w-4 ml-1 inline" />
@@ -211,12 +221,12 @@ function StatCard({
   highlight?: boolean;
 }) {
   return (
-    <div className={`rounded-xl border p-4 ${highlight ? "bg-orange-50 border-orange-200" : "bg-white"}`}>
+    <div className={`rounded-2xl border border-border p-4 ${highlight ? "bg-brand/5 border-brand/20" : "bg-white"}`}>
       <div className="flex items-center gap-2 text-gray-500">
         <Icon className="h-4 w-4" />
         <span className="text-xs">{label}</span>
       </div>
-      <p className={`text-xl font-bold mt-1 ${highlight ? "text-orange-600" : "text-gray-900"}`}>{value}</p>
+      <p className={`text-xl font-bold mt-1 ${highlight ? "text-brand" : "text-gray-900"}`}>{value}</p>
     </div>
   );
 }
@@ -224,7 +234,7 @@ function StatCard({
 function Metric({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
   return (
     <div className="rounded-lg bg-gray-50 py-2">
-      <p className={`text-base font-bold ${highlight ? "text-orange-600" : "text-gray-900"}`}>{value}</p>
+      <p className={`text-base font-bold ${highlight ? "text-brand" : "text-gray-900"}`}>{value}</p>
       <p className="text-[11px] text-gray-500">{label}</p>
     </div>
   );

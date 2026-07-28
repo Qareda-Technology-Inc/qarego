@@ -297,6 +297,302 @@ export const getMyOverview = async (req, res) => {
   res.status(StatusCodes.OK).json({ totals, stores });
 };
 
+/**
+ * GET /merchant/finance — owner earnings across all stores or one store.
+ * Query: from, to (YYYY-MM-DD), restaurantId=all|<id>, page, limit
+ */
+export const getMyFinance = async (req, res) => {
+  const {
+    from,
+    to,
+    restaurantId: restaurantIdParam = "all",
+    page = 1,
+    limit = 25,
+  } = req.query;
+
+  const restaurants = await Restaurant.find({ owner: req.user.id })
+    .select("name imageEmoji")
+    .sort({ createdAt: 1 })
+    .lean();
+
+  if (!restaurants.length) {
+    return res.status(StatusCodes.OK).json({
+      from: null,
+      to: null,
+      scope: { restaurantId: "all" },
+      summary: emptyFinanceSummary(),
+      byStore: [],
+      transactions: [],
+      total: 0,
+      page: 1,
+      pages: 1,
+    });
+  }
+
+  const ownedIds = restaurants.map((r) => r._id);
+  const ownedKey = new Set(ownedIds.map(String));
+
+  let scopeIds = ownedIds;
+  let scopeRestaurantId = "all";
+  let storeName;
+
+  if (restaurantIdParam && String(restaurantIdParam) !== "all") {
+    const id = String(restaurantIdParam);
+    if (!ownedKey.has(id)) {
+      throw new BadRequestError("Store not found or not owned by you");
+    }
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      throw new BadRequestError("Invalid store id");
+    }
+    scopeIds = [new mongoose.Types.ObjectId(id)];
+    scopeRestaurantId = id;
+    storeName = restaurants.find((r) => String(r._id) === id)?.name;
+  }
+
+  const now = new Date();
+  const defaultFrom = new Date(now);
+  defaultFrom.setDate(defaultFrom.getDate() - 29);
+  defaultFrom.setHours(0, 0, 0, 0);
+
+  const createdAt = {};
+  if (from) {
+    const start = new Date(from);
+    if (!Number.isNaN(start.getTime())) {
+      start.setHours(0, 0, 0, 0);
+      createdAt.$gte = start;
+    }
+  } else {
+    createdAt.$gte = defaultFrom;
+  }
+  if (to) {
+    const end = new Date(to);
+    if (!Number.isNaN(end.getTime())) {
+      end.setHours(23, 59, 59, 999);
+      createdAt.$lte = end;
+    }
+  } else {
+    const end = new Date(now);
+    end.setHours(23, 59, 59, 999);
+    createdAt.$lte = end;
+  }
+
+  const rangeFrom = createdAt.$gte;
+  const rangeTo = createdAt.$lte;
+
+  const match = {
+    restaurant: { $in: scopeIds },
+    status: { $ne: "CANCELLED" },
+    createdAt,
+  };
+
+  const moneyFields = {
+    gross: { $ifNull: ["$subtotal", 0] },
+    commission: { $ifNull: ["$restaurantCommission", 0] },
+    net: {
+      $ifNull: [
+        "$restaurantNet",
+        { $subtract: [{ $ifNull: ["$subtotal", 0] }, { $ifNull: ["$restaurantCommission", 0] }] },
+      ],
+    },
+  };
+
+  const pageNum = Math.max(1, parseInt(page, 10) || 1);
+  const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 25));
+  const skip = (pageNum - 1) * limitNum;
+
+  const [summaryAgg, byStoreAgg, byPaymentAgg, total, transactions] = await Promise.all([
+    FoodOrder.aggregate([
+      { $match: match },
+      {
+        $group: {
+          _id: null,
+          orderCount: { $sum: 1 },
+          grossSales: { $sum: moneyFields.gross },
+          commission: { $sum: moneyFields.commission },
+          netEarnings: { $sum: moneyFields.net },
+          settled: {
+            $sum: {
+              $cond: [{ $eq: ["$settlementStatus", "settled"] }, moneyFields.net, 0],
+            },
+          },
+          pendingSettlement: {
+            $sum: {
+              $cond: [
+                {
+                  $in: [
+                    { $ifNull: ["$settlementStatus", "pending"] },
+                    ["pending", "processing", "failed"],
+                  ],
+                },
+                moneyFields.net,
+                0,
+              ],
+            },
+          },
+        },
+      },
+    ]),
+    FoodOrder.aggregate([
+      { $match: match },
+      {
+        $group: {
+          _id: "$restaurant",
+          orderCount: { $sum: 1 },
+          grossSales: { $sum: moneyFields.gross },
+          commission: { $sum: moneyFields.commission },
+          netEarnings: { $sum: moneyFields.net },
+        },
+      },
+    ]),
+    FoodOrder.aggregate([
+      { $match: match },
+      {
+        $group: {
+          _id: { $ifNull: ["$paymentMethod", "UNKNOWN"] },
+          orderCount: { $sum: 1 },
+          netEarnings: { $sum: moneyFields.net },
+          grossSales: { $sum: moneyFields.gross },
+        },
+      },
+    ]),
+    FoodOrder.countDocuments(match),
+    FoodOrder.find(match)
+      .select(
+        "restaurant status paymentMethod paymentStatus subtotal restaurantCommission restaurantNet settlementStatus settledAt createdAt customer"
+      )
+      .populate("customer", "name phone")
+      .populate("restaurant", "name imageEmoji")
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limitNum)
+      .lean(),
+  ]);
+
+  const raw = summaryAgg[0] || {};
+  const summary = {
+    orderCount: raw.orderCount || 0,
+    grossSales: round2(raw.grossSales),
+    commission: round2(raw.commission),
+    netEarnings: round2(raw.netEarnings),
+    settled: round2(raw.settled),
+    pendingSettlement: round2(raw.pendingSettlement),
+    byPaymentMethod: {
+      CASH: { orderCount: 0, grossSales: 0, netEarnings: 0 },
+      MOBILE_MONEY: { orderCount: 0, grossSales: 0, netEarnings: 0 },
+    },
+  };
+
+  for (const row of byPaymentAgg) {
+    const key = row._id === "CASH" || row._id === "MOBILE_MONEY" ? row._id : null;
+    if (!key) continue;
+    summary.byPaymentMethod[key] = {
+      orderCount: row.orderCount || 0,
+      grossSales: round2(row.grossSales),
+      netEarnings: round2(row.netEarnings),
+    };
+  }
+
+  const storeMap = new Map(restaurants.map((r) => [String(r._id), r]));
+  const byStore = byStoreAgg
+    .map((row) => {
+      const id = String(row._id);
+      const store = storeMap.get(id);
+      return {
+        restaurantId: id,
+        name: store?.name || "Store",
+        imageEmoji: store?.imageEmoji,
+        orderCount: row.orderCount || 0,
+        grossSales: round2(row.grossSales),
+        commission: round2(row.commission),
+        netEarnings: round2(row.netEarnings),
+      };
+    })
+    .sort((a, b) => b.netEarnings - a.netEarnings);
+
+  // Include owned stores with zero activity in the selected range when viewing all
+  if (scopeRestaurantId === "all") {
+    const seen = new Set(byStore.map((s) => s.restaurantId));
+    for (const r of restaurants) {
+      const id = String(r._id);
+      if (seen.has(id)) continue;
+      byStore.push({
+        restaurantId: id,
+        name: r.name,
+        imageEmoji: r.imageEmoji,
+        orderCount: 0,
+        grossSales: 0,
+        commission: 0,
+        netEarnings: 0,
+      });
+    }
+  }
+
+  const txRows = transactions.map((o) => {
+    const gross = Number(o.subtotal) || 0;
+    const commission = Number(o.restaurantCommission) || 0;
+    const net =
+      o.restaurantNet != null
+        ? Number(o.restaurantNet)
+        : Math.max(0, gross - commission);
+    return {
+      _id: o._id,
+      createdAt: o.createdAt,
+      status: o.status,
+      paymentMethod: o.paymentMethod,
+      paymentStatus: o.paymentStatus,
+      settlementStatus: o.settlementStatus,
+      settledAt: o.settledAt,
+      subtotal: gross,
+      restaurantCommission: commission,
+      restaurantNet: net,
+      customer: o.customer
+        ? { name: o.customer.name, phone: o.customer.phone }
+        : null,
+      restaurant: o.restaurant
+        ? {
+            _id: o.restaurant._id,
+            name: o.restaurant.name,
+            imageEmoji: o.restaurant.imageEmoji,
+          }
+        : null,
+    };
+  });
+
+  res.status(StatusCodes.OK).json({
+    from: rangeFrom ? rangeFrom.toISOString().slice(0, 10) : null,
+    to: rangeTo ? rangeTo.toISOString().slice(0, 10) : null,
+    scope: {
+      restaurantId: scopeRestaurantId,
+      storeName: storeName || null,
+    },
+    summary,
+    byStore,
+    transactions: txRows,
+    total,
+    page: pageNum,
+    pages: Math.ceil(total / limitNum) || 1,
+  });
+};
+
+function emptyFinanceSummary() {
+  return {
+    orderCount: 0,
+    grossSales: 0,
+    commission: 0,
+    netEarnings: 0,
+    settled: 0,
+    pendingSettlement: 0,
+    byPaymentMethod: {
+      CASH: { orderCount: 0, grossSales: 0, netEarnings: 0 },
+      MOBILE_MONEY: { orderCount: 0, grossSales: 0, netEarnings: 0 },
+    },
+  };
+}
+
+function round2(n) {
+  return Math.round((Number(n) || 0) * 100) / 100;
+}
+
 /** GET /merchant/restaurant — my restaurant profile */
 export const getMyRestaurant = async (req, res) => {
   const restaurant = await Restaurant.findById(req.restaurantId)

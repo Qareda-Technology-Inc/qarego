@@ -1,28 +1,42 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f4f7fb;
+  --foreground: #0f172a;
+  --brand: #cf551f;
+  --brand-yellow: #edd228;
+  --brand-blue: #3c75be;
+  --surface: #ffffff;
+  --muted: #64748b;
+  --border: #e2e8f0;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+  --color-brand: var(--brand);
+  --color-brand-yellow: var(--brand-yellow);
+  --color-brand-blue: var(--brand-blue);
+  --color-surface: var(--surface);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --font-sans: "Segoe UI", ui-sans-serif, system-ui, -apple-system, Roboto, "Helvetica Neue", Arial,
     sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New",
     monospace;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
+}
+
+/* Soft atmosphere orbs helper for branded auth screens */
+.merchant-atmosphere {
+  background:
+    radial-gradient(ellipse 80% 50% at 100% -10%, rgba(237, 210, 40, 0.28), transparent 55%),
+    radial-gradient(ellipse 60% 40% at -10% 40%, rgba(60, 117, 190, 0.12), transparent 50%),
+    radial-gradient(ellipse 50% 30% at 90% 100%, rgba(207, 85, 31, 0.1), transparent 45%),
+    #f4f7fb;
 }

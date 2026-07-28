@@ -192,10 +192,10 @@ export default function OrdersPage() {
   return (
     <div className="max-w-5xl">
       <div className="flex items-center gap-3 mb-2 flex-wrap">
-        <ClipboardList className="h-7 w-7 text-orange-500" />
-        <h1 className="text-2xl font-bold text-gray-900">{copy.ordersTitle}</h1>
+        <ClipboardList className="h-7 w-7 text-brand" />
+        <h1 className="text-2xl font-bold text-foreground">{copy.ordersTitle}</h1>
         {activeRestaurant && (
-          <span className="text-sm text-gray-500">
+          <span className="text-sm text-muted">
             {activeRestaurant.imageEmoji} {activeRestaurant.name}
           </span>
         )}
@@ -209,13 +209,13 @@ export default function OrdersPage() {
           {live ? "Live" : "Connecting…"}
         </span>
       </div>
-      <p className="text-gray-600 mb-4">
+      <p className="text-muted mb-4">
         Accept new orders, then <strong>Mark ready</strong> (broadcast to all online riders) or{" "}
         <strong>Assign rider</strong> (send directly to one driver).
       </p>
 
       {restaurant && (
-        <div className="bg-white rounded-xl border p-4 mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="bg-white rounded-2xl border border-border p-4 mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <span
               className={`inline-block h-2.5 w-2.5 rounded-full ${
@@ -223,8 +223,8 @@ export default function OrdersPage() {
               }`}
             />
             <div>
-              <p className="font-medium text-gray-900">{openState?.label ?? "—"}</p>
-              <p className="text-xs text-gray-500">
+              <p className="font-medium text-foreground">{openState?.label ?? "—"}</p>
+              <p className="text-xs text-muted">
                 {openState?.status === "closed"
                   ? `Outside opening hours${openState.todayHours ? ` · today ${openState.todayHours}` : ""}`
                   : restaurant.isAcceptingOrders === false
@@ -264,8 +264,8 @@ export default function OrdersPage() {
           <button
             key={f}
             onClick={() => setFilter(f)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium ${
-              filter === f ? "bg-orange-500 text-white" : "bg-white text-gray-700 hover:bg-gray-100 border"
+            className={`px-4 py-2 rounded-xl text-sm font-medium ${
+              filter === f ? "bg-brand text-white" : "bg-white text-gray-700 hover:bg-gray-100 border"
             }`}
           >
             {f === "pending" ? "New" : f === "active" ? copy.activeFilter : "All"}
@@ -276,7 +276,7 @@ export default function OrdersPage() {
             load();
             loadStats();
           }}
-          className="px-4 py-2 rounded-lg text-sm bg-gray-900 text-white ml-auto flex items-center gap-1"
+          className="px-4 py-2 rounded-xl text-sm bg-slate-900 text-white ml-auto flex items-center gap-1"
         >
           <RefreshCw className="h-4 w-4" /> Refresh
         </button>
@@ -285,7 +285,7 @@ export default function OrdersPage() {
       {loading ? (
         <p className="text-gray-500">Loading orders…</p>
       ) : orders.length === 0 ? (
-        <div className="bg-white rounded-xl border p-12 text-center text-gray-500">
+        <div className="bg-white rounded-2xl border border-border p-12 text-center text-gray-500">
           No orders in this view
         </div>
       ) : (
@@ -293,7 +293,7 @@ export default function OrdersPage() {
           {orders.map((order) => (
             <div
               key={order._id}
-              className="bg-white rounded-xl border shadow-sm p-5 flex flex-col md:flex-row md:items-start gap-4"
+              className="bg-white rounded-2xl border border-border shadow-sm p-5 flex flex-col md:flex-row md:items-start gap-4"
             >
               <div className="flex-1">
                 <div className="flex items-center gap-2 flex-wrap">
@@ -302,7 +302,7 @@ export default function OrdersPage() {
                   <PaymentBadge method={order.paymentMethod} />
                 </div>
                 <p className="text-sm text-gray-600 mt-1">{order.customer?.phone || "—"}</p>
-                <p className="text-sm text-gray-500 mt-1">{order.delivery?.address}</p>
+                <p className="text-sm text-muted mt-1">{order.delivery?.address}</p>
                 <ul className="mt-3 text-sm text-gray-800 space-y-2">
                   {order.items?.map((item, i) => (
                     <li key={i}>
@@ -310,7 +310,7 @@ export default function OrdersPage() {
                         {item.quantity}× {item.name} — {formatCurrency(item.price * item.quantity)}
                       </span>
                       {item.modifiers?.length ? (
-                        <ul className="mt-1 ml-4 text-xs text-gray-500 space-y-0.5">
+                        <ul className="mt-1 ml-4 text-xs text-muted space-y-0.5">
                           {item.modifiers.map((mod, j) => (
                             <li key={j}>+ {formatOrderModifierLine(mod)}</li>
                           ))}
@@ -320,7 +320,7 @@ export default function OrdersPage() {
                   ))}
                 </ul>
                 {order.notes ? (
-                  <p className="text-sm text-orange-700 mt-2">Note: {order.notes}</p>
+                  <p className="text-sm text-brand mt-2">Note: {order.notes}</p>
                 ) : null}
                 <p className="font-semibold mt-3">{formatCurrency(order.subtotal)} total</p>
                 <p className="text-xs text-gray-400 mt-1">
@@ -339,7 +339,7 @@ export default function OrdersPage() {
                   <div className="mt-3">
                     <button
                       onClick={() => setMapOrderId(mapOrderId === order._id ? null : order._id)}
-                      className="text-sm text-orange-600 font-medium flex items-center gap-1 hover:underline"
+                      className="text-sm text-brand font-medium flex items-center gap-1 hover:underline"
                     >
                       <MapPin className="h-4 w-4" />
                       {mapOrderId === order._id ? "Hide map" : "View delivery on map"}
@@ -399,7 +399,7 @@ export default function OrdersPage() {
                     <Button
                       disabled={acting === order._id}
                       onClick={() => act(order._id, "ready")}
-                      className="bg-orange-500 hover:bg-orange-600"
+                     
                     >
                       <ChefHat className="h-4 w-4 mr-1 inline" /> Mark ready
                     </Button>
@@ -472,9 +472,9 @@ export default function OrdersPage() {
 
 function StatCard({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
   return (
-    <div className={`rounded-xl border p-4 ${highlight ? "bg-orange-50 border-orange-200" : "bg-white"}`}>
-      <p className="text-xs text-gray-500">{label}</p>
-      <p className={`text-xl font-bold ${highlight ? "text-orange-600" : "text-gray-900"}`}>{value}</p>
+    <div className={`rounded-2xl border border-border p-4 ${highlight ? "bg-brand/5 border-brand/20" : "bg-white"}`}>
+      <p className="text-xs text-muted">{label}</p>
+      <p className={`text-xl font-bold ${highlight ? "text-brand" : "text-gray-900"}`}>{value}</p>
     </div>
   );
 }

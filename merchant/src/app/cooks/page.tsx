@@ -121,35 +121,35 @@ export default function CooksPage() {
     <div className="max-w-4xl">
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-3">
-          <ChefHat className="h-7 w-7 text-orange-500" />
-          <h1 className="text-2xl font-bold text-gray-900">{copy.cooksNav}</h1>
+          <ChefHat className="h-7 w-7 text-brand" />
+          <h1 className="text-2xl font-bold text-foreground">{copy.cooksNav}</h1>
         </div>
-        <Button onClick={() => setModalOpen(true)} className="bg-orange-500 hover:bg-orange-600">
+        <Button onClick={() => setModalOpen(true)}>
           <Plus className="h-4 w-4 mr-1 inline" /> Add cook
         </Button>
       </div>
-      <p className="text-gray-600 mb-6">
+      <p className="text-muted mb-6">
         {copy.cooksDescription}
       </p>
 
       {loading ? (
         <p className="text-gray-500">Loading…</p>
       ) : cooks.length === 0 ? (
-        <div className="bg-white rounded-xl border p-12 text-center text-gray-500">
+        <div className="bg-white rounded-2xl border border-border p-12 text-center text-gray-500">
           {copy.cooksEmpty}
         </div>
       ) : (
-        <div className="bg-white rounded-xl border divide-y">
+        <div className="bg-white rounded-2xl border border-border divide-y">
           {cooks.map((cook) => (
             <div key={cook._id} className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 p-4">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="font-medium text-gray-900">{cook.name}</span>
+                  <span className="font-medium text-foreground">{cook.name}</span>
                   {cook.isSuspended && (
                     <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700">Disabled</span>
                   )}
                 </div>
-                <p className="text-sm text-gray-500 truncate">@{cook.username}{cook.phone ? ` · ${cook.phone}` : ""}</p>
+                <p className="text-sm text-muted truncate">@{cook.username}{cook.phone ? ` · ${cook.phone}` : ""}</p>
               </div>
               <div className="flex items-center gap-2 flex-wrap">
                 <Button variant="outline" size="sm" onClick={() => setPwModal(cook)}>
@@ -217,7 +217,7 @@ export default function CooksPage() {
             <Button type="button" variant="outline" onClick={() => setModalOpen(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={saving} className="bg-orange-500 hover:bg-orange-600">
+            <Button type="submit" disabled={saving}>
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Add cook"}
             </Button>
           </div>
@@ -240,7 +240,7 @@ export default function CooksPage() {
             <Button type="button" variant="outline" onClick={() => setPwModal(null)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={saving} className="bg-orange-500 hover:bg-orange-600">
+            <Button type="submit" disabled={saving}>
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Update"}
             </Button>
           </div>

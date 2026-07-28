@@ -188,7 +188,7 @@ export default function MenuModifierEditor({
         </p>
 
         {groups.length === 0 ? (
-          <p className="text-sm text-gray-500 bg-gray-50 rounded-lg px-3 py-4 text-center">
+          <p className="text-sm text-muted bg-gray-50 rounded-lg px-3 py-4 text-center">
             No modifiers yet. Add a choice group or optional add-ons below.
           </p>
         ) : null}
@@ -215,7 +215,7 @@ export default function MenuModifierEditor({
               </Button>
             </div>
 
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-muted">
               {group.kind === "choose_one"
                 ? "Customer picks one option (e.g. Fried or Grilled)."
                 : "Customer can tick multiple add-ons with optional extra charges."}
@@ -282,7 +282,7 @@ export default function MenuModifierEditor({
                 Add option
               </Button>
               {group.options.some((o) => o.priceDelta > 0) ? (
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-muted">
                   Extra charges are added to the dish base price at checkout.
                 </p>
               ) : null}
@@ -309,7 +309,7 @@ export default function MenuModifierEditor({
             type="button"
             disabled={saving}
             onClick={save}
-            className="bg-orange-500 hover:bg-orange-600"
+           
           >
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save modifiers"}
           </Button>

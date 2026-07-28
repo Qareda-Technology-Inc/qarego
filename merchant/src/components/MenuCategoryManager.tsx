@@ -117,15 +117,15 @@ export default function MenuCategoryManager({
   };
 
   return (
-    <div className="bg-white rounded-xl border p-4 mb-6">
-      <h2 className="text-sm font-semibold text-gray-900 mb-1">1. Categories</h2>
-      <p className="text-xs text-gray-500 mb-4">
+    <div className="bg-white rounded-2xl border border-border p-4 mb-6">
+      <h2 className="text-sm font-semibold text-foreground mb-1">1. Categories</h2>
+      <p className="text-xs text-muted mb-4">
         Organize your menu into sections — e.g. Main Dishes, Drinks, Sides. Choose row (side scroll)
         or column (grid) for how customers browse items.
       </p>
 
       {loading ? (
-        <p className="text-sm text-gray-500">Loading categories…</p>
+        <p className="text-sm text-muted">Loading categories…</p>
       ) : (
         <ul className="space-y-2 mb-4">
           {categories.map((cat) => (
@@ -159,7 +159,7 @@ export default function MenuCategoryManager({
                   </Button>
                 </div>
               ) : (
-                <span className="font-medium text-gray-900">{cat.name}</span>
+                <span className="font-medium text-foreground">{cat.name}</span>
               )}
               <div className="flex items-center gap-2">
                 {editingId !== cat._id ? (
@@ -198,7 +198,7 @@ export default function MenuCategoryManager({
             </li>
           ))}
           {categories.length === 0 && (
-            <p className="text-sm text-gray-500">No categories yet — add one below.</p>
+            <p className="text-sm text-muted">No categories yet — add one below.</p>
           )}
         </ul>
       )}
@@ -217,7 +217,7 @@ export default function MenuCategoryManager({
           type="button"
           disabled={busy || !newName.trim()}
           onClick={addCategory}
-          className="bg-orange-500 hover:bg-orange-600 shrink-0"
+          className="bg-brand hover:bg-brand/90 shrink-0"
         >
           {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4 mr-1" />}
           Add

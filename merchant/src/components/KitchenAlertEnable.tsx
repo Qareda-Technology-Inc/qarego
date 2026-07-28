@@ -57,17 +57,17 @@ export function KitchenAlertEnable() {
   };
 
   return (
-    <div className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-4 sm:max-w-md z-50 rounded-lg border border-orange-200 bg-white px-4 py-3 shadow-lg">
+    <div className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-4 sm:max-w-md z-50 rounded-2xl border border-brand/20 bg-white px-4 py-3 shadow-lg">
       <div className="flex items-start gap-3">
-        <BellRing className="h-5 w-5 text-orange-500 shrink-0 mt-0.5" />
+        <BellRing className="h-5 w-5 text-brand shrink-0 mt-0.5" />
         <div className="flex-1 min-w-0">
-          <p className="font-medium text-gray-900">{copy.enableAlertsTitle}</p>
-          <p className="text-sm text-gray-600 mt-1">{copy.enableAlertsBody}</p>
+          <p className="font-medium text-foreground">{copy.enableAlertsTitle}</p>
+          <p className="text-sm text-muted mt-1">{copy.enableAlertsBody}</p>
           <button
             type="button"
             onClick={() => void enable()}
             disabled={enabling}
-            className="mt-3 inline-flex items-center rounded-md bg-orange-500 px-3 py-2 text-sm font-medium text-white hover:bg-orange-600 disabled:opacity-60"
+            className="mt-3 inline-flex items-center rounded-xl bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand/90 disabled:opacity-60"
           >
             {enabling ? "Enabling…" : "Enable alerts"}
           </button>

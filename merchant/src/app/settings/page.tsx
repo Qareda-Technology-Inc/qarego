@@ -270,19 +270,19 @@ export default function SettingsPage() {
   return (
     <div className="max-w-2xl">
       <div className="flex items-center gap-3 mb-2">
-        <Settings className="h-7 w-7 text-orange-500" />
-        <h1 className="text-2xl font-bold text-gray-900">Store settings</h1>
+        <Settings className="h-7 w-7 text-brand" />
+        <h1 className="text-2xl font-bold text-foreground">Store settings</h1>
       </div>
-      <p className="text-sm text-gray-500 mb-6">
+      <p className="text-sm text-muted mb-6">
         {restaurant.name} — pickup location, hours, settlement MoMo, and how customers see your store.
       </p>
 
-      <div className="bg-white rounded-xl border p-5 mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div className="bg-white rounded-2xl border border-border p-5 mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <p className="font-medium text-gray-900">
+          <p className="font-medium text-foreground">
             {restaurant.isAcceptingOrders ? "Accepting orders" : "Paused"}
           </p>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-muted">
             {restaurant.isActive
               ? "Toggle to temporarily stop receiving new orders."
               : copy.settingsOffline}
@@ -304,12 +304,12 @@ export default function SettingsPage() {
         </Button>
       </div>
 
-      <div id="store-location" className="bg-white rounded-xl border p-5 mb-6">
+      <div id="store-location" className="bg-white rounded-2xl border border-border p-5 mb-6">
         <div className="flex items-center gap-2 mb-1">
-          <MapPin className="h-4 w-4 text-orange-500" />
-          <p className="font-medium text-gray-900">Pickup location</p>
+          <MapPin className="h-4 w-4 text-brand" />
+          <p className="font-medium text-foreground">Pickup location</p>
         </div>
-        <p className="text-sm text-gray-500 mb-4">
+        <p className="text-sm text-muted mb-4">
           Riders use this pin for pickup. Search for your address or tap the map to move the pin.
         </p>
         <StoreLocationPicker
@@ -328,7 +328,7 @@ export default function SettingsPage() {
             type="button"
             onClick={saveLocation}
             disabled={savingLocation}
-            className="bg-orange-500 hover:bg-orange-600"
+           
           >
             {savingLocation ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -342,12 +342,12 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border p-5 mb-6">
+      <div className="bg-white rounded-2xl border border-border p-5 mb-6">
         <div className="flex items-center gap-2 mb-1">
-          <Clock className="h-4 w-4 text-orange-500" />
-          <p className="font-medium text-gray-900">Opening hours</p>
+          <Clock className="h-4 w-4 text-brand" />
+          <p className="font-medium text-foreground">Opening hours</p>
         </div>
-        <p className="text-sm text-gray-500 mb-4">
+        <p className="text-sm text-muted mb-4">
           Customers can browse your menu anytime, but can only order while you&apos;re open.
         </p>
 
@@ -390,7 +390,7 @@ export default function SettingsPage() {
               <button
                 type="button"
                 onClick={() => applyToAll(i)}
-                className="text-xs text-orange-600 hover:underline sm:ml-auto"
+                className="text-xs text-brand hover:underline sm:ml-auto"
               >
                 Apply to all days
               </button>
@@ -403,7 +403,7 @@ export default function SettingsPage() {
         </p>
 
         <div className="flex justify-end mt-4">
-          <Button onClick={saveHours} disabled={savingHours} className="bg-orange-500 hover:bg-orange-600">
+          <Button onClick={saveHours} disabled={savingHours}>
             {savingHours ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
@@ -416,12 +416,12 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      <form onSubmit={savePayout} className="bg-white rounded-xl border p-5 mb-6 space-y-4">
+      <form onSubmit={savePayout} className="bg-white rounded-2xl border border-border p-5 mb-6 space-y-4">
         <div className="flex items-center gap-2 mb-1">
-          <Wallet className="h-4 w-4 text-orange-500" />
-          <p className="font-medium text-gray-900">Settlement MoMo</p>
+          <Wallet className="h-4 w-4 text-brand" />
+          <p className="font-medium text-foreground">Settlement MoMo</p>
         </div>
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-muted">
           When a customer pays with mobile money, your restaurant share is sent here after delivery.
           Leave blank to use your owner account phone as fallback.
         </p>
@@ -454,7 +454,7 @@ export default function SettingsPage() {
             />
           </div>
         </div>
-        <p className="text-xs text-gray-500">
+        <p className="text-xs text-muted">
           Detected network:{" "}
           <span className="font-medium text-gray-700">
             {CHANNEL_LABELS[payoutForm.channel] || payoutForm.channel}
@@ -464,7 +464,7 @@ export default function SettingsPage() {
           <Button
             type="submit"
             disabled={savingPayout}
-            className="bg-orange-500 hover:bg-orange-600"
+           
           >
             {savingPayout ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -478,9 +478,9 @@ export default function SettingsPage() {
         </div>
       </form>
 
-      <form onSubmit={save} className="bg-white rounded-xl border p-5 space-y-4">
-        <h2 className="font-semibold text-gray-900">Store profile</h2>
-        <p className="text-sm text-gray-500 -mt-2">Photo, description, and prep time shown to customers.</p>
+      <form onSubmit={save} className="bg-white rounded-2xl border border-border p-5 space-y-4">
+        <h2 className="font-semibold text-foreground">Store profile</h2>
+        <p className="text-sm text-muted -mt-2">Photo, description, and prep time shown to customers.</p>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
@@ -540,7 +540,7 @@ export default function SettingsPage() {
         </p>
 
         <div className="flex justify-end">
-          <Button type="submit" disabled={saving} className="bg-orange-500 hover:bg-orange-600">
+          <Button type="submit" disabled={saving}>
             {saving ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (

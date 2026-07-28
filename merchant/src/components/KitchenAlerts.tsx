@@ -161,12 +161,12 @@ export function KitchenAlerts() {
     <>
       {toast && (
         <div
-          className="fixed top-4 left-4 right-4 sm:left-auto sm:right-4 sm:max-w-md z-50 flex items-center gap-3 rounded-lg bg-orange-500 text-white px-4 py-3 shadow-lg"
+          className="fixed top-4 left-4 right-4 sm:left-auto sm:right-4 sm:max-w-md z-50 flex items-center gap-3 rounded-2xl bg-brand text-white px-4 py-3 shadow-lg"
           role="alert"
         >
           <Bell className="h-5 w-5 shrink-0 animate-pulse" />
           <span className="font-medium flex-1">{toast}</span>
-          <span className="text-xs text-orange-100 shrink-0">Accept or decline to stop</span>
+          <span className="text-xs text-white/80 shrink-0">Accept or decline to stop</span>
         </div>
       )}
     </>

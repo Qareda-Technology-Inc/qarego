@@ -93,7 +93,7 @@ export default function StoreLocationPicker({
 
   if (!MAPS_KEY) {
     return (
-      <div className="rounded-lg border border-dashed border-gray-300 p-4 text-sm text-gray-500">
+      <div className="rounded-lg border border-dashed border-gray-300 p-4 text-sm text-muted">
         Add NEXT_PUBLIC_GOOGLE_MAPS_API_KEY to enable location search and map picking.
       </div>
     );
@@ -116,7 +116,7 @@ export default function StoreLocationPicker({
     <div className="space-y-3">
       <div>
         <Label htmlFor="location-search" className="flex items-center gap-1 mb-1.5">
-          <Search className="h-4 w-4 text-orange-500" />
+          <Search className="h-4 w-4 text-brand" />
           Search address
         </Label>
         <Autocomplete
@@ -147,7 +147,7 @@ export default function StoreLocationPicker({
 
       <div>
         <Label className="flex items-center gap-1 mb-1.5">
-          <MapPin className="h-4 w-4 text-orange-500" />
+          <MapPin className="h-4 w-4 text-brand" />
           Map
         </Label>
         <MerchantMap
@@ -158,7 +158,7 @@ export default function StoreLocationPicker({
           onPick={onMapPick}
         />
         {value ? (
-          <p className="text-xs text-gray-500 mt-1 break-all">
+          <p className="text-xs text-muted mt-1 break-all">
             {value.address || `Pinned at ${value.lat.toFixed(5)}, ${value.lng.toFixed(5)}`}
           </p>
         ) : (

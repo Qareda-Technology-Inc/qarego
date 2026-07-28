@@ -54,7 +54,7 @@ export function AssignRiderModal({
 
   return (
     <Modal isOpen={open} onClose={onClose} title="Assign rider">
-      <p className="text-sm text-gray-600 mb-4">
+      <p className="text-sm text-muted mb-4">
         {orderLabel
           ? `Send ${orderLabel} directly to one driver. They will receive the trip on the rider app.`
           : "Choose an active driver. The order will be marked ready and sent only to them."}
@@ -62,10 +62,10 @@ export function AssignRiderModal({
 
       {loading ? (
         <div className="flex justify-center py-8">
-          <Loader2 className="h-6 w-6 animate-spin text-orange-500" />
+          <Loader2 className="h-6 w-6 animate-spin text-brand" />
         </div>
       ) : riders.length === 0 ? (
-        <p className="text-sm text-gray-500 py-6 text-center">
+        <p className="text-sm text-muted py-6 text-center">
           No active drivers available. Use &quot;Mark ready&quot; to broadcast to all online riders.
         </p>
       ) : (
@@ -76,7 +76,7 @@ export function AssignRiderModal({
               className="flex flex-col sm:flex-row sm:items-center gap-2 px-4 py-3"
             >
               <div className="flex-1 min-w-0">
-                <p className="font-medium text-gray-900 flex items-center gap-2">
+                <p className="font-medium text-foreground flex items-center gap-2">
                   {r.name}
                   {r.isOnline && (
                     <span className="inline-flex items-center gap-0.5 text-xs text-green-700 bg-green-50 px-1.5 py-0.5 rounded-full">
@@ -84,7 +84,7 @@ export function AssignRiderModal({
                     </span>
                   )}
                 </p>
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-muted">
                   {r.phone || "—"}
                   {r.vehicle ? ` · ${r.vehicle}` : ""}
                 </p>

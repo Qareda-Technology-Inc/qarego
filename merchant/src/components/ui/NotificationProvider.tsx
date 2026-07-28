@@ -92,7 +92,7 @@ export default function NotificationProvider() {
           >
             <Icon className={`h-5 w-5 shrink-0 mt-0.5 ${style.iconColor}`} aria-hidden />
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-gray-900">{toast.title}</p>
+              <p className="text-sm font-semibold text-foreground">{toast.title}</p>
               {toast.message ? (
                 <p className="text-sm text-gray-600 mt-0.5 whitespace-pre-line">{toast.message}</p>
               ) : null}
