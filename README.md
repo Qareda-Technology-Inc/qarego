@@ -10,6 +10,7 @@ Multi-service mobility and commerce platform for Ghana — ride-hailing, food/gr
 | `server/` | Node.js, Express, Socket.IO, MongoDB | REST API, real-time events, payments webhooks |
 | `admin/` | Next.js | Operations dashboard — drivers, trips, vendors, dispatch, finance |
 | `merchant/` | Next.js | Store portal — menu, live orders, kitchen alerts, settings |
+| `website/` | Vite + React | Public launch site — App Store / Play Store download page |
 
 Each app has its own `package.json`. Install and run them independently.
 

@@ -40,14 +40,27 @@ export async function fetcher(url: string, options: RequestInit = {}) {
     headers: getAuthHeaders(options.headers as HeadersInit),
   });
 
+  const raw = await res.text();
+  let data = {};
+  if (raw) {
+    try {
+      data = JSON.parse(raw);
+    } catch {
+      data = { msg: raw.trim() };
+    }
+  }
+
   if (res.status === 401 && token) {
     logoutOn401();
     throw new Error("Session expired");
   }
 
-  const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    throw new Error(data.message || data.msg || "Something went wrong");
+    const fallback =
+      res.status === 404
+        ? "API route not found — restart the server if you just added endpoints"
+        : "Something went wrong";
+    throw new Error(data.message || data.msg || fallback);
   }
   return data;
 }
