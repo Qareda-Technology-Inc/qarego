@@ -16,6 +16,7 @@ import {
   Tags,
   Radio,
   Bell,
+  MapPinned,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/context/AuthContext';
@@ -31,6 +32,7 @@ const navigation = [
   { name: 'Vendors', href: '/vendors', icon: Store },
   { name: 'Store types', href: '/store-types', icon: Tags },
   { name: 'Food orders', href: '/food-orders', icon: UtensilsCrossed },
+  { name: 'Service areas', href: '/service-zones', icon: MapPinned },
   { name: 'Finance', href: '/finance', icon: FileText },
   { name: 'Food payments', href: '/finance/food-payments', icon: Banknote },
   { name: 'Push notifications', href: '/notifications', icon: Bell },

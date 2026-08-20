@@ -12,9 +12,11 @@ import CustomText from "@/components/shared/CustomText";
 import AuthSafeScreen from "@/components/shared/AuthSafeScreen";
 import PhoneInput from "@/components/shared/PhoneInput";
 import CustomButton from "@/components/shared/CustomButton";
-import { requestOtp } from "@/service/authService";
+import { requestOtp, tryReviewLogin } from "@/service/authService";
 import { router } from "expo-router";
 import { Colors } from "@/utils/Constants";
+import { isReviewPhone } from "@/utils/reviewLogin";
+import { useWS } from "@/service/WSProvider";
 
 interface Country {
   name: string;
@@ -24,12 +26,14 @@ interface Country {
 }
 
 const Auth = () => {
+  const { updateAccessToken } = useWS();
   const [phone, setPhone] = useState("");
   const [selectedCountry, setSelectedCountry] = useState<Country | null>(null);
   const [loading, setLoading] = useState(false);
+  const phoneReady = phone.length === 9 || isReviewPhone(phone);
 
   const handleNext = async () => {
-    if (!phone || phone.length !== 9) {
+    if (!phoneReady) {
       Alert.alert("Invalid Phone Number", "Please enter a valid 9-digit phone number");
       return;
     }
@@ -39,6 +43,9 @@ const Auth = () => {
 
     setLoading(true);
     try {
+      if (await tryReviewLogin(phone, updateAccessToken)) return;
+      if (await tryReviewLogin(fullPhone, updateAccessToken)) return;
+
       const response = await requestOtp({ phone: fullPhone, method: "sms" });
       if (response) {
         router.push({
@@ -62,7 +69,7 @@ const Auth = () => {
         title="Continue"
         onPress={handleNext}
         loading={loading}
-        disabled={loading || !phone || phone.length !== 9}
+        disabled={loading || !phoneReady}
       />
     </View>
   );

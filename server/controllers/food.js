@@ -11,6 +11,7 @@ import {
 } from "../utils/deliveryFare.js";
 import { getSettings } from "../utils/tripSettlement.js";
 import { computeFoodOrderSplit } from "../utils/foodOrderSettlement.js";
+import { assertServiceAvailableAt } from "../utils/serviceZones.js";
 import { applyRestaurantAction } from "../utils/foodOrderFlow.js";
 import { computeOpenState } from "../utils/storeHours.js";
 import { inferVerticalFromCategoryName } from "../utils/commerceStoreTypes.js";
@@ -241,6 +242,14 @@ export const createFoodOrder = async (req, res) => {
     { subtotal, deliveryFee, serviceFee },
     settings
   );
+
+  const zoneService =
+    restaurant.vertical === "GROCERY"
+      ? "GROCERY"
+      : restaurant.vertical === "PHARMACY"
+        ? "PHARMACY"
+        : "FOOD";
+  await assertServiceAvailableAt(deliveryLat, deliveryLon, zoneService);
 
   const itemSummary = orderItems
     .map((i) => `${i.quantity}x ${i.name}`)

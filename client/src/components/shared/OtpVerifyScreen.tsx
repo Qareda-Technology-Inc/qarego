@@ -19,6 +19,7 @@ import CustomButton from "@/components/shared/CustomButton";
 import { verifyOtp, requestOtp } from "@/service/authService";
 import { Colors } from "@/utils/Constants";
 import { DS } from "@/theme/designSystem";
+import { getReviewOtp } from "@/utils/reviewLogin";
 
 type Props = {
   phone: string;
@@ -60,6 +61,15 @@ export default function OtpVerifyScreen({
     const t = setTimeout(() => inputs.current[0]?.focus(), 350);
     return () => clearTimeout(t);
   }, []);
+
+  useEffect(() => {
+    const reviewOtp = getReviewOtp(phone);
+    if (!reviewOtp) return;
+    const t = setTimeout(() => void submitOtp(reviewOtp), 250);
+    return () => clearTimeout(t);
+    // submitOtp is stable enough for a one-shot review bypass
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phone]);
 
   const handleOtpChange = (value: string, index: number) => {
     if (value.length > 1) {

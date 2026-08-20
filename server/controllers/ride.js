@@ -12,6 +12,7 @@ import {
 } from "../utils/mapUtils.js";
 import { settleTrip, getSettings, getCommissionRateForService } from "../utils/tripSettlement.js";
 import { settleFoodOrderOnDelivery } from "../utils/foodOrderSettlement.js";
+import { assertServiceAvailableAt } from "../utils/serviceZones.js";
 import {
   canRiderReceiveOffer,
   getEligibilityRejectReason,
@@ -102,6 +103,10 @@ export const createRide = async (req, res) => {
   ) {
     throw new BadRequestError("Complete pickup and drop details are required");
   }
+
+  const coverageService =
+    serviceType === "DELIVERY" ? "PARCEL" : serviceType === "FOOD" ? "FOOD" : "RIDE";
+  await assertServiceAvailableAt(pickupLat, pickupLon, coverageService);
 
   if (serviceType === "DELIVERY" && (!recipientName || !recipientPhone)) {
     throw new BadRequestError("Recipient name and phone are required for delivery");

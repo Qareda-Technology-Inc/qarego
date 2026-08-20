@@ -57,6 +57,7 @@ import {
   adminUpdateStoreType,
   adminDeleteStoreType,
 } from '../controllers/commerceStoreType.js';
+import { registerAdminServiceZoneRoutes } from './serviceZone.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -137,5 +138,7 @@ adminRouter.delete('/restaurants/:id', adminDeleteRestaurant);
 adminRouter.post('/restaurants/:id/menu', adminCreateMenuItem);
 adminRouter.patch('/restaurants/:id/menu/:itemId', adminUpdateMenuItem);
 adminRouter.delete('/restaurants/:id/menu/:itemId', adminDeleteMenuItem);
+
+registerAdminServiceZoneRoutes(adminRouter);
 
 export default adminRouter;

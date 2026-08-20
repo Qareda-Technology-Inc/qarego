@@ -7,6 +7,7 @@ import { Alert, Platform } from "react-native";
 import { apiPost } from "./apiClient";
 import { ensureApiBaseUrl, getApiBaseUrl, getPhysicalDeviceNetworkHelp } from "./config";
 import { clearSession } from "./session";
+import { getReviewAccount } from "@/utils/reviewLogin";
 
 export const signin = async (
   payload: {
@@ -50,6 +51,17 @@ export const signin = async (
       console.log("Server response:", error.response.status, error.response.data);
     }
   }
+};
+
+/** Sign in Google review accounts without the OTP screen. Returns true if handled. */
+export const tryReviewLogin = async (
+  phone: string,
+  updateAccessToken: () => void
+) => {
+  const account = getReviewAccount(phone);
+  if (!account) return false;
+  await verifyOtp({ phone, otp: account.otp }, updateAccessToken);
+  return true;
 };
 
 export const requestOtp = async (payload: { phone: string; method?: "sms" }) => {

@@ -106,20 +106,20 @@ const PhoneInput: FC<PhoneInputProps> = ({
   };
 
   // Handle phone number input: max 9 digits, auto-remove leading 0
+  // Review accounts keep 0000000000 / 1111111111 as typed.
   const handlePhoneChange = (text: string) => {
-    // Remove all non-digit characters
     let cleaned = text.replace(/\D/g, "");
-    
-    // Auto-remove leading 0 if user types it
-    if (cleaned.startsWith("0")) {
+    const isReviewNumber = /^0{1,10}$/.test(cleaned) || /^1{1,10}$/.test(cleaned);
+
+    if (!isReviewNumber && cleaned.startsWith("0")) {
       cleaned = cleaned.substring(1);
     }
-    
-    // Limit to 9 digits (after country code)
-    if (cleaned.length > 9) {
-      cleaned = cleaned.substring(0, 9);
+
+    const maxLength = isReviewNumber ? 10 : 9;
+    if (cleaned.length > maxLength) {
+      cleaned = cleaned.substring(0, maxLength);
     }
-    
+
     onChangeText(cleaned);
   };
 
@@ -136,7 +136,7 @@ const PhoneInput: FC<PhoneInputProps> = ({
         placeholder="0XXXXXXXX"
         keyboardType="phone-pad"
         value={value}
-        maxLength={9}
+        maxLength={10}
         onChangeText={handlePhoneChange}
         onFocus={handleFocus}
         onBlur={handleBlur}

@@ -7,6 +7,7 @@ import { Colors } from "@/utils/Constants";
 import { DS } from "@/theme/designSystem";
 import { router } from "expo-router";
 import { openCommerceModule } from "@/utils/commerceNavigation";
+import { useUserStore } from "@/store/userStore";
 
 export type ServiceType = "RIDE" | "PARCEL" | "FOOD" | "GROCERY" | "PHARMACY";
 
@@ -67,9 +68,14 @@ type Props = {
 
 /**
  * Service module picker — large tappable rows (replaces the old rotating circle).
+ * Services not allowed in the current zone are shown greyed out.
  */
 const CircularServiceSelector = ({ goToHomeOnSelect = false }: Props) => {
+  const isServiceAllowed = useUserStore((s) => s.isServiceAllowed);
+
   const handleSelect = (type: ServiceType) => {
+    if (!isServiceAllowed(type)) return;
+
     if (type === "RIDE") {
       if (goToHomeOnSelect) {
         router.replace("/customer/home");
@@ -98,34 +104,72 @@ const CircularServiceSelector = ({ goToHomeOnSelect = false }: Props) => {
 
   return (
     <View style={styles.list}>
-      {services.map((service, index) => (
-        <Animated.View
-          key={service.type}
-          entering={FadeInUp.delay(80 + index * 55).duration(380).springify().damping(18)}
-        >
-          <Pressable
-            onPress={() => handleSelect(service.type)}
-            style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
-            accessibilityRole="button"
-            accessibilityLabel={`${service.label}. ${service.description}`}
+      {services.map((service, index) => {
+        const allowed = isServiceAllowed(service.type);
+        return (
+          <Animated.View
+            key={service.type}
+            entering={FadeInUp.delay(80 + index * 55).duration(380).springify().damping(18)}
           >
-            <View style={[styles.iconWell, { backgroundColor: service.tint }]}>
-              <Ionicons name={service.ioniconName} size={24} color={service.themeColor} />
-            </View>
-            <View style={styles.copy}>
-              <CustomText fontFamily="SemiBold" fontSize={16} style={styles.label}>
-                {service.label}
-              </CustomText>
-              <CustomText fontSize={13} style={styles.description}>
-                {service.description}
-              </CustomText>
-            </View>
-            <View style={[styles.chevron, { backgroundColor: service.tint }]}>
-              <Ionicons name="arrow-forward" size={16} color={service.themeColor} />
-            </View>
-          </Pressable>
-        </Animated.View>
-      ))}
+            <Pressable
+              onPress={() => handleSelect(service.type)}
+              disabled={!allowed}
+              style={({ pressed }) => [
+                styles.row,
+                !allowed && styles.rowDisabled,
+                pressed && allowed && styles.rowPressed,
+              ]}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: !allowed }}
+              accessibilityLabel={
+                allowed
+                  ? `${service.label}. ${service.description}`
+                  : `${service.label}. Not available in your area`
+              }
+            >
+              <View
+                style={[
+                  styles.iconWell,
+                  { backgroundColor: allowed ? service.tint : "#f1f5f9" },
+                ]}
+              >
+                <Ionicons
+                  name={service.ioniconName}
+                  size={24}
+                  color={allowed ? service.themeColor : "#94a3b8"}
+                />
+              </View>
+              <View style={styles.copy}>
+                <CustomText
+                  fontFamily="SemiBold"
+                  fontSize={16}
+                  style={[styles.label, !allowed && styles.textMuted]}
+                >
+                  {service.label}
+                </CustomText>
+                <CustomText
+                  fontSize={13}
+                  style={[styles.description, !allowed && styles.textMuted]}
+                >
+                  {allowed ? service.description : "Not available in your area"}
+                </CustomText>
+              </View>
+              <View
+                style={[
+                  styles.chevron,
+                  { backgroundColor: allowed ? service.tint : "#f1f5f9" },
+                ]}
+              >
+                <Ionicons
+                  name={allowed ? "arrow-forward" : "lock-closed"}
+                  size={16}
+                  color={allowed ? service.themeColor : "#94a3b8"}
+                />
+              </View>
+            </Pressable>
+          </Animated.View>
+        );
+      })}
     </View>
   );
 };
@@ -145,6 +189,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(15, 23, 42, 0.06)",
     ...DS.shadow.card,
+  },
+  rowDisabled: {
+    opacity: 0.72,
   },
   rowPressed: {
     opacity: 0.92,
@@ -169,6 +216,9 @@ const styles = StyleSheet.create({
   description: {
     color: DS.color.textMuted,
     lineHeight: 18,
+  },
+  textMuted: {
+    color: "#94a3b8",
   },
   chevron: {
     width: 32,

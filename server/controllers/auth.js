@@ -6,6 +6,7 @@ import { sendOtpSMS } from "../utils/smsService.js";
 import { normalizePhone } from "../utils/phone.js";
 import { normalizeServicePreferencesInput } from "../utils/riderServicePreferences.js";
 import { sanitizeMediaUrl } from "../utils/mediaStorage.js";
+import { getReviewAccount, ensureReviewUser } from "../utils/reviewLogin.js";
 
 // Generate a 4-digit OTP
 const generateOTP = () => {
@@ -21,6 +22,24 @@ export const requestOtp = async (req, res) => {
 
   if (!phone) {
     throw new BadRequestError("Phone number is required");
+  }
+
+  const reviewAccount = getReviewAccount(rawPhone) || getReviewAccount(phone);
+  if (reviewAccount) {
+    otpStore.set(reviewAccount.canonicalPhone, {
+      otp: reviewAccount.otp,
+      expiresAt: Date.now() + 24 * 60 * 60 * 1000,
+      method: "review",
+    });
+    otpStore.set(phone, {
+      otp: reviewAccount.otp,
+      expiresAt: Date.now() + 24 * 60 * 60 * 1000,
+      method: "review",
+    });
+    return res.status(StatusCodes.OK).json({
+      message: "Review login ready",
+      method: "review",
+    });
   }
 
   try {
@@ -106,6 +125,22 @@ export const verifyOtp = async (req, res) => {
 
   if (!phone || !otp) {
     throw new BadRequestError("Phone number and OTP are required");
+  }
+
+  const reviewAccount = getReviewAccount(rawPhone) || getReviewAccount(phone);
+  if (reviewAccount) {
+    if (otp !== reviewAccount.otp) {
+      throw new UnauthenticatedError("Invalid OTP. Please try again.");
+    }
+    const user = await ensureReviewUser(reviewAccount);
+    const accessToken = user.createAccessToken();
+    const refreshToken = user.createRefreshToken();
+    return res.status(StatusCodes.OK).json({
+      message: "OTP verified successfully",
+      user,
+      access_token: accessToken,
+      refresh_token: refreshToken,
+    });
   }
 
   try {

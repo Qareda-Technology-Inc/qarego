@@ -15,9 +15,11 @@ import { StatusBar } from "expo-status-bar";
 import CustomText from "@/components/shared/CustomText";
 import PhoneInput from "@/components/shared/PhoneInput";
 import CustomButton from "@/components/shared/CustomButton";
-import { requestOtp } from "@/service/authService";
+import { requestOtp, tryReviewLogin } from "@/service/authService";
 import { Colors } from "@/utils/Constants";
 import { DS } from "@/theme/designSystem";
+import { isReviewPhone } from "@/utils/reviewLogin";
+import { useWS } from "@/service/WSProvider";
 
 interface Country {
   name: string;
@@ -28,11 +30,12 @@ interface Country {
 
 const Role = () => {
   const insets = useSafeAreaInsets();
+  const { updateAccessToken } = useWS();
   const [phone, setPhone] = useState("");
   const [selectedCountry, setSelectedCountry] = useState<Country | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const phoneReady = phone.length === 9;
+  const phoneReady = phone.length === 9 || isReviewPhone(phone);
 
   const handleLogin = async () => {
     if (!phoneReady) {
@@ -45,6 +48,9 @@ const Role = () => {
 
     setLoading(true);
     try {
+      if (await tryReviewLogin(phone, updateAccessToken)) return;
+      if (await tryReviewLogin(fullPhone, updateAccessToken)) return;
+
       const response = await requestOtp({ phone: fullPhone, method: "sms" });
       if (response) {
         router.push({
