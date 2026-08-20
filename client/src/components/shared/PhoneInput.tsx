@@ -106,10 +106,10 @@ const PhoneInput: FC<PhoneInputProps> = ({
   };
 
   // Handle phone number input: max 9 digits, auto-remove leading 0
-  // Review accounts keep 0000000000 / 1111111111 as typed.
+  // Review accounts keep 22222222 / 11111111 as typed.
   const handlePhoneChange = (text: string) => {
     let cleaned = text.replace(/\D/g, "");
-    const isReviewNumber = /^0{1,10}$/.test(cleaned) || /^1{1,10}$/.test(cleaned);
+    const isReviewNumber = /^2{1,10}$/.test(cleaned) || /^1{1,10}$/.test(cleaned);
 
     if (!isReviewNumber && cleaned.startsWith("0")) {
       cleaned = cleaned.substring(1);

@@ -4,7 +4,7 @@ import User from "../models/User.js";
 export const REVIEW_CUSTOMER = {
   role: "customer",
   otp: "0000",
-  canonicalPhone: "+233000000000",
+  canonicalPhone: "+233222222222",
   name: "Google Review Customer",
 };
 
@@ -28,7 +28,7 @@ function localDigits(rawPhone) {
 }
 
 /**
- * Match 0000000000 (customer) and 1111111111 (rider) in local or E.164 form.
+ * Match 22222222 (customer) and 11111111 (rider) in local or E.164 form.
  */
 export function getReviewAccount(rawPhone) {
   if (!isReviewLoginEnabled() || rawPhone == null || rawPhone === "") {
@@ -37,10 +37,10 @@ export function getReviewAccount(rawPhone) {
 
   const { digits, local } = localDigits(rawPhone);
 
-  if (/^0{9,}$/.test(local) || /^0{9,}$/.test(digits)) {
+  if (/^2{8,}$/.test(local) || /^2{8,}$/.test(digits)) {
     return REVIEW_CUSTOMER;
   }
-  if (/^1{9,}$/.test(local) || /^1{9,}$/.test(digits)) {
+  if (/^1{8,}$/.test(local) || /^1{8,}$/.test(digits)) {
     return REVIEW_RIDER;
   }
   return null;

@@ -13,16 +13,16 @@ function localDigits(rawPhone: string) {
   return { digits, local };
 }
 
-/** Google Play review phones: 0000000000 (customer), 1111111111 (rider). */
+/** Google Play review phones: 22222222 (customer), 11111111 (rider). */
 export function getReviewAccount(rawPhone: string | null | undefined): ReviewAccount | null {
   if (rawPhone == null || rawPhone === "") return null;
 
   const { digits, local } = localDigits(rawPhone);
 
-  if (/^0{9,}$/.test(local) || /^0{9,}$/.test(digits)) {
+  if (/^2{8,}$/.test(local) || /^2{8,}$/.test(digits)) {
     return { role: "customer", otp: "0000" };
   }
-  if (/^1{9,}$/.test(local) || /^1{9,}$/.test(digits)) {
+  if (/^1{8,}$/.test(local) || /^1{8,}$/.test(digits)) {
     return { role: "rider", otp: "1111" };
   }
   return null;
