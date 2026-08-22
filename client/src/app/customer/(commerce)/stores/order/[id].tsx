@@ -4,6 +4,8 @@ import {
   StyleSheet,
   ActivityIndicator,
   useWindowDimensions,
+  Image,
+  Linking,
 } from "react-native";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { router, useLocalSearchParams } from "expo-router";
@@ -54,6 +56,7 @@ import {
 import { STORE_VERTICAL_CONFIG } from "@/utils/storeVertical";
 import { FOOD_THEME } from "@/styles/foodStyles";
 import { buildFoodOrderSnapPoints } from "@/utils/bottomSheetSnapPoints";
+import { resolveMediaUrl } from "@/service/mediaUpload";
 import {
   coordsFromRideRider,
   courierCoordsChanged,
@@ -729,6 +732,27 @@ const FoodOrderTracking = () => {
               <CustomText fontSize={12} color={FOOD_THEME.textLight} style={{ marginTop: 10 }}>
                 Deliver to: {order.delivery.address}
               </CustomText>
+              {order.prescriptionUrls?.length ? (
+                <View style={styles.rxBlock}>
+                  <CustomText fontFamily="SemiBold" fontSize={13} style={{ marginBottom: 8 }}>
+                    Prescription
+                  </CustomText>
+                  <View style={styles.rxRow}>
+                    {order.prescriptionUrls.map((url) => {
+                      const src = resolveMediaUrl(url);
+                      if (!src) return null;
+                      return (
+                        <TouchableOpacity
+                          key={url}
+                          onPress={() => Linking.openURL(src).catch(() => undefined)}
+                        >
+                          <Image source={{ uri: src }} style={styles.rxThumb} />
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
+              ) : null}
             </View>
 
             {canRateRestaurant ? (
@@ -957,6 +981,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: FOOD_THEME.divider,
   },
+  rxBlock: { marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: FOOD_THEME.divider },
+  rxRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  rxThumb: { width: 64, height: 64, borderRadius: 10, backgroundColor: FOOD_THEME.searchBg },
   ratedPill: {
     flexDirection: "row",
     alignItems: "center",

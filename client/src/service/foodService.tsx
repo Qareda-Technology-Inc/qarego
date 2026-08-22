@@ -90,6 +90,7 @@ export type FoodOrder = {
   paymentReference?: string | null;
   status: FoodOrderStatus;
   notes?: string | null;
+  prescriptionUrls?: string[];
   cancelReason?: string | null;
   deliveryCode?: string | null;
   fulfillmentType?: "DELIVERY" | "PICKUP" | "SCHEDULED";
@@ -144,6 +145,7 @@ export const createFoodOrder = async (payload: {
   fulfillmentType?: "DELIVERY" | "PICKUP" | "SCHEDULED";
   scheduledFor?: string;
   promoCode?: string;
+  prescriptionUrls?: string[];
 }) => {
   try {
     const res = await appAxios.post("/food/orders", payload);

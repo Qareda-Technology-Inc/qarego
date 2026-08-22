@@ -76,6 +76,8 @@ const foodOrderSchema = new Schema(
     },
     paymentReference: { type: String, default: null },
     notes: { type: String, default: null },
+    /** Pharmacy prescription photos (Cloudinary URL or /uploads path). */
+    prescriptionUrls: { type: [String], default: [] },
     promoCode: { type: String, default: null },
     fulfillmentType: {
       type: String,

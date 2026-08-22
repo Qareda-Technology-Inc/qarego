@@ -13,6 +13,7 @@ import { getCommerceOrderCopy } from "@/lib/commerceOrderCopy";
 import { Button } from "@/components/ui/Button";
 import MerchantMap from "@/components/MerchantMap";
 import { AssignRiderModal } from "@/components/AssignRiderModal";
+import { PrescriptionAttachments } from "@/components/PrescriptionAttachments";
 import {
   ClipboardList,
   Clock,
@@ -322,6 +323,7 @@ export default function OrdersPage() {
                 {order.notes ? (
                   <p className="text-sm text-brand mt-2">Note: {order.notes}</p>
                 ) : null}
+                <PrescriptionAttachments urls={order.prescriptionUrls} />
                 <p className="font-semibold mt-3">{formatCurrency(order.subtotal)} total</p>
                 <p className="text-xs text-gray-400 mt-1">
                   {new Date(order.createdAt).toLocaleString()}

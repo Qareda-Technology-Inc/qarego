@@ -14,6 +14,7 @@ export type CartLine = {
   price: number;
   quantity: number;
   modifiers: CartModifier[];
+  category?: string;
 };
 
 type FoodCartState = {
@@ -31,6 +32,7 @@ type FoodCartState = {
     name: string;
     price: number;
     modifiers?: CartModifier[];
+    category?: string;
   }) => void;
   updateQuantity: (cartLineId: string, quantity: number) => void;
   removeItem: (cartLineId: string) => void;
@@ -55,6 +57,7 @@ export const useFoodCartStore = create<FoodCartState>((set, get) => ({
     name,
     price,
     modifiers = [],
+    category,
   }) => {
     const modifierKey = buildModifierKey(modifiers);
     const cartLineId = buildCartLineId(menuItemId, modifierKey);
@@ -67,6 +70,7 @@ export const useFoodCartStore = create<FoodCartState>((set, get) => ({
       price,
       quantity: 1,
       modifiers,
+      category,
     };
 
     if (state.restaurantId && state.restaurantId !== restaurantId) {

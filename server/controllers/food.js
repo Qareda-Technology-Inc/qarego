@@ -21,6 +21,10 @@ import { resolveMenuItemModifiers } from "../utils/menuModifiers.js";
 import { applyRestaurantRating } from "../utils/restaurantRating.js";
 import { notifyCustomerFoodOrderPush } from "../utils/pushNotifications.js";
 import { notifyRestaurantStaffNewOrder } from "../utils/vendorOrderNotifications.js";
+import {
+  normalizePrescriptionUrls,
+  orderRequiresPrescription,
+} from "../utils/prescription.js";
 
 function computeFoodServiceFee(subtotal, settings) {
   const rate = Number(settings?.foodServiceFeeRate ?? 0.08);
@@ -103,6 +107,7 @@ export const createFoodOrder = async (req, res) => {
     fulfillmentType: fulfillmentRaw,
     scheduledFor,
     promoCode,
+    prescriptionUrls: prescriptionUrlsRaw,
   } = req.body;
 
   const fulfillmentType = ["DELIVERY", "PICKUP", "SCHEDULED"].includes(fulfillmentRaw)
@@ -251,6 +256,15 @@ export const createFoodOrder = async (req, res) => {
         : "FOOD";
   await assertServiceAvailableAt(deliveryLat, deliveryLon, zoneService);
 
+  const prescriptionUrls = restaurant.vertical === "PHARMACY"
+    ? normalizePrescriptionUrls(prescriptionUrlsRaw)
+    : [];
+  if (orderRequiresPrescription(restaurant.vertical, menuDocs) && prescriptionUrls.length === 0) {
+    throw new BadRequestError(
+      "This order includes prescription-only items. Please upload a photo of your prescription."
+    );
+  }
+
   const itemSummary = orderItems
     .map((i) => `${i.quantity}x ${i.name}`)
     .join(", ");
@@ -275,6 +289,7 @@ export const createFoodOrder = async (req, res) => {
     paymentMethod: paymentMethod === "MOBILE_MONEY" ? "MOBILE_MONEY" : "CASH",
     paymentStatus: paymentMethod === "MOBILE_MONEY" ? "UNPAID" : "NOT_REQUIRED",
     notes: notes?.trim() || null,
+    prescriptionUrls,
     promoCode: promoCode?.trim() || null,
     fulfillmentType,
     scheduledFor: scheduledForDate,

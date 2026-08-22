@@ -22,6 +22,7 @@ export type FoodOrderRow = {
   } | null;
   createdAt: string;
   notes?: string;
+  prescriptionUrls?: string[];
 };
 
 export type OrdersListResponse = {

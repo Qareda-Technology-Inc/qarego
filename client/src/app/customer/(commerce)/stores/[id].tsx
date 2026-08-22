@@ -287,6 +287,7 @@ const RestaurantMenu = () => {
       name: item.name,
       price: extras?.price ?? item.price,
       modifiers: extras?.modifiers ?? [],
+      category: item.category,
     });
   };
 

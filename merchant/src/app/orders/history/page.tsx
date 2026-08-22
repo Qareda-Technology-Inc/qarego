@@ -9,6 +9,7 @@ import type { FoodOrderRow } from "@/lib/orderTypes";
 import { useAuth } from "@/context/AuthContext";
 import { getCommerceOrderCopy } from "@/lib/commerceOrderCopy";
 import { Button } from "@/components/ui/Button";
+import { PrescriptionAttachments } from "@/components/PrescriptionAttachments";
 import {
   History,
   Search,
@@ -273,6 +274,7 @@ export default function OrderHistoryPage() {
               {order.notes ? (
                 <p className="text-sm text-brand mt-2">Note: {order.notes}</p>
               ) : null}
+              <PrescriptionAttachments urls={order.prescriptionUrls} />
 
               <div className="flex flex-wrap gap-4 mt-3 text-sm text-gray-600">
                 {order.ride?.rider?.name && (

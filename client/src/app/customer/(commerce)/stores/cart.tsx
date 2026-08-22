@@ -8,6 +8,7 @@ import {
   Alert,
   Modal,
   Pressable,
+  Image,
 } from "react-native";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
@@ -33,11 +34,15 @@ import {
   fetchFoodCheckoutSettings,
   fetchFoodDeliveryQuote,
   fetchRestaurantMenu,
+  type MenuItem,
 } from "@/service/foodService";
 import { calculateDistance, calculateFoodDeliveryFee } from "@/utils/mapUtils";
 import { calculateServiceFee } from "@/utils/feeUtils";
 import { STORE_VERTICAL_CONFIG, normalizeStoreVertical } from "@/utils/storeVertical";
 import { formatCartModifierSummary, toOrderModifierPayload } from "@/utils/menuModifiers";
+import { isPomMenuItem, MAX_PRESCRIPTION_PHOTOS } from "@/utils/prescription";
+import { pickPrescriptionImage } from "@/utils/pickPrescriptionImage";
+import { uploadMediaUri } from "@/service/mediaUpload";
 
 type FulfillmentMode = "DELIVERY" | "PICKUP" | "SCHEDULED";
 
@@ -78,6 +83,9 @@ const FoodCart = () => {
   const [showPromo, setShowPromo] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<"CASH" | "MOBILE_MONEY">("CASH");
   const [loading, setLoading] = useState(false);
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  const [prescriptions, setPrescriptions] = useState<{ uri: string; url: string }[]>([]);
+  const [uploadingPrescription, setUploadingPrescription] = useState(false);
   const [resolvingLocation, setResolvingLocation] = useState(true);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [deliveryQuote, setDeliveryQuote] = useState<{ km: number; fee: number } | null>(null);
@@ -95,6 +103,21 @@ const FoodCart = () => {
     fareRates: null,
   });
 
+  const isPharmacy = selectedVertical === "PHARMACY";
+  const requiresPrescription = useMemo(() => {
+    if (!isPharmacy) return false;
+    const byId = new Map(menuItems.map((item) => [item._id, item]));
+    return items.some((line) =>
+      isPomMenuItem(byId.get(line.menuItemId) || { name: line.name, category: line.category })
+    );
+  }, [isPharmacy, menuItems, items]);
+
+  const prescriptionUrls = prescriptions.map((p) => p.url).filter(Boolean);
+  const prescriptionReady =
+    !isPharmacy ||
+    !requiresPrescription ||
+    (prescriptionUrls.length > 0 && !uploadingPrescription);
+
   const meetsMin = subtotal >= minOrderAmount;
   const needsDeliveryAddress = fulfillmentMode === "DELIVERY" || fulfillmentMode === "SCHEDULED";
 
@@ -107,6 +130,7 @@ const FoodCart = () => {
         const r = data.restaurant;
         setAllowsPickup(!!r.allowsPickup);
         setStoreAddress(r.address ?? null);
+        setMenuItems(data.menuItems ?? []);
         if (
           typeof r.latitude === "number" &&
           typeof r.longitude === "number" &&
@@ -284,10 +308,18 @@ const FoodCart = () => {
         !locationError &&
         !quoteError &&
         deliveryQuote != null) &&
-    (fulfillmentMode !== "SCHEDULED" || scheduledFor != null);
+    (fulfillmentMode !== "SCHEDULED" || scheduledFor != null) &&
+    prescriptionReady;
 
   const placeOrder = async () => {
     if (!restaurantId || items.length === 0 || !readyToOrder) return;
+    if (isPharmacy && requiresPrescription && prescriptionUrls.length === 0) {
+      Alert.alert(
+        "Prescription needed",
+        "This order includes prescription-only items. Please upload a photo of your prescription."
+      );
+      return;
+    }
     setLoading(true);
     let createdOrderId: string | null = null;
     try {
@@ -317,6 +349,7 @@ const FoodCart = () => {
         fulfillmentType: fulfillmentMode,
         scheduledFor: scheduledFor?.toISOString(),
         promoCode: promoCode.trim() || undefined,
+        prescriptionUrls: isPharmacy ? prescriptionUrls : undefined,
       });
       const orderId = response?.order?._id as string | undefined;
       if (!orderId) {
@@ -345,6 +378,31 @@ const FoodCart = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handlePickPrescription = async () => {
+    if (prescriptions.length >= MAX_PRESCRIPTION_PHOTOS) {
+      Alert.alert(
+        "Limit reached",
+        `You can attach up to ${MAX_PRESCRIPTION_PHOTOS} prescription photos.`
+      );
+      return;
+    }
+    const uri = await pickPrescriptionImage();
+    if (!uri) return;
+    setUploadingPrescription(true);
+    try {
+      const { url } = await uploadMediaUri(uri, "prescriptions");
+      setPrescriptions((prev) => [...prev, { uri, url }]);
+    } catch {
+      Alert.alert("Upload failed", "Could not upload the prescription. Please try again.");
+    } finally {
+      setUploadingPrescription(false);
+    }
+  };
+
+  const handleRemovePrescription = (uri: string) => {
+    setPrescriptions((prev) => prev.filter((p) => p.uri !== uri));
   };
 
   const pickSchedule = (minutes: number) => {
@@ -481,6 +539,56 @@ const FoodCart = () => {
             onChangeText={setNotes}
             multiline
           />
+        ) : null}
+
+        {isPharmacy ? (
+          <View style={styles.rxCard}>
+            <View style={styles.rxHead}>
+              <Ionicons name="document-text-outline" size={20} color={accent} />
+              <View style={{ flex: 1, marginLeft: 10 }}>
+                <CustomText fontFamily="SemiBold" fontSize={15}>
+                  Prescription{requiresPrescription ? " (required)" : ""}
+                </CustomText>
+                <CustomText fontSize={12} color="#666" style={{ marginTop: 2 }}>
+                  {requiresPrescription
+                    ? "This order includes prescription-only items. Upload a clear photo of your prescription."
+                    : "Optional — attach a prescription if the pharmacist will need it."}
+                </CustomText>
+              </View>
+            </View>
+            <View style={styles.rxRow}>
+              {prescriptions.map((photo) => (
+                <View key={photo.uri} style={styles.rxThumbWrap}>
+                  <Image source={{ uri: photo.uri }} style={styles.rxThumb} />
+                  <TouchableOpacity
+                    style={styles.rxRemove}
+                    onPress={() => handleRemovePrescription(photo.uri)}
+                    hitSlop={8}
+                  >
+                    <Ionicons name="close-circle" size={22} color="#111" />
+                  </TouchableOpacity>
+                </View>
+              ))}
+              {prescriptions.length < MAX_PRESCRIPTION_PHOTOS ? (
+                <TouchableOpacity
+                  style={[styles.rxAdd, { borderColor: accent }]}
+                  onPress={handlePickPrescription}
+                  disabled={uploadingPrescription}
+                >
+                  {uploadingPrescription ? (
+                    <ActivityIndicator size="small" color={accent} />
+                  ) : (
+                    <>
+                      <Ionicons name="camera-outline" size={22} color={accent} />
+                      <CustomText fontSize={11} style={{ color: accent, marginTop: 4 }}>
+                        Add photo
+                      </CustomText>
+                    </>
+                  )}
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          </View>
         ) : null}
 
         {needsDeliveryAddress ? (
@@ -710,6 +818,11 @@ const FoodCart = () => {
               Add {formatCurrency(minOrderAmount - subtotal)} more for minimum order
             </CustomText>
           ) : null}
+          {isPharmacy && requiresPrescription && prescriptionUrls.length === 0 ? (
+            <CustomText fontSize={12} color="#ef4444" style={{ marginTop: 6 }}>
+              Upload a prescription photo to place this order
+            </CustomText>
+          ) : null}
         </SurfaceCard>
 
         <View style={{ height: 24 }} />
@@ -897,6 +1010,30 @@ const styles = StyleSheet.create({
     marginBottom: 0,
   },
   locLoading: { flexDirection: "row", alignItems: "center", marginBottom: 8 },
+  rxCard: {
+    marginTop: 12,
+    marginBottom: 8,
+    padding: 14,
+    borderRadius: 14,
+    backgroundColor: DS.color.surface,
+    borderWidth: 1,
+    borderColor: DS.color.border,
+  },
+  rxHead: { flexDirection: "row", alignItems: "flex-start", marginBottom: 12 },
+  rxRow: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  rxThumbWrap: { position: "relative" },
+  rxThumb: { width: 76, height: 76, borderRadius: 12, backgroundColor: "#e5e7eb" },
+  rxRemove: { position: "absolute", top: -6, right: -6 },
+  rxAdd: {
+    width: 76,
+    height: 76,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderStyle: "dashed",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#fff",
+  },
   locError: { marginBottom: 12, gap: 8 },
   changeAddr: { marginTop: 10, marginBottom: 8 },
   pickupCard: {
