@@ -37,6 +37,9 @@
       "env": {
         "EXPO_PUBLIC_APP_ENV": "production"
       },
+      "android": {
+        "buildType": "app-bundle"
+      },
       "ios": {
         "image": "latest"
       }
