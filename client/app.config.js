@@ -50,7 +50,11 @@ const androidGoogleServicesFile = resolveFirebaseFile(
 /** @type {import('expo/config').ExpoConfig} */
 module.exports = {
   ...appJson.expo,
-  plugins: ["expo-dev-client", ...(appJson.expo.plugins || [])],
+  plugins: [
+    "expo-dev-client",
+    ...(appJson.expo.plugins || []),
+    "./plugins/withStripPhotoPermissions",
+  ],
   ios: {
     ...appJson.expo.ios,
     ...(iosGoogleServiceFile ? { googleServicesFile: iosGoogleServiceFile } : {}),
