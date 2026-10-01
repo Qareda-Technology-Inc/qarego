@@ -1,4 +1,4 @@
-import { Alert } from "react-native";
+import { Alert, Platform } from "react-native";
 import {
   assertImageBytesUnderLimit,
   imageSizeErrorMessage,
@@ -63,11 +63,13 @@ export async function pickPrescriptionImage(): Promise<string | null> {
       {
         text: "Photo library",
         onPress: async () => {
-          const library = await ImagePicker!.requestMediaLibraryPermissionsAsync();
-          if (!library.granted) {
-            Alert.alert("Permission needed", "Allow photo access to attach your prescription.");
-            resolve(null);
-            return;
+          if (Platform.OS === "ios") {
+            const library = await ImagePicker!.requestMediaLibraryPermissionsAsync();
+            if (!library.granted) {
+              Alert.alert("Permission needed", "Allow photo access to attach your prescription.");
+              resolve(null);
+              return;
+            }
           }
           const result = await ImagePicker!.launchImageLibraryAsync({
             mediaTypes: ImagePicker!.MediaTypeOptions.Images,

@@ -1,4 +1,4 @@
-import { Alert } from "react-native";
+import { Alert, Platform } from "react-native";
 import {
   assertImageBytesUnderLimit,
   imageSizeErrorMessage,
@@ -20,10 +20,12 @@ export async function pickParcelImage(): Promise<string | null> {
     return null;
   }
 
-  const library = await ImagePicker.requestMediaLibraryPermissionsAsync();
-  if (!library.granted) {
-    Alert.alert("Permission needed", "Allow photo access to attach a parcel photo.");
-    return null;
+  if (Platform.OS === "ios") {
+    const library = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!library.granted) {
+      Alert.alert("Permission needed", "Allow photo access to attach a parcel photo.");
+      return null;
+    }
   }
 
   const result = await ImagePicker.launchImageLibraryAsync({

@@ -1,4 +1,4 @@
-import { Alert } from "react-native";
+import { Alert, Platform } from "react-native";
 import {
   assertImageBytesUnderLimit,
   imageSizeErrorMessage,
@@ -20,13 +20,16 @@ export async function pickProfileImage(): Promise<string | null> {
     return null;
   }
 
-  const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-  if (!permission.granted) {
-    Alert.alert(
-      "Permission needed",
-      "Allow photo library access to choose a profile picture."
-    );
-    return null;
+  // Android 13+ uses the system photo picker; broad gallery permission is not allowed.
+  if (Platform.OS === "ios") {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert(
+        "Permission needed",
+        "Allow photo library access to choose a profile picture."
+      );
+      return null;
+    }
   }
 
   const result = await ImagePicker.launchImageLibraryAsync({
