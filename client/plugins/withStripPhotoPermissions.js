@@ -6,6 +6,16 @@ const BLOCKED = [
   "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
   "android.permission.READ_EXTERNAL_STORAGE",
   "android.permission.WRITE_EXTERNAL_STORAGE",
+  "android.permission.READ_SMS",
+  "android.permission.SEND_SMS",
+  "android.permission.RECEIVE_SMS",
+  "android.permission.RECEIVE_MMS",
+  "android.permission.RECEIVE_WAP_PUSH",
+  "android.permission.READ_CALL_LOG",
+  "android.permission.WRITE_CALL_LOG",
+  "android.permission.PROCESS_OUTGOING_CALLS",
+  "android.permission.READ_PHONE_STATE",
+  "android.permission.READ_PHONE_NUMBERS",
 ];
 
 function stripPermissionList(manifest, key) {
@@ -23,11 +33,10 @@ function stripPermissionList(manifest, key) {
 }
 
 /**
- * Runs last so no later plugin can leave gallery / storage permissions in the
- * merged AndroidManifest. Play rejects targetSdk 33+ apps that declare
- * READ_MEDIA_IMAGES or READ_MEDIA_VIDEO when the system picker is enough.
+ * Strip Play-restricted permissions from the merged AndroidManifest.
+ * QareGO is not a default SMS/phone handler; users type their number.
  */
-module.exports = function withStripPhotoPermissions(config) {
+module.exports = function withStripRestrictedPermissions(config) {
   return withAndroidManifest(config, (mod) => {
     mod.modResults = AndroidConfig.Manifest.ensureToolsAvailable(mod.modResults);
     const manifest = mod.modResults.manifest;

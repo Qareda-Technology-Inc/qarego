@@ -1,15 +1,10 @@
-import { View, StyleSheet, TextInput, TouchableOpacity, Platform } from "react-native";
+import { View, StyleSheet, TextInput, TouchableOpacity } from "react-native";
 import React, { FC, useState, useEffect } from "react";
 import { RFValue } from "react-native-responsive-fontsize";
 import CustomText from "./CustomText";
 import CountryCodePicker from "./CountryCodePicker";
 import { Colors } from "@/utils/Constants";
-import {
-  getCountryFromLocale,
-  getPhoneNumberFromDevice,
-  extractPhoneNumber,
-  Country,
-} from "@/utils/phoneUtils";
+import { getCountryFromLocale, Country } from "@/utils/phoneUtils";
 
 interface PhoneInputProps {
   value: string;
@@ -35,57 +30,11 @@ const PhoneInput: FC<PhoneInputProps> = ({
   );
   const [isFocused, setIsFocused] = useState(false);
 
-  // Auto-detect country and phone number on mount
   useEffect(() => {
-    if (autoDetect) {
-      // Auto-detect country from locale
-      const detectedCountry = getCountryFromLocale();
-      setSelectedCountry(detectedCountry);
-      if (onCountryChange) {
-        onCountryChange(detectedCountry);
-      }
-
-      // Auto-detect phone number
-      // Android: Will attempt to read from device (requires permission)
-      // iOS: Not supported (Apple restriction) - user must enter manually
-      getPhoneNumberFromDevice()
-        .then((phoneNumber) => {
-          if (phoneNumber) {
-            // Extract phone number without country code
-            const extracted = extractPhoneNumber(phoneNumber, detectedCountry.dialCode);
-            if (extracted) {
-              // Remove leading 0 if present and limit to 9 digits
-              let cleaned = extracted.startsWith("0") ? extracted.substring(1) : extracted;
-              if (cleaned.length === 9) {
-                if (__DEV__) {
-                  console.log(
-                    `✅ ${Platform.OS === "android" ? "Android" : "iOS"}: Auto-detected phone number (${cleaned.length} digits)`
-                  );
-                }
-                onChangeText(cleaned);
-              } else if (cleaned.length === 10 && cleaned.startsWith("0")) {
-                // Handle 10-digit numbers starting with 0
-                cleaned = cleaned.substring(1);
-                if (cleaned.length === 9) {
-                  if (__DEV__) {
-                    console.log(
-                      `✅ ${Platform.OS === "android" ? "Android" : "iOS"}: Auto-detected phone number (${cleaned.length} digits)`
-                    );
-                  }
-                  onChangeText(cleaned);
-                }
-              } else if (__DEV__) {
-                console.log("⚠️ Phone number detected but format invalid (check country code)");
-              }
-            }
-          }
-          // Silent fail for iOS or permission denied - user can still enter manually
-        })
-        .catch((error) => {
-          console.log("⚠️ Error detecting phone number:", error);
-          // Silent fail - user can still enter manually
-        });
-    }
+    if (!autoDetect) return;
+    const detectedCountry = getCountryFromLocale();
+    setSelectedCountry(detectedCountry);
+    onCountryChange?.(detectedCountry);
   }, [autoDetect]);
 
   const handleCountryChange = (country: Country) => {

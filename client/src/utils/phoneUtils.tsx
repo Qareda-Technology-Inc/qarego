@@ -1,5 +1,3 @@
-import { PermissionsAndroid, Platform } from "react-native";
-import { requireOptionalNativeModule } from "expo-modules-core";
 
 let Localization: any = null;
 
@@ -7,38 +5,6 @@ try {
   Localization = require("expo-localization");
 } catch {
   Localization = { locale: "en-GH" };
-}
-
-let phoneModuleWarned = false;
-let getPhoneNumberFn: (() => Promise<string | null>) | null = null;
-let phoneModulePromise: Promise<(() => Promise<string | null>) | null> | null =
-  null;
-
-async function loadPhoneNumberModule(): Promise<
-  (() => Promise<string | null>) | null
-> {
-  if (getPhoneNumberFn) return getPhoneNumberFn;
-  if (!phoneModulePromise) {
-    phoneModulePromise = (async () => {
-      if (!requireOptionalNativeModule("ReactNativeGetPhoneNumber")) {
-        if (!phoneModuleWarned) {
-          phoneModuleWarned = true;
-          console.log(
-            "Android: phone number module not in this build — run: cd client && npx expo prebuild --clean && npm run android"
-          );
-        }
-        return null;
-      }
-      try {
-        const mod = await import("react-native-get-phone-number");
-        getPhoneNumberFn = mod.getPhoneNumber.bind(mod);
-        return getPhoneNumberFn;
-      } catch {
-        return null;
-      }
-    })();
-  }
-  return phoneModulePromise;
 }
 
 // Country code mapping based on locale
@@ -159,84 +125,9 @@ export const getCountryFromLocale = (): Country => {
   };
 };
 
-async function ensureAndroidPhonePermissions(): Promise<boolean> {
-  if (Platform.OS !== "android") return true;
-
-  const permissions: (typeof PermissionsAndroid.PERMISSIONS.READ_PHONE_STATE)[] =
-    [PermissionsAndroid.PERMISSIONS.READ_PHONE_STATE];
-
-  if (Number(Platform.Version) >= 26) {
-    permissions.push(PermissionsAndroid.PERMISSIONS.READ_PHONE_NUMBERS);
-  }
-
-  for (const permission of permissions) {
-    const granted = await PermissionsAndroid.check(permission);
-    if (granted) continue;
-
-    const result = await PermissionsAndroid.request(permission, {
-      title: "Phone number",
-      message: "QareGO can pre-fill your number for faster login.",
-      buttonPositive: "Allow",
-      buttonNegative: "Not now",
-    });
-    if (result !== PermissionsAndroid.RESULTS.GRANTED) {
-      return false;
-    }
-  }
-  return true;
-}
-
-/**
- * Auto-detect phone number from device
- * - Android: Uses react-native-get-phone-number (requires READ_PHONE_STATE permission)
- * - iOS: Not supported (Apple doesn't allow direct phone number access)
- */
+/** Play forbids SMS/phone-state access unless the app is a default handler. Users type their number. */
 export const getPhoneNumberFromDevice = async (): Promise<string | null> => {
-  if (Platform.OS === "ios") {
-    // iOS doesn't allow direct phone number access for privacy reasons
-    // Users must manually enter their phone number
-    if (__DEV__) {
-      console.log("ℹ️ iOS: Phone number auto-detection not available (Apple restriction)");
-    }
-    return null;
-  }
-
-  const hasPermission = await ensureAndroidPhonePermissions();
-  if (!hasPermission) {
-    if (__DEV__) {
-      console.log("ℹ️ Android: Phone permission not granted — enter number manually.");
-    }
-    return null;
-  }
-
-  const getPhoneNumber = await loadPhoneNumberModule();
-  if (!getPhoneNumber) {
-    return null;
-  }
-
-  try {
-    const phoneNumber = await getPhoneNumber();
-    if (phoneNumber && __DEV__) {
-      const masked =
-        phoneNumber.length > 6
-          ? `${phoneNumber.slice(0, 4)}…${phoneNumber.slice(-3)}`
-          : phoneNumber;
-      console.log("✅ Android: Phone number detected:", masked);
-    }
-    return phoneNumber || null;
-  } catch (error: any) {
-    if (__DEV__) {
-      if (
-        error?.message?.includes("permission") ||
-        error?.code === "PERMISSION_DENIED"
-      ) {
-        console.log("ℹ️ Android: Cannot read SIM number — enter manually.");
-      } else {
-        console.log("ℹ️ Android: Phone auto-fill unavailable:", error?.message || error);
-      }
-    }
-    return null;
-  }
+  return null;
 };
 
 /**
