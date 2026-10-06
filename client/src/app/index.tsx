@@ -1,4 +1,4 @@
-import { View, Image, Alert } from "react-native";
+import { View, Image } from "react-native";
 import React, { useEffect, useState } from "react";
 import { useFonts } from "expo-font";
 import {
@@ -42,8 +42,27 @@ interface DecodedToken {
 }
 
 /** Boot splash — brand-first while fonts hydrate and session resolves. */
+const FONT_WAIT_MS = 4000;
+const SESSION_WAIT_MS = 8000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("timeout")), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      }
+    );
+  });
+}
+
 const Main = () => {
-  const [loaded] = useFonts({
+  const [loaded, fontError] = useFonts({
     Bold: PlayfairDisplay_700Bold,
     SemiBold: Fraunces_600SemiBold,
     Medium: Lora_500Medium,
@@ -56,6 +75,7 @@ const Main = () => {
 
   const [hasNavigated, setHasNavigated] = useState(false);
   const [storesHydrated, setStoresHydrated] = useState(false);
+  const [fontsTimedOut, setFontsTimedOut] = useState(false);
 
   const loaderX = useSharedValue(-40);
 
@@ -80,84 +100,98 @@ const Main = () => {
     checkHydration();
   }, []);
 
+  useEffect(() => {
+    if (loaded || fontError) return;
+    const id = setTimeout(() => setFontsTimedOut(true), FONT_WAIT_MS);
+    return () => clearTimeout(id);
+  }, [loaded, fontError]);
+
+  const goToLogin = () => {
+    resetAndNavigate("/role");
+  };
+
   const tokenCheck = async () => {
     const access_token = tokenStorage.getString("access_token") as string;
     const refresh_token = tokenStorage.getString("refresh_token") as string;
 
-    if (access_token && refresh_token) {
-      try {
-        let decodedAccessToken = jwtDecode<DecodedToken>(access_token);
-        const decodedRefreshToken = jwtDecode<DecodedToken>(refresh_token);
-
-        const currentTime = Date.now() / 1000;
-
-        if (decodedRefreshToken?.exp < currentTime) {
-          logout();
-          Alert.alert("Session Expired, please login again");
-          return;
-        }
-
-        if (decodedAccessToken?.exp < currentTime) {
-          try {
-            await refresh_tokens();
-            const newAccessToken = tokenStorage.getString("access_token") as string;
-            if (newAccessToken) {
-              decodedAccessToken = jwtDecode<DecodedToken>(newAccessToken);
-            }
-          } catch (err) {
-            console.log(err);
-            Alert.alert("Refresh Token Error");
-            logout();
-            return;
-          }
-        }
-
-        const userRole = decodedAccessToken?.role;
-
-        if (userRole === "customer" && riderUser) {
-          useRiderStore.getState().clearRiderData();
-        } else if (userRole === "rider" && user) {
-          useUserStore.getState().clearData();
-        }
-
-        if (userRole === "customer") {
-          const resumed = await resumeCustomerSession({ useReset: true });
-          if (!resumed) {
-            resetAndNavigate("/customer");
-          }
-        } else if (userRole === "rider") {
-          resetAndNavigate("/rider/home");
-        } else if (user && user.role === "customer") {
-          const resumed = await resumeCustomerSession({ useReset: true });
-          if (!resumed) {
-            resetAndNavigate("/customer");
-          }
-        } else if (riderUser && riderUser.role === "rider") {
-          resetAndNavigate("/rider/home");
-        } else {
-          resetAndNavigate("/role");
-        }
-      } catch (error) {
-        console.log("Token decode error:", error);
-        tokenStorage.clearAll();
-        resetAndNavigate("/role");
-      }
+    if (!access_token || !refresh_token) {
+      goToLogin();
       return;
     }
 
-    resetAndNavigate("/role");
+    try {
+      let decodedAccessToken = jwtDecode<DecodedToken>(access_token);
+      const decodedRefreshToken = jwtDecode<DecodedToken>(refresh_token);
+      const currentTime = Date.now() / 1000;
+
+      if (decodedRefreshToken?.exp < currentTime) {
+        logout();
+        goToLogin();
+        return;
+      }
+
+      if (decodedAccessToken?.exp < currentTime) {
+        try {
+          await withTimeout(refresh_tokens(), SESSION_WAIT_MS);
+          const newAccessToken = tokenStorage.getString("access_token") as string;
+          if (newAccessToken) {
+            decodedAccessToken = jwtDecode<DecodedToken>(newAccessToken);
+          } else {
+            logout();
+            goToLogin();
+            return;
+          }
+        } catch (err) {
+          console.log(err);
+          logout();
+          goToLogin();
+          return;
+        }
+      }
+
+      const userRole = decodedAccessToken?.role;
+
+      if (userRole === "customer" && riderUser) {
+        useRiderStore.getState().clearRiderData();
+      } else if (userRole === "rider" && user) {
+        useUserStore.getState().clearData();
+      }
+
+      if (userRole === "customer" || (user && user.role === "customer")) {
+        const resumed = await withTimeout(
+          resumeCustomerSession({ useReset: true }),
+          SESSION_WAIT_MS
+        ).catch(() => false);
+        if (!resumed) {
+          resetAndNavigate("/customer");
+        }
+        return;
+      }
+
+      if (userRole === "rider" || (riderUser && riderUser.role === "rider")) {
+        resetAndNavigate("/rider/home");
+        return;
+      }
+
+      goToLogin();
+    } catch (error) {
+      console.log("Token decode error:", error);
+      tokenStorage.clearAll();
+      goToLogin();
+    }
   };
 
+  const fontsReady = loaded || !!fontError || fontsTimedOut;
+
   useEffect(() => {
-    if (loaded && storesHydrated && !hasNavigated) {
-      // Slightly longer so the brand moment lands before route change.
+    if (fontsReady && storesHydrated && !hasNavigated) {
       const timeoutId = setTimeout(() => {
-        void tokenCheck();
         setHasNavigated(true);
+        void tokenCheck().catch(() => goToLogin());
       }, 900);
       return () => clearTimeout(timeoutId);
     }
-  }, [loaded, storesHydrated, hasNavigated]);
+  }, [fontsReady, storesHydrated, hasNavigated]);
 
   return (
     <View style={splashStyles.root}>
