@@ -64,3 +64,6 @@ client/app-example
 # Local startup notes (machine-specific, not for git)
 startup.md
 startup.txt
+
+# Local credentials notes
+passwords.txt
