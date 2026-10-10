@@ -97,12 +97,6 @@ const RiderHome = () => {
     };
   }, [onDuty, isFocused]);
 
-  useEffect(() => {
-    // Request notification permissions
-    // TODO: Uncomment after installing expo-notifications
-    // Notifications.requestPermissionsAsync().catch(console.error);
-  }, []);
-
   const checkActiveDelivery = async () => {
     const active = await fetchRiderActiveRide();
     if (active?._id) {

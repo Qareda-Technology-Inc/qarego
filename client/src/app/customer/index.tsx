@@ -86,7 +86,6 @@ const CustomerServiceSelect = () => {
       <StatusBar style="dark" />
       <View pointerEvents="none" style={styles.atmosphere}>
         <View style={styles.orbTop} />
-        <View style={styles.orbSide} />
       </View>
 
       <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
@@ -148,17 +147,7 @@ const styles = StyleSheet.create({
     height: 240,
     borderRadius: 120,
     backgroundColor: Colors.primary,
-    opacity: 0.22,
-  },
-  orbSide: {
-    position: "absolute",
-    top: 180,
-    left: -110,
-    width: 200,
-    height: 200,
-    borderRadius: 100,
-    backgroundColor: Colors.tertiary,
-    opacity: 0.1,
+    opacity: 0.16,
   },
   safe: {
     flex: 1,

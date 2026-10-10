@@ -9,14 +9,12 @@ import {
   Platform,
   ScrollView,
   Image,
-  Alert,
   Linking,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import CustomText from "./CustomText";
 import { Colors } from "@/utils/Constants";
 import { useWS } from "@/service/WSProvider";
-// import * as ImagePicker from "expo-image-picker";
 
 interface Message {
   _id?: string;
@@ -130,36 +128,6 @@ const ChatModal: FC<ChatModalProps> = ({
 
   const sendQuickMessage = (text: string) => {
     sendMessage(text);
-  };
-
-  const pickImage = async () => {
-    Alert.alert(
-      "Image Sharing",
-      "Image sharing will be available after installing expo-image-picker. Run: npx expo install expo-image-picker"
-    );
-    // TODO: Uncomment after installing expo-image-picker
-    // try {
-    //   const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    //   if (status !== "granted") {
-    //     Alert.alert("Permission needed", "Please grant camera roll permissions");
-    //     return;
-    //   }
-
-    //   const result = await ImagePicker.launchImageLibraryAsync({
-    //     mediaTypes: ImagePicker.MediaTypeOptions.Images,
-    //     allowsEditing: true,
-    //     quality: 0.8,
-    //     base64: true,
-    //   });
-
-    //   if (!result.canceled && result.assets[0]) {
-    //     const imageUri = `data:image/jpeg;base64,${result.assets[0].base64}`;
-    //     sendMessage(undefined, imageUri);
-    //   }
-    // } catch (error) {
-    //   console.log("Error picking image:", error);
-    //   Alert.alert("Error", "Failed to pick image");
-    // }
   };
 
   const formatTime = (date: Date) => {
@@ -321,10 +289,6 @@ const ChatModal: FC<ChatModalProps> = ({
               multiline
               maxLength={500}
             />
-
-            <TouchableOpacity onPress={pickImage} style={styles.attachButton}>
-              <Ionicons name="image-outline" size={20} color={Colors.primary} />
-            </TouchableOpacity>
 
             <TouchableOpacity
               onPress={() => sendMessage(inputText)}
@@ -512,10 +476,6 @@ const styles = StyleSheet.create({
     maxHeight: 100,
     fontSize: 15,
     backgroundColor: "#fff",
-  },
-  attachButton: {
-    padding: 8,
-    marginLeft: 5,
   },
   sendButton: {
     padding: 8,
