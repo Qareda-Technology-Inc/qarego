@@ -54,6 +54,7 @@ module.exports = {
     "expo-dev-client",
     ...(appJson.expo.plugins || []),
     "./plugins/withStripPhotoPermissions",
+    "./plugins/withFmtCxx17",
   ],
   ios: {
     ...appJson.expo.ios,
