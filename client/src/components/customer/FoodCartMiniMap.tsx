@@ -1,8 +1,9 @@
-import React, { FC, useCallback, useEffect, useRef, useState } from "react";
-import { View, StyleSheet, ActivityIndicator } from "react-native";
+import React, { FC, useEffect, useRef } from "react";
+import { View, StyleSheet, Pressable } from "react-native";
 import MapView, { Marker, Region } from "react-native-maps";
+import { Ionicons } from "@expo/vector-icons";
+import CustomText from "../shared/CustomText";
 import { customMapStyle } from "@/utils/CustomMap";
-import { reverseGeocode } from "@/utils/mapUtils";
 import { DS } from "@/theme/designSystem";
 
 const MAP_DELTA = 0.0022;
@@ -12,22 +13,24 @@ type Props = {
   longitude: number;
   storeLatitude?: number;
   storeLongitude?: number;
-  onLocationChange: (coords: { latitude: number; longitude: number; address: string }) => void;
+  /** Opens the full-screen location picker. */
+  onPress: () => void;
   accent?: string;
 };
 
+/**
+ * Read-only preview of the delivery pin in the cart. Gestures are disabled so
+ * scrolling the cart can never move the pin; tapping opens the full picker.
+ */
 const FoodCartMiniMap: FC<Props> = ({
   latitude,
   longitude,
   storeLatitude,
   storeLongitude,
-  onLocationChange,
+  onPress,
   accent = "#f97316",
 }) => {
   const mapRef = useRef<MapView>(null);
-  const [busy, setBusy] = useState(false);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const skipNextSync = useRef(false);
 
   const region: Region = {
     latitude,
@@ -37,10 +40,6 @@ const FoodCartMiniMap: FC<Props> = ({
   };
 
   useEffect(() => {
-    if (skipNextSync.current) {
-      skipNextSync.current = false;
-      return;
-    }
     mapRef.current?.animateToRegion(
       {
         latitude,
@@ -52,28 +51,6 @@ const FoodCartMiniMap: FC<Props> = ({
     );
   }, [latitude, longitude]);
 
-  const handleRegionChangeComplete = useCallback(
-    (reg: Region) => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-      debounceRef.current = setTimeout(async () => {
-        setBusy(true);
-        try {
-          const address =
-            (await reverseGeocode(reg.latitude, reg.longitude)) || "Selected location";
-          skipNextSync.current = true;
-          onLocationChange({
-            latitude: reg.latitude,
-            longitude: reg.longitude,
-            address,
-          });
-        } finally {
-          setBusy(false);
-        }
-      }, 400);
-    },
-    [onLocationChange]
-  );
-
   const hasStorePin =
     typeof storeLatitude === "number" &&
     typeof storeLongitude === "number" &&
@@ -81,34 +58,46 @@ const FoodCartMiniMap: FC<Props> = ({
     !Number.isNaN(storeLongitude);
 
   return (
-    <View style={styles.wrap}>
-      <MapView
-        ref={mapRef}
-        style={styles.map}
-        initialRegion={region}
-        customMapStyle={customMapStyle}
-        onRegionChangeComplete={handleRegionChangeComplete}
-        showsUserLocation
-        showsMyLocationButton={false}
-      >
-        {hasStorePin ? (
-          <Marker
-            coordinate={{ latitude: storeLatitude!, longitude: storeLongitude! }}
-            title="Store"
-            pinColor="#6366f1"
-          />
-        ) : null}
-      </MapView>
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [styles.wrap, pressed && styles.pressed]}
+      accessibilityRole="button"
+      accessibilityLabel="Change delivery location"
+    >
+      <View style={styles.map} pointerEvents="none">
+        <MapView
+          ref={mapRef}
+          style={StyleSheet.absoluteFill}
+          initialRegion={region}
+          customMapStyle={customMapStyle}
+          scrollEnabled={false}
+          zoomEnabled={false}
+          rotateEnabled={false}
+          pitchEnabled={false}
+          toolbarEnabled={false}
+          showsUserLocation
+          showsMyLocationButton={false}
+        >
+          {hasStorePin ? (
+            <Marker
+              coordinate={{ latitude: storeLatitude!, longitude: storeLongitude! }}
+              title="Store"
+              pinColor="#6366f1"
+            />
+          ) : null}
+        </MapView>
+      </View>
       <View style={styles.pinWrap} pointerEvents="none">
         <View style={[styles.pin, { backgroundColor: accent }]} />
         <View style={[styles.pinStem, { backgroundColor: accent }]} />
       </View>
-      {busy ? (
-        <View style={styles.busy}>
-          <ActivityIndicator size="small" color={accent} />
-        </View>
-      ) : null}
-    </View>
+      <View style={styles.chip} pointerEvents="none">
+        <Ionicons name="create-outline" size={14} color={accent} />
+        <CustomText fontFamily="SemiBold" fontSize={12} style={{ color: accent }}>
+          Adjust pin
+        </CustomText>
+      </View>
+    </Pressable>
   );
 };
 
@@ -119,6 +108,9 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     borderWidth: 1,
     borderColor: DS.color.border,
+  },
+  pressed: {
+    opacity: 0.9,
   },
   map: { ...StyleSheet.absoluteFillObject },
   pinWrap: {
@@ -140,13 +132,17 @@ const styles = StyleSheet.create({
     marginTop: -1,
     opacity: 0.85,
   },
-  busy: {
+  chip: {
     position: "absolute",
-    top: 8,
     right: 8,
-    backgroundColor: "rgba(255,255,255,0.9)",
-    borderRadius: 8,
-    padding: 6,
+    bottom: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(255,255,255,0.95)",
+    borderRadius: DS.radius.pill,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
   },
 });
 

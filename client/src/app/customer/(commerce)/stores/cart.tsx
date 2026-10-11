@@ -16,7 +16,6 @@ import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialIcons, Ionicons } from "@expo/vector-icons";
 import CustomText from "@/components/shared/CustomText";
-import CustomerLogoutButton from "@/components/customer/CustomerLogoutButton";
 import { Colors, formatCurrency } from "@/utils/Constants";
 import { useFoodCartStore } from "@/store/foodCartStore";
 import { useUserStore } from "@/store/userStore";
@@ -297,6 +296,15 @@ const FoodCart = () => {
       ? `${formatCurrency(subtotal + serviceFee)}+`
       : formatCurrency(estimatedTotal);
 
+  /** Always-visible fee summary so the total is never unexplained. */
+  const footerBreakdown = [
+    `Items ${formatCurrency(subtotal)}`,
+    `Service ${formatCurrency(serviceFee)}`,
+    needsDeliveryAddress
+      ? `Delivery ${deliveryQuote ? formatCurrency(deliveryQuote.fee) : "—"}`
+      : "Pickup free",
+  ].join(" · ");
+
   const readyToOrder =
     meetsMin &&
     !loading &&
@@ -405,6 +413,12 @@ const FoodCart = () => {
     setPrescriptions((prev) => prev.filter((p) => p.uri !== uri));
   };
 
+  const openLocationPicker = () =>
+    router.push({
+      pathname: "/customer/selectlocations",
+      params: { serviceType: "FOOD", foodCheckout: "1" },
+    });
+
   const pickSchedule = (minutes: number) => {
     const at = new Date(Date.now() + minutes * 60 * 1000);
     setScheduledFor(at);
@@ -427,7 +441,7 @@ const FoodCart = () => {
           <CustomText fontFamily="SemiBold" fontSize={18}>
             Cart
           </CustomText>
-          <CustomerLogoutButton style={styles.backBtn} />
+          <View style={styles.backBtn} />
         </View>
         <View style={styles.empty}>
           <EmptyStateCard
@@ -463,10 +477,161 @@ const FoodCart = () => {
         <CustomText fontFamily="SemiBold" fontSize={17} numberOfLines={1} style={styles.headerTitle}>
           {restaurantName}
         </CustomText>
-        <CustomerLogoutButton style={styles.backBtn} />
+        <View style={styles.backBtn} />
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+        <CustomText fontFamily="SemiBold" fontSize={15} style={styles.sectionHeading}>
+          How do you want it?
+        </CustomText>
+        <View style={styles.fulfillmentRow}>
+          <TouchableOpacity
+            style={[
+              styles.fulfillmentOpt,
+              fulfillmentMode === "DELIVERY" && { borderColor: accent, backgroundColor: "#fff7ed" },
+            ]}
+            onPress={() => {
+              setFulfillmentMode("DELIVERY");
+              setScheduledFor(null);
+            }}
+          >
+            <Ionicons
+              name="bicycle-outline"
+              size={20}
+              color={fulfillmentMode === "DELIVERY" ? accent : "#666"}
+            />
+            <CustomText fontFamily="Medium" fontSize={13} style={{ marginTop: 4 }}>
+              Delivery
+            </CustomText>
+            <CustomText fontSize={11} color="#888" numberOfLines={2}>
+              {deliveryFeeLabel ?? "—"}
+            </CustomText>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.fulfillmentOpt,
+              !allowsPickup && styles.fulfillmentOptDisabled,
+              fulfillmentMode === "PICKUP" &&
+                allowsPickup && { borderColor: accent, backgroundColor: "#fff7ed" },
+            ]}
+            disabled={!allowsPickup}
+            onPress={() => {
+              if (!allowsPickup) return;
+              setFulfillmentMode("PICKUP");
+              setScheduledFor(null);
+            }}
+          >
+            <Ionicons
+              name="storefront-outline"
+              size={20}
+              color={!allowsPickup ? "#bbb" : fulfillmentMode === "PICKUP" ? accent : "#666"}
+            />
+            <CustomText fontFamily="Medium" fontSize={13} style={{ marginTop: 4 }}>
+              Pickup
+            </CustomText>
+            <CustomText fontSize={11} color="#888">
+              {allowsPickup ? "Free" : "Unavailable"}
+            </CustomText>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.fulfillmentOpt,
+              (fulfillmentMode === "SCHEDULED" || scheduleModal) && {
+                borderColor: accent,
+                backgroundColor: "#fff7ed",
+              },
+            ]}
+            onPress={() => setScheduleModal(true)}
+          >
+            <Ionicons
+              name="time-outline"
+              size={20}
+              color={fulfillmentMode === "SCHEDULED" ? accent : "#666"}
+            />
+            <CustomText fontFamily="Medium" fontSize={13} style={{ marginTop: 4 }}>
+              Schedule
+            </CustomText>
+            <CustomText fontSize={11} color="#888" numberOfLines={1}>
+              {scheduleLabel || "Later"}
+            </CustomText>
+          </TouchableOpacity>
+        </View>
+
+        {needsDeliveryAddress ? (
+          <>
+            <CustomText fontFamily="SemiBold" fontSize={15} style={styles.sectionHeading}>
+              Deliver to
+            </CustomText>
+            {resolvingLocation ? (
+              <View style={styles.locLoading}>
+                <ActivityIndicator size="small" color={accent} />
+                <CustomText fontSize={13} color="#666" style={{ marginLeft: 10 }}>
+                  Getting your location…
+                </CustomText>
+              </View>
+            ) : locationError ? (
+              <View style={styles.locError}>
+                <CustomText fontSize={13} color="#ef4444">
+                  {locationError}
+                </CustomText>
+                <TouchableOpacity onPress={refreshDeliveryLocation}>
+                  <CustomText fontSize={13} color={accent} fontFamily="Medium">
+                    Try again
+                  </CustomText>
+                </TouchableOpacity>
+              </View>
+            ) : hasValidDeliveryCoords(location) ? (
+              <>
+                <CustomText fontSize={14} numberOfLines={2}>
+                  {location?.address || "Your location"}
+                </CustomText>
+                <CustomText fontSize={12} color="#888" style={{ marginTop: 4, marginBottom: 8 }}>
+                  Tap the map to adjust the pin. Delivery fee is based on distance to the store.
+                </CustomText>
+                <FoodCartMiniMap
+                  latitude={location!.latitude}
+                  longitude={location!.longitude}
+                  storeLatitude={restaurantCoords?.lat}
+                  storeLongitude={restaurantCoords?.lng}
+                  accent={accent}
+                  onPress={openLocationPicker}
+                />
+                {deliveryQuote ? (
+                  <CustomText fontSize={12} color={accent} style={{ marginTop: 8 }}>
+                    {deliveryQuote.km.toFixed(1)} km from store · delivery{" "}
+                    {formatCurrency(deliveryQuote.fee)}
+                  </CustomText>
+                ) : null}
+                <TouchableOpacity
+                  style={styles.changeAddr}
+                  onPress={openLocationPicker}
+                >
+                  <CustomText fontSize={13} color={accent} fontFamily="Medium">
+                    Change address
+                  </CustomText>
+                </TouchableOpacity>
+              </>
+            ) : null}
+          </>
+        ) : (
+          <SurfaceCard style={styles.pickupCard}>
+            <Ionicons name="storefront" size={20} color={accent} />
+            <View style={{ flex: 1, marginLeft: 10 }}>
+              <CustomText fontFamily="Medium" fontSize={14}>
+                Pick up at store
+              </CustomText>
+              <CustomText fontSize={13} color="#666" numberOfLines={2}>
+                {storeAddress || restaurantName}
+              </CustomText>
+            </View>
+          </SurfaceCard>
+        )}
+
+        <CustomText fontFamily="SemiBold" fontSize={15} style={styles.sectionHeading}>
+          Your order
+        </CustomText>
         {items.map((line) => {
           const modifierText = formatCartModifierSummary(line.modifiers);
           return (
@@ -512,8 +677,8 @@ const FoodCart = () => {
           style={[styles.linkRow, { borderColor: accent }]}
           onPress={() =>
             router.push({
-              pathname: `/customer/stores/${restaurantId}`,
-              params: { vertical: selectedVertical },
+              pathname: "/customer/stores/[id]",
+              params: { id: String(restaurantId), vertical: selectedVertical },
             })
           }
         >
@@ -590,159 +755,6 @@ const FoodCart = () => {
             </View>
           </View>
         ) : null}
-
-        {needsDeliveryAddress ? (
-          <>
-            <CustomText fontFamily="SemiBold" fontSize={15} style={styles.sectionHeading}>
-              Deliver to
-            </CustomText>
-            {resolvingLocation ? (
-              <View style={styles.locLoading}>
-                <ActivityIndicator size="small" color={accent} />
-                <CustomText fontSize={13} color="#666" style={{ marginLeft: 10 }}>
-                  Getting your location…
-                </CustomText>
-              </View>
-            ) : locationError ? (
-              <View style={styles.locError}>
-                <CustomText fontSize={13} color="#ef4444">
-                  {locationError}
-                </CustomText>
-                <TouchableOpacity onPress={refreshDeliveryLocation}>
-                  <CustomText fontSize={13} color={accent} fontFamily="Medium">
-                    Try again
-                  </CustomText>
-                </TouchableOpacity>
-              </View>
-            ) : hasValidDeliveryCoords(location) ? (
-              <>
-                <CustomText fontSize={14} numberOfLines={2}>
-                  {location?.address || "Your location"}
-                </CustomText>
-                <CustomText fontSize={12} color="#888" style={{ marginTop: 4, marginBottom: 8 }}>
-                  Drag the map to adjust delivery pin — fee updates by distance to store
-                </CustomText>
-                <FoodCartMiniMap
-                  latitude={location!.latitude}
-                  longitude={location!.longitude}
-                  storeLatitude={restaurantCoords?.lat}
-                  storeLongitude={restaurantCoords?.lng}
-                  accent={accent}
-                  onLocationChange={(coords) => setLocation(coords)}
-                />
-                {deliveryQuote ? (
-                  <CustomText fontSize={12} color={accent} style={{ marginTop: 8 }}>
-                    {deliveryQuote.km.toFixed(1)} km from store · delivery{" "}
-                    {formatCurrency(deliveryQuote.fee)}
-                  </CustomText>
-                ) : null}
-                <TouchableOpacity
-                  style={styles.changeAddr}
-                  onPress={() =>
-                    router.push({
-                      pathname: "/customer/selectlocations",
-                      params: { serviceType: "FOOD", foodCheckout: "1" },
-                    })
-                  }
-                >
-                  <CustomText fontSize={13} color={accent} fontFamily="Medium">
-                    Change address
-                  </CustomText>
-                </TouchableOpacity>
-              </>
-            ) : null}
-          </>
-        ) : (
-          <SurfaceCard style={styles.pickupCard}>
-            <Ionicons name="storefront" size={20} color={accent} />
-            <View style={{ flex: 1, marginLeft: 10 }}>
-              <CustomText fontFamily="Medium" fontSize={14}>
-                Pick up at store
-              </CustomText>
-              <CustomText fontSize={13} color="#666" numberOfLines={2}>
-                {storeAddress || restaurantName}
-              </CustomText>
-            </View>
-          </SurfaceCard>
-        )}
-
-        <CustomText fontFamily="SemiBold" fontSize={15} style={styles.sectionHeading}>
-          Delivery or Pickup?
-        </CustomText>
-        <View style={styles.fulfillmentRow}>
-          <TouchableOpacity
-            style={[
-              styles.fulfillmentOpt,
-              fulfillmentMode === "DELIVERY" && { borderColor: accent, backgroundColor: "#fff7ed" },
-            ]}
-            onPress={() => {
-              setFulfillmentMode("DELIVERY");
-              setScheduledFor(null);
-            }}
-          >
-            <Ionicons
-              name="bicycle-outline"
-              size={20}
-              color={fulfillmentMode === "DELIVERY" ? accent : "#666"}
-            />
-            <CustomText fontFamily="Medium" fontSize={13} style={{ marginTop: 4 }}>
-              Delivery
-            </CustomText>
-            <CustomText fontSize={11} color="#888" numberOfLines={2}>
-              {deliveryFeeLabel ?? "—"}
-            </CustomText>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.fulfillmentOpt,
-              !allowsPickup && styles.fulfillmentOptDisabled,
-              fulfillmentMode === "PICKUP" &&
-                allowsPickup && { borderColor: accent, backgroundColor: "#fff7ed" },
-            ]}
-            disabled={!allowsPickup}
-            onPress={() => {
-              if (!allowsPickup) return;
-              setFulfillmentMode("PICKUP");
-              setScheduledFor(null);
-            }}
-          >
-            <Ionicons
-              name="storefront-outline"
-              size={20}
-              color={!allowsPickup ? "#bbb" : fulfillmentMode === "PICKUP" ? accent : "#666"}
-            />
-            <CustomText fontFamily="Medium" fontSize={13} style={{ marginTop: 4 }}>
-              Pickup
-            </CustomText>
-            <CustomText fontSize={11} color="#888">
-              {allowsPickup ? "Free" : "Unavailable"}
-            </CustomText>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.fulfillmentOpt,
-              (fulfillmentMode === "SCHEDULED" || scheduleModal) && {
-                borderColor: accent,
-                backgroundColor: "#fff7ed",
-              },
-            ]}
-            onPress={() => setScheduleModal(true)}
-          >
-            <Ionicons
-              name="time-outline"
-              size={20}
-              color={fulfillmentMode === "SCHEDULED" ? accent : "#666"}
-            />
-            <CustomText fontFamily="Medium" fontSize={13} style={{ marginTop: 4 }}>
-              Schedule
-            </CustomText>
-            <CustomText fontSize={11} color="#888" numberOfLines={1}>
-              {scheduleLabel || "Later"}
-            </CustomText>
-          </TouchableOpacity>
-        </View>
 
         <TouchableOpacity style={styles.linkRowPlain} onPress={() => setShowPromo((v) => !v)}>
           <Ionicons name="pricetag-outline" size={18} color="#666" />
@@ -837,6 +849,10 @@ const FoodCart = () => {
             {totalLabel}
           </CustomText>
         </View>
+
+        <CustomText fontSize={11} color="#888" style={styles.footerBreakdown}>
+          {footerBreakdown}
+        </CustomText>
 
         <View style={styles.payRow}>
           <TouchableOpacity
@@ -1052,8 +1068,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "baseline",
     justifyContent: "space-between",
-    marginBottom: 12,
   },
+  footerBreakdown: { marginTop: 2, marginBottom: 12 },
   payRow: { flexDirection: "row", gap: 10, marginBottom: 12 },
   payOpt: {
     flex: 1,

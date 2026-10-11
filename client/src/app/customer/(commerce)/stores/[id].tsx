@@ -14,7 +14,6 @@ import { StatusBar } from "expo-status-bar";
 import { MaterialIcons, Ionicons } from "@expo/vector-icons";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import CustomText from "@/components/shared/CustomText";
-import CustomerLogoutButton from "@/components/customer/CustomerLogoutButton";
 import { Colors, formatCurrency } from "@/utils/Constants";
 import {
   fetchFoodCheckoutSettings,
@@ -68,6 +67,11 @@ const RestaurantMenu = () => {
   const stickyBlockH = STICKY_TABS_H;
   const navTop = insets.top + NAV_H;
   const heroExpandedH = insets.top + HERO_BODY;
+  /**
+   * Scroll offset at which the hero's bottom edge reaches the nav bar. The hero both
+   * shrinks and scrolls, so its edge moves faster than the finger; header fades key off this.
+   */
+  const heroUnderNavAt = (heroExpandedH - navTop) / (1 + heroExpandedH / COLLAPSE);
 
   const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
   const [menu, setMenu] = useState<Record<string, MenuItem[]>>({});
@@ -87,6 +91,7 @@ const RestaurantMenu = () => {
   const addItem = useFoodCartStore((s) => s.addItem);
   const cartRestaurantId = useFoodCartStore((s) => s.restaurantId);
   const itemCount = useFoodCartStore((s) => s.itemCount());
+  const cartSubtotal = useFoodCartStore((s) => s.subtotal());
   const { location, setLocation } = useUserStore();
 
   const onScroll = Animated.event(
@@ -95,7 +100,7 @@ const RestaurantMenu = () => {
       useNativeDriver: false,
       listener: (e: NativeSyntheticEvent<NativeScrollEvent>) => {
         const y = e.nativeEvent.contentOffset.y;
-        setHeroLight(y < COLLAPSE * 0.4);
+        setHeroLight(y < heroUnderNavAt * 0.6);
         const collapsed = y >= COLLAPSE;
         const sticky = y >= COLLAPSE + TABS_REVEAL * 0.85;
         setStickyInteractive(sticky);
@@ -119,14 +124,16 @@ const RestaurantMenu = () => {
     extrapolate: "clamp",
   });
 
+  /** Hero text is gone before it can slide under the transparent nav bar. */
   const heroMetaOpacity = scrollY.interpolate({
-    inputRange: [0, COLLAPSE * 0.5, COLLAPSE * 0.9],
-    outputRange: [1, 0.4, 0],
+    inputRange: [0, heroUnderNavAt * 0.5],
+    outputRange: [1, 0],
     extrapolate: "clamp",
   });
 
+  /** White header is opaque by the time the hero edge passes under the nav. */
   const headerBgOpacity = scrollY.interpolate({
-    inputRange: [COLLAPSE * 0.55, COLLAPSE],
+    inputRange: [heroUnderNavAt * 0.3, heroUnderNavAt],
     outputRange: [0, 1],
     extrapolate: "clamp",
   });
@@ -138,9 +145,9 @@ const RestaurantMenu = () => {
     extrapolate: "clamp",
   });
 
-  /** Restaurant name in nav bar (between back and cart) after hero collapses */
+  /** Restaurant name in nav bar (between back and cart) once the header turns white */
   const navTitleOpacity = scrollY.interpolate({
-    inputRange: [COLLAPSE * 0.85, COLLAPSE + TABS_REVEAL * 0.5],
+    inputRange: [heroUnderNavAt * 0.6, heroUnderNavAt],
     outputRange: [0, 1],
     extrapolate: "clamp",
   });
@@ -408,13 +415,15 @@ const RestaurantMenu = () => {
         style={[
           styles.headerBg,
           {
-            height: navTop + stickyBlockH,
+            // Grow with the category tabs so short menus don't get an empty white band.
+            height:
+              categoryList.length > 0 ? Animated.add(navTop, stickySectionHeight) : navTop,
             opacity: headerBgOpacity,
           },
         ]}
       />
 
-      {/* Nav: back · restaurant name (when scrolled) · logout + cart */}
+      {/* Nav: back · restaurant name (when scrolled) · cart */}
       <View style={[styles.navOverlay, { paddingTop: insets.top, height: navTop }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.navBtn}>
           <MaterialIcons name="arrow-back-ios" size={20} color="#111827" />
@@ -435,7 +444,6 @@ const RestaurantMenu = () => {
         </Animated.View>
 
         <View style={styles.navRight}>
-          <CustomerLogoutButton style={styles.navBtn} />
           <TouchableOpacity onPress={goToCart} style={styles.navBtn}>
             <Ionicons name="cart-outline" size={22} color="#111827" />
             {itemCount > 0 ? (
@@ -560,7 +568,7 @@ const RestaurantMenu = () => {
             activeOpacity={0.9}
           >
             <CustomText fontFamily="SemiBold" fontSize={15} style={{ color: "#fff" }}>
-              View cart ({itemCount})
+              View cart · {itemCount} item{itemCount === 1 ? "" : "s"} · {formatCurrency(cartSubtotal)}
             </CustomText>
           </TouchableOpacity>
         </SafeAreaView>
