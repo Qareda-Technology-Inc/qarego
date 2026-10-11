@@ -51,6 +51,21 @@ const rideSchema = new Schema(
       default: null,
     },
     foodOrderSummary: { type: String, default: null },
+    /**
+     * FOOD cash orders only: how the customer's cash is split, shown to the rider.
+     * Rider collects `collectFromCustomer`, pays the store `payStore` at pickup, keeps
+     * `riderKeeps`; `platformShare` is debited from the rider's balance on delivery.
+     */
+    cashCollection: {
+      type: {
+        collectFromCustomer: Number,
+        payStore: Number,
+        riderKeeps: Number,
+        platformShare: Number,
+      },
+      default: null,
+      _id: false,
+    },
     fare: {
       type: Number,
       required: true,

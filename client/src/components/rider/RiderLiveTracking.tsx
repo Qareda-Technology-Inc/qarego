@@ -306,17 +306,21 @@ const RiderLiveTracking: FC<{
 
         {mapReady && overlaysReady && dropCoord ? (
           <Marker
+            key={`drop-${status === "START" ? "idle" : "active"}`}
             coordinate={dropCoord}
             anchor={{ x: 0.5, y: 1 }}
             zIndex={1}
             tracksViewChanges={false}
             title={dropLabel}
           >
-            <View style={[styles.pinLabel, status !== "START" && styles.pinLabelActive]}>
-              <CustomText fontSize={9} fontFamily="Bold" style={styles.pinLabelText}>
-                {dropLabel}
-              </CustomText>
-            </View>
+            {/* Only the current target is labelled, so nearby pins never overlap. */}
+            {status !== "START" ? (
+              <View style={[styles.pinLabel, styles.pinLabelActive]}>
+                <CustomText fontSize={9} fontFamily="Bold" style={styles.pinLabelText}>
+                  {dropLabel}
+                </CustomText>
+              </View>
+            ) : null}
             <Image
               source={require("@/assets/icons/drop_marker.png")}
               style={styles.pinImage}
@@ -326,17 +330,20 @@ const RiderLiveTracking: FC<{
 
         {mapReady && overlaysReady && pickupCoord ? (
           <Marker
+            key={`pickup-${status === "START" ? "active" : "idle"}`}
             coordinate={pickupCoord}
             anchor={{ x: 0.5, y: 1 }}
             zIndex={2}
             tracksViewChanges={false}
             title={pickupLabel}
           >
-            <View style={[styles.pinLabel, status === "START" && styles.pinLabelActive]}>
-              <CustomText fontSize={9} fontFamily="Bold" style={styles.pinLabelText}>
-                {pickupLabel}
-              </CustomText>
-            </View>
+            {status === "START" ? (
+              <View style={[styles.pinLabel, styles.pinLabelActive]}>
+                <CustomText fontSize={9} fontFamily="Bold" style={styles.pinLabelText}>
+                  {pickupLabel}
+                </CustomText>
+              </View>
+            ) : null}
             <Image source={require("@/assets/icons/marker.png")} style={styles.pinImage} />
           </Marker>
         ) : null}

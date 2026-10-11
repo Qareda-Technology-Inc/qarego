@@ -8,6 +8,7 @@ import { getCommerceOrderCopy } from "@/utils/commerceOrderCopy";
 import { isFoodDelivery } from "@/utils/riderRideUtils";
 import { parseRideParcelMode, parcelModeLabels } from "@/utils/parcelMode";
 import { resolveMediaUrl } from "@/service/mediaUpload";
+import CashCollectionNote, { type RideCashCollection } from "./CashCollectionNote";
 
 type Props = {
   ride: {
@@ -16,6 +17,8 @@ type Props = {
     storeVertical?: string;
     restaurantName?: string;
     foodOrderSummary?: string;
+    status?: string;
+    cashCollection?: RideCashCollection | null;
     recipientName?: string;
     recipientPhone?: string;
     parcelDescription?: string;
@@ -48,6 +51,13 @@ const RiderDeliveryBanner: FC<Props> = ({ ride, variant = "overlay" }) => {
             </CustomText>
           </View>
         </View>
+        {variant === "inline" ? (
+          <CashCollectionNote
+            cash={ride.cashCollection}
+            // Before pickup the next cash step is paying the store; after, collecting.
+            step={ride.status === "START" ? "pickup" : "dropoff"}
+          />
+        ) : null}
       </View>
     );
   }

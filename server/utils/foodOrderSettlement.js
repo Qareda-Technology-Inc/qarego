@@ -31,6 +31,23 @@ export function getFoodDeliveryCommissionRate(settings) {
 }
 
 /**
+ * Cash breakdown for a FOOD cash order's courier, from the split frozen on the order at
+ * checkout (the same values cash settlement debits). Null for MoMo or unsplit orders.
+ */
+export function buildCourierCashCollection(order) {
+  if (order?.paymentMethod !== "CASH") return null;
+  if (order.restaurantNet == null || order.riderNet == null || order.platformNet == null) {
+    return null;
+  }
+  return {
+    collectFromCustomer: roundMoney(order.total ?? 0),
+    payStore: roundMoney(order.restaurantNet),
+    riderKeeps: roundMoney(order.riderNet),
+    platformShare: roundMoney(order.platformNet),
+  };
+}
+
+/**
  * Compute frozen split for a food order from admin rates.
  * restaurant commission applies to subtotal; rider commission applies to delivery fee.
  */

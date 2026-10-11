@@ -79,19 +79,32 @@ const OtpInputModal: React.FC<OtpInputModalProps> = ({
   }, [otp, visible, submitting, submitCode]);
 
   const handleOtpChange = (value: string, index: number) => {
-    if (/^\d$/.test(value) || value === "") {
-      const newOtp = [...otp];
-      newOtp[index] = value;
-      setOtp(newOtp);
-      // User edited — allow a fresh submit attempt.
-      submittedCodeRef.current = null;
-      if (value && index < inputs.current.length - 1) {
-        inputs.current[index + 1]?.focus();
-      }
-      if (!value && index > 0) {
-        inputs.current[index - 1]?.focus();
-      }
+    const digits = value.replace(/\D/g, "");
+    if (value !== "" && !digits) return;
+    // User edited — allow a fresh submit attempt.
+    submittedCodeRef.current = null;
+
+    if (!digits) {
+      setOtp((prev) => prev.map((d, i) => (i === index ? "" : d)));
+      if (index > 0) inputs.current[index - 1]?.focus();
+      return;
     }
+
+    // Fast typing (before focus moves) or a pasted code can deliver several digits to one box:
+    // spread them across this and the following boxes instead of dropping them.
+    // If the box already held a digit and the cursor sat after it, that old digit comes first.
+    const keepsOld = digits.length === 2 && !!otp[index] && digits[0] === otp[index];
+    const incoming = keepsOld ? digits.slice(1) : digits;
+    const start = keepsOld ? index + 1 : index;
+    setOtp((prev) => {
+      const next = [...prev];
+      for (let k = 0; k < incoming.length && start + k < next.length; k++) {
+        next[start + k] = incoming[k];
+      }
+      return next;
+    });
+    const focusIndex = Math.min(start + incoming.length, inputs.current.length - 1);
+    if (focusIndex !== index) inputs.current[focusIndex]?.focus();
   };
 
   const handleConfirm = () => {
@@ -144,7 +157,7 @@ const OtpInputModal: React.FC<OtpInputModalProps> = ({
                 }}
                 style={[styles.otpInput, digit ? styles.otpInputFilled : null]}
                 keyboardType="number-pad"
-                maxLength={1}
+                maxLength={4}
                 selectTextOnFocus
                 editable={!submitting}
                 returnKeyType="done"

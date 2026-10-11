@@ -11,7 +11,10 @@ import {
   notifyRiderAssignedFoodDelivery,
 } from "./pushNotifications.js";
 import { cancelCourierRideForOrder } from "./releaseCourierRide.js";
-import { settleFoodOrderOnDelivery } from "./foodOrderSettlement.js";
+import {
+  buildCourierCashCollection,
+  settleFoodOrderOnDelivery,
+} from "./foodOrderSettlement.js";
 import {
   canRiderReceiveOffer,
   getEligibilityRejectReason,
@@ -123,9 +126,15 @@ export async function createCourierRideForOrder(foodOrder, restaurant, io, optio
         restaurant,
         settings.fareRates || undefined
       );
-      if (existing.fare !== driverFee || existing.distance !== distanceKm) {
+      const cashCollection = existing.cashCollection ?? buildCourierCashCollection(foodOrder);
+      if (
+        existing.fare !== driverFee ||
+        existing.distance !== distanceKm ||
+        (cashCollection && !existing.cashCollection)
+      ) {
         existing.fare = driverFee;
         existing.distance = distanceKm;
+        existing.cashCollection = cashCollection;
         await existing.save();
       }
       if (driverId && existing.status === "SEARCHING_FOR_RIDER" && !existing.rider) {
@@ -183,6 +192,7 @@ export async function createCourierRideForOrder(foodOrder, restaurant, io, optio
     restaurantName: restaurant.name,
     storeVertical: restaurant.vertical || "FOOD",
     foodOrderSummary: itemSummary,
+    cashCollection: buildCourierCashCollection(foodOrder),
   });
 
   foodOrder.ride = ride._id;

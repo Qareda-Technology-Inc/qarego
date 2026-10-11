@@ -19,6 +19,7 @@ import { getOfferEarningsBreakdown } from "@/utils/offerRanking";
 import EarningsBreakdownStrip from "@/components/rider/EarningsBreakdownStrip";
 import { Ionicons } from "@expo/vector-icons";
 import CounterButton from "./CounterButton";
+import CashCollectionNote, { type RideCashCollection } from "./CashCollectionNote";
 import { resolveMediaUrl } from "@/service/mediaUpload";
 
 interface RideItem {
@@ -28,6 +29,7 @@ interface RideItem {
   restaurantName?: string;
   storeVertical?: "FOOD" | "GROCERY" | "PHARMACY";
   foodOrderSummary?: string;
+  cashCollection?: RideCashCollection | null;
   pickup: { address: string; latitude: number; longitude: number };
   drop?: { address: string; latitude: number; longitude: number };
   fare?: number;
@@ -188,6 +190,7 @@ const RiderRidesItem: FC<{ item: RideItem; removeIt: () => void; isBestOffer?: b
               {item.foodOrderSummary}
             </CustomText>
           ) : null}
+          <CashCollectionNote cash={item.cashCollection} step="offer" />
         </View>
       ) : null}
 
