@@ -1,4 +1,4 @@
-import { View, Image, TouchableOpacity } from "react-native";
+import { View, Image, TouchableOpacity, StyleSheet } from "react-native";
 import React, { FC, memo } from "react";
 import { useRiderStore } from "@/store/riderStore";
 import { acceptRideOffer, declineRideOffer } from "@/service/rideService";
@@ -16,7 +16,7 @@ import {
 } from "@/utils/riderRideUtils";
 import { getCommerceOrderCopy } from "@/utils/commerceOrderCopy";
 import { getOfferEarningsBreakdown } from "@/utils/offerRanking";
-import EarningsBreakdownStrip from "@/components/rider/EarningsBreakdownStrip";
+import { serviceCommissionLabel } from "@/utils/earningsBreakdown";
 import { Ionicons } from "@expo/vector-icons";
 import CounterButton from "./CounterButton";
 import CashCollectionNote, { type RideCashCollection } from "./CashCollectionNote";
@@ -59,6 +59,12 @@ interface RideItem {
     serviceType?: string;
   };
 }
+
+/**
+ * Seconds a rider has to accept. Client-side only: the server keeps the ride open and
+ * widens the offer to more riders every 12s, so this can safely be longer than one wave.
+ */
+const OFFER_SECONDS = 20;
 
 const RiderRidesItem: FC<{ item: RideItem; removeIt: () => void; isBestOffer?: boolean }> = ({
   item,
@@ -145,12 +151,13 @@ const RiderRidesItem: FC<{ item: RideItem; removeIt: () => void; isBestOffer?: b
         </TouchableOpacity>
       </View>
 
-      <View style={orderStyles.statsRow}>
-        <View style={orderStyles.statChip}>
+      {/* Earnings first: one prominent number, distance and pay rate beside it. */}
+      <View style={styles.earnRow}>
+        <View style={{ flex: 1 }}>
           <CustomText fontSize={10} style={orderStyles.label}>
-            {netEarning != null ? "Net earning" : "Estimated earning"}
+            {netEarning != null ? "You receive" : "Estimated earning"}
           </CustomText>
-          <CustomText fontSize={14} fontFamily="Bold" style={orderStyles.statValue}>
+          <CustomText fontSize={22} fontFamily="Bold" style={styles.earnValue}>
             {netEarning != null
               ? formatCurrency(netEarning)
               : fare > 0
@@ -158,24 +165,27 @@ const RiderRidesItem: FC<{ item: RideItem; removeIt: () => void; isBestOffer?: b
                 : "—"}
           </CustomText>
         </View>
-        <View style={orderStyles.statChip}>
-          <CustomText fontSize={10} style={orderStyles.label}>Pickup distance</CustomText>
-          <CustomText fontSize={14} fontFamily="Bold" style={orderStyles.statValue}>
-            {pickupKm} km
+        <View style={styles.earnMeta}>
+          <CustomText fontSize={11} fontFamily="SemiBold">
+            {pickupKm} km to pickup
           </CustomText>
-        </View>
-        {earningsPerKm != null ? (
-          <View style={orderStyles.statChip}>
-            <CustomText fontSize={10} style={orderStyles.label}>Pay / km</CustomText>
-            <CustomText fontSize={14} fontFamily="Bold" style={orderStyles.statValue}>
-              {formatCurrency(earningsPerKm)}
+          {earningsPerKm != null ? (
+            <CustomText fontSize={10} style={orderStyles.label}>
+              {formatCurrency(earningsPerKm)} / km
             </CustomText>
-          </View>
-        ) : null}
+          ) : null}
+        </View>
       </View>
-
       {earningsBreakdown ? (
-        <EarningsBreakdownStrip breakdown={earningsBreakdown} />
+        <CustomText fontSize={10} style={[orderStyles.label, styles.fareLine]}>
+          {earningsBreakdown.commissionAmount > 0
+            ? `Fare ${formatCurrency(earningsBreakdown.grossFare)} − ${formatCurrency(
+                earningsBreakdown.commissionAmount
+              )} commission (${earningsBreakdown.commissionPercent}% · ${serviceCommissionLabel(
+                earningsBreakdown.serviceType
+              )})`
+            : `Fare ${formatCurrency(earningsBreakdown.grossFare)} · no commission`}
+        </CustomText>
       ) : null}
 
       {food && (item.restaurantName || item.foodOrderSummary) ? (
@@ -269,16 +279,38 @@ const RiderRidesItem: FC<{ item: RideItem; removeIt: () => void; isBestOffer?: b
         </View>
       )}
 
-      <View style={orderStyles?.flexRowEnd}>
+      <View style={styles.acceptWrap}>
         <CounterButton
           onCountdownEnd={dismissOffer}
-          initialCount={12}
+          initialCount={OFFER_SECONDS}
           onPress={acceptRide}
           title={food ? "Accept delivery" : "Accept"}
+          fullWidth
         />
       </View>
     </Animated.View>
   );
 };
+
+const styles = StyleSheet.create({
+  earnRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginTop: 2,
+  },
+  earnValue: {
+    color: "#15803d",
+  },
+  earnMeta: {
+    alignItems: "flex-end",
+  },
+  fareLine: {
+    marginTop: 2,
+  },
+  acceptWrap: {
+    marginTop: 10,
+  },
+});
 
 export default memo(RiderRidesItem);

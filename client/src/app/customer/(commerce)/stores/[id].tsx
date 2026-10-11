@@ -8,6 +8,7 @@ import {
   NativeSyntheticEvent,
   NativeScrollEvent,
 } from "react-native";
+import { RFValue } from "react-native-responsive-fontsize";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { router, useLocalSearchParams } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -47,7 +48,9 @@ import {
 } from "@/utils/ensureDeliveryLocation";
 
 const NAV_H = 48;
-const HERO_BODY = 196;
+// Scales with screen height like CustomText (RFValue), so the name, status and tagline
+// keep the same room on every phone. ~196pt on an iPhone 17.
+const HERO_BODY = RFValue(152);
 const STICKY_TABS_H = 50;
 /** Scroll until hero image is fully gone */
 const COLLAPSE = HERO_BODY;

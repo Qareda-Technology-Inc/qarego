@@ -26,10 +26,11 @@ type Props = {
 const CashCollectionNote: FC<Props> = ({ cash, step = "offer" }) => {
   if (!cash || !(cash.collectFromCustomer > 0)) return null;
 
-  // Offer cards run on a short timer: a single inline line, so "Accept" stays on screen.
+  // Offer cards run on a short timer: one inline line (wraps on narrow phones rather than
+  // cutting off the amounts), so "Accept" stays on screen.
   if (step === "offer") {
     return (
-      <CustomText fontSize={10} numberOfLines={1} style={styles.compactText}>
+      <CustomText fontSize={10} numberOfLines={2} style={styles.compactText}>
         <CustomText fontFamily="SemiBold" fontSize={10} style={styles.headerText}>
           Cash:{" "}
         </CustomText>

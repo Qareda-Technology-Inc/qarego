@@ -2,6 +2,7 @@ import React from "react";
 import { View, StyleSheet, Pressable, StyleProp, ViewStyle } from "react-native";
 import Animated, { FadeInUp } from "react-native-reanimated";
 import { Ionicons } from "@expo/vector-icons";
+import { RFValue } from "react-native-responsive-fontsize";
 import CustomText from "../shared/CustomText";
 import { Colors } from "@/utils/Constants";
 import { DS } from "@/theme/designSystem";
@@ -71,7 +72,9 @@ const SERVICES: Record<ServiceType, Service> = {
 };
 
 const LOCKED = { tint: "#f1f5f9", icon: "#94a3b8", text: "#94a3b8" };
-const MEDIUM_H = 96;
+// CustomText scales fonts with screen height (RFValue); scale tile heights the same way
+// so labels never overflow on large phones or float in empty space on small ones.
+const MEDIUM_H = RFValue(74);
 const GAP = 10;
 
 type Props = {
@@ -313,7 +316,8 @@ const styles = StyleSheet.create({
     opacity: 0.8,
   },
   large: {
-    height: MEDIUM_H * 2 + GAP,
+    minHeight: MEDIUM_H * 2 + GAP,
+    flex: 1,
     borderRadius: 22,
     padding: 16,
     justifyContent: "space-between",
@@ -344,7 +348,7 @@ const styles = StyleSheet.create({
     color: "#fff",
   },
   medium: {
-    height: MEDIUM_H,
+    minHeight: MEDIUM_H,
     borderRadius: 18,
     padding: 12,
     justifyContent: "space-between",

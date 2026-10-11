@@ -9,6 +9,8 @@ interface CounterButtonProps {
   onPress: () => void;
   initialCount: number;
   onCountdownEnd: () => void;
+  /** Stretch across the card with a larger tap target (offer cards). */
+  fullWidth?: boolean;
 }
 
 const CounterButton: FC<CounterButtonProps> = ({
@@ -16,6 +18,7 @@ const CounterButton: FC<CounterButtonProps> = ({
   onPress,
   initialCount,
   onCountdownEnd,
+  fullWidth = false,
 }) => {
   const [playing, setPlaying] = useState(true);
 
@@ -25,8 +28,18 @@ const CounterButton: FC<CounterButtonProps> = ({
   }, [initialCount]);
 
   return (
-    <TouchableOpacity onPress={onPress} style={styles.container}>
-      <CustomText fontFamily="Medium" fontSize={12} style={styles.text}>
+    <TouchableOpacity
+      onPress={onPress}
+      style={[styles.container, fullWidth && styles.fullWidth]}
+      activeOpacity={0.85}
+      accessibilityRole="button"
+      accessibilityLabel={title}
+    >
+      <CustomText
+        fontFamily={fullWidth ? "SemiBold" : "Medium"}
+        fontSize={fullWidth ? 15 : 12}
+        style={styles.text}
+      >
         {title}
       </CustomText>
       <View style={styles.counter}>
@@ -34,10 +47,16 @@ const CounterButton: FC<CounterButtonProps> = ({
           onComplete={onCountdownEnd}
           isPlaying={playing}
           duration={initialCount}
-          size={30}
+          size={fullWidth ? 34 : 30}
           strokeWidth={3}
           colors={["#004777", "#F7B801", "#A30000", "#A30000"]}
-          colorsTime={[12, 5, 2, 0]}
+          // Turn amber at ~40% left and red near the end, whatever the duration.
+          colorsTime={[
+            initialCount,
+            Math.round(initialCount * 0.4),
+            Math.max(1, Math.round(initialCount * 0.15)),
+            0,
+          ]}
         >
           {({ remainingTime }) => (
             <CustomText fontSize={10} fontFamily="SemiBold">
@@ -57,6 +76,12 @@ const styles = StyleSheet.create({
     padding: 10,
     borderRadius: 10,
     backgroundColor: Colors.primary,
+  },
+  fullWidth: {
+    alignSelf: "stretch",
+    justifyContent: "center",
+    paddingVertical: 12,
+    borderRadius: 14,
   },
   counter: {
     backgroundColor: "white",

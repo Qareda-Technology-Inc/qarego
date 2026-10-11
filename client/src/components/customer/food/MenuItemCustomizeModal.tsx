@@ -6,6 +6,7 @@ import {
   StyleSheet,
   Pressable,
   Image,
+  Dimensions,
 } from "react-native";
 import { useEffect, useMemo, useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
@@ -266,7 +267,8 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   scroll: {
-    maxHeight: 420,
+    // Leave room for the photo header and the quantity/add footer on any screen height.
+    maxHeight: Math.round(Dimensions.get("window").height * 0.48),
   },
   scrollContent: {
     paddingHorizontal: 20,
