@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "merchant",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "merchant", "run", "dev"],
+      "port": 3001
+    }
+  ]
+}

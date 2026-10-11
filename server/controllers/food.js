@@ -11,6 +11,7 @@ import {
 } from "../utils/deliveryFare.js";
 import { getSettings } from "../utils/tripSettlement.js";
 import { computeFoodOrderSplit } from "../utils/foodOrderSettlement.js";
+import { computeFoodServiceFee } from "../utils/foodServiceFee.js";
 import { assertServiceAvailableAt } from "../utils/serviceZones.js";
 import { applyRestaurantAction } from "../utils/foodOrderFlow.js";
 import { computeOpenState } from "../utils/storeHours.js";
@@ -26,14 +27,6 @@ import {
   orderRequiresPrescription,
 } from "../utils/prescription.js";
 
-function computeFoodServiceFee(subtotal, settings) {
-  const rate = Number(settings?.foodServiceFeeRate ?? 0.08);
-  const min = Number(settings?.foodServiceFeeMin ?? 2);
-  const max = Number(settings?.foodServiceFeeMax ?? 12);
-  const normalizedMax = Math.max(min, max);
-  const raw = Number(subtotal) * rate;
-  return Math.min(normalizedMax, Math.max(min, raw));
-}
 
 /** Attach computed open/closed metadata to a plain restaurant object. */
 const withOpenState = (restaurant, now = new Date()) => {
@@ -242,7 +235,8 @@ export const createFoodOrder = async (req, res) => {
     deliveryDistanceKm = quote.distanceKm;
   }
   const serviceFee = computeFoodServiceFee(subtotal, settings);
-  const total = subtotal + serviceFee + deliveryFee;
+  // Round once so stored totals never carry float noise (e.g. 26.990000000000002).
+  const total = Math.round((subtotal + serviceFee + deliveryFee) * 100) / 100;
   const split = computeFoodOrderSplit(
     { subtotal, deliveryFee, serviceFee },
     settings

@@ -3,6 +3,8 @@ export type FoodOrderRow = {
   status: string;
   total: number;
   subtotal: number;
+  /** Store's share after commission (food subtotal − commission), frozen at checkout. */
+  restaurantNet?: number | null;
   items: {
     name: string;
     quantity: number;

@@ -6,5 +6,6 @@ export function calculateServiceFee(
 ): number {
   const normalizedMax = Math.max(minFee, maxFee);
   const raw = subtotal * rate;
-  return Math.min(normalizedMax, Math.max(minFee, raw));
+  // Rounded to the pesewa, same as server/utils/foodServiceFee.js.
+  return Math.round(Math.min(normalizedMax, Math.max(minFee, raw)) * 100) / 100;
 }

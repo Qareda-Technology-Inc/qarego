@@ -223,8 +223,8 @@ const RideBooking = () => {
       {
         type: "Motorcycle" as const,
         vehicle: "motorcycle" as const,
-        label: "Motorbike courier",
-        detail: "Small packages · up to ~5 kg",
+        label: "Motorbike",
+        detail: "Small parcels · up to ~5 kg",
         price: farePrices?.motorcycle,
         eta: etaByVehicle?.motorcycle.eta,
         icon: require("@/assets/icons/bike.png"),
@@ -232,8 +232,8 @@ const RideBooking = () => {
       {
         type: "Pragya" as const,
         vehicle: "pragya" as const,
-        label: "Tricycle courier",
-        detail: "Medium packages · up to ~15 kg",
+        label: "Tricycle",
+        detail: "Medium parcels · up to ~15 kg",
         price: farePrices?.pragya,
         eta: etaByVehicle?.pragya.eta,
         icon: require("@/assets/icons/auto.png"),
@@ -377,12 +377,17 @@ const RideBooking = () => {
       : "Destination";
   const accentColor = serviceType === "DELIVERY" ? P.accent : Colors.primary;
 
+  const topNavTop = Math.max(insets.top + 8, Platform.OS === "android" ? 46 : 54);
+  const [topNavHeight, setTopNavHeight] = useState(64);
   const sheetSnapPoints = useMemo(() => {
     const low = Math.max(Math.round(windowHeight * 0.38), 300);
     const mid = Math.max(Math.round(windowHeight * 0.68), low + 100);
-    const high = Math.max(Math.round(windowHeight * 0.88), mid + 60);
+    // Fully open, the sheet stops just below the floating route card instead of sliding
+    // under it (which hid the first form fields).
+    const maxHigh = Math.round(windowHeight - (topNavTop + topNavHeight + 8));
+    const high = Math.max(Math.min(Math.round(windowHeight * 0.88), maxHigh), mid + 40);
     return [low, mid, high];
-  }, [windowHeight]);
+  }, [windowHeight, topNavTop, topNavHeight]);
   const activeSheetHeight =
     sheetSnapPoints[Math.min(Math.max(sheetIndex, 0), sheetSnapPoints.length - 1)] ??
     sheetSnapPoints[0];
@@ -399,12 +404,13 @@ const RideBooking = () => {
   const mapStripHeight = Math.max(windowHeight - activeSheetHeight, 220);
   const routeMapPadding = useMemo(
     () => ({
-      top: Math.max(insets.top, 8) + 56,
+      // Below the floating route card, plus room for a pin's label above the pin.
+      top: topNavTop + topNavHeight + 44,
       right: 40,
       bottom: 28,
       left: 40,
     }),
-    [insets.top]
+    [topNavTop, topNavHeight]
   );
 
   const mapPickup = useMemo(
@@ -456,10 +462,8 @@ const RideBooking = () => {
       ) : null}
 
       <View
-        style={[
-          styles.topNav,
-          { top: Math.max(insets.top + 8, Platform.OS === "android" ? 46 : 54) },
-        ]}
+        style={[styles.topNav, { top: topNavTop }]}
+        onLayout={(e) => setTopNavHeight(e.nativeEvent.layout.height)}
       >
         <TouchableOpacity
           style={styles.navCircleBtn}
@@ -621,7 +625,7 @@ const RideBooking = () => {
                           </View>
                         ) : null}
                       </View>
-                      <CustomText fontSize={12} color="#94a3b8" numberOfLines={1} style={styles.optionMeta}>
+                      <CustomText fontSize={12} color="#94a3b8" numberOfLines={2} style={styles.optionMeta}>
                         {isBusy ? "Currently unavailable" : getOptionMeta(ride)}
                       </CustomText>
                     </View>
@@ -709,6 +713,14 @@ const RideBooking = () => {
               {!pickup || !drop ? (
                 <CustomText fontSize={14} color="#888" style={{ textAlign: "center", marginVertical: 8 }}>
                   Missing pickup or destination. Please go back and select locations.
+                </CustomText>
+              ) : null}
+              {serviceType === "DELIVERY" &&
+              pickup &&
+              drop &&
+              (!recipientName.trim() || !recipientPhone.trim()) ? (
+                <CustomText fontSize={13} color="#64748b" style={{ textAlign: "center", marginBottom: 8 }}>
+                  Add the recipient's name and phone to continue
                 </CustomText>
               ) : null}
               <CustomButton

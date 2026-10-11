@@ -1,5 +1,7 @@
 import React from "react";
-import { View, TouchableOpacity, StyleSheet, SafeAreaView } from "react-native";
+import { View, TouchableOpacity, StyleSheet } from "react-native";
+// RN's own SafeAreaView overrides style padding on iOS, which dropped the side margins.
+import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { router } from "expo-router";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
@@ -39,7 +41,7 @@ const ParcelModeScreen = () => {
   return (
     <View style={styles.container}>
       <StatusBar style="dark" />
-      <SafeAreaView style={styles.safe}>
+      <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
         <View style={styles.header}>
           <TouchableOpacity
             onPress={() => (router.canGoBack() ? router.back() : router.replace("/customer/home"))}
@@ -50,7 +52,8 @@ const ParcelModeScreen = () => {
           <CustomText fontFamily="SemiBold" fontSize={18} style={styles.headerTitle}>
             Parcel
           </CustomText>
-          <View style={styles.backBtn} />
+          {/* Balances the back button so the title stays centred. */}
+          <View style={styles.headerSpacer} />
         </View>
 
         <CustomText fontSize={14} style={styles.intro}>
@@ -100,6 +103,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  headerSpacer: { width: 40, height: 40 },
   headerTitle: { flex: 1, textAlign: "center", color: T.ink },
   intro: { color: T.inkMuted, marginBottom: 20, lineHeight: 20 },
   card: {

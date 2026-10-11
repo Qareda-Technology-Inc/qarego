@@ -9,7 +9,7 @@ export function parcelModeLabels(mode: ParcelMode) {
   if (mode === "RECEIVE") {
     return {
       title: "Receive a parcel",
-      subtitle: "Collect from anywhere → deliver to you",
+      subtitle: "From a shop or sender to you",
       pickupLabel: "Collect from",
       dropLabel: "Deliver to me",
       pickupPlaceholder: "Shop, sender, or pickup address",
@@ -35,7 +35,7 @@ export function parcelModeLabels(mode: ParcelMode) {
 
   return {
     title: "Send a parcel",
-    subtitle: "Pickup from you → deliver to someone else",
+    subtitle: "From you to your recipient",
     pickupLabel: "Pickup",
     dropLabel: "Recipient",
     pickupPlaceholder: "Your pickup point",

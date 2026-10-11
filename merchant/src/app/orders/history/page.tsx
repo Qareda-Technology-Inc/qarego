@@ -10,6 +10,7 @@ import { useAuth } from "@/context/AuthContext";
 import { getCommerceOrderCopy } from "@/lib/commerceOrderCopy";
 import { Button } from "@/components/ui/Button";
 import { PrescriptionAttachments } from "@/components/PrescriptionAttachments";
+import { OrderPayoutNote } from "@/components/OrderPayoutNote";
 import {
   History,
   Search,
@@ -244,6 +245,7 @@ export default function OrderHistoryPage() {
                   {order.delivery?.address && (
                     <p className="text-sm text-muted mt-1">{order.delivery.address}</p>
                   )}
+                  <OrderPayoutNote order={order} />
                 </div>
                 <div className="text-right">
                   <p className="font-semibold text-lg">{formatCurrency(order.subtotal)}</p>
