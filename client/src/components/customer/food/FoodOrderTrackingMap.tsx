@@ -20,16 +20,27 @@ type LiveRideProps = {
   vehicle?: string;
 };
 
+type EdgePadding = { top: number; right: number; bottom: number; left: number };
+
 type StaticProps = {
   mode: "static";
   height: number;
   pickup: FoodOrderMapPoint;
   drop: FoodOrderMapPoint;
+  /** Space covered by overlays (status bar, cards) so both pins stay visible. */
+  edgePadding?: EdgePadding;
 };
+
+const DEFAULT_EDGE_PADDING: EdgePadding = { top: 80, right: 48, bottom: 160, left: 48 };
 
 type Props = LiveRideProps | StaticProps;
 
-const FoodOrderStaticMap: FC<StaticProps> = ({ height, pickup, drop }) => {
+const FoodOrderStaticMap: FC<StaticProps> = ({
+  height,
+  pickup,
+  drop,
+  edgePadding = DEFAULT_EDGE_PADDING,
+}) => {
   const mapRef = useRef<MapView>(null);
   const pickupCoord = useStableMapCoord(pickup);
   const dropCoord = useStableMapCoord(drop);
@@ -42,11 +53,10 @@ const FoodOrderStaticMap: FC<StaticProps> = ({ height, pickup, drop }) => {
       longitude: number;
     }[];
     if (coords.length === 0) return;
-    mapRef.current?.fitToCoordinates(coords, {
-      edgePadding: { top: 80, right: 48, bottom: 160, left: 48 },
-      animated: true,
-    });
-  }, [dropCoord, pickupCoord]);
+    mapRef.current?.fitToCoordinates(coords, { edgePadding, animated: true });
+    // Refit only when a padding value changes, not on every new object from the parent.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dropCoord, pickupCoord, edgePadding.top, edgePadding.right, edgePadding.bottom, edgePadding.left]);
 
   useEffect(() => {
     if (!pickupKey || !dropKey) return;

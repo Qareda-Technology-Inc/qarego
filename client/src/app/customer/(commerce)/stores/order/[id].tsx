@@ -64,6 +64,7 @@ import {
   parseCourierLocationPayload,
   type RiderLiveCoords,
 } from "@/utils/riderLiveLocation";
+import { formatCartModifierSummary } from "@/utils/menuModifiers";
 
 const POLL_MS = 4000;
 const COURIER_POLL_MS = 2500;
@@ -408,9 +409,24 @@ const FoodOrderTracking = () => {
   );
 
   const showMap = order ? shouldShowFoodOrderMap(order) : false;
+  const mapVisible = !!(showMap && mapPoints.pickup && mapPoints.drop && mapHeight > 120);
+
+  /**
+   * Without a map (e.g. waiting for the store), the default snap points leave an empty band
+   * between the header and the sheet. Size the sheet to the space below the measured header.
+   */
+  const [fallbackHeaderH, setFallbackHeaderH] = useState(0);
+  const sheetSnapPoints = useMemo(() => {
+    if (mapVisible || !fallbackHeaderH || windowHeight < 100) return snapPoints;
+    const full = Math.round(windowHeight - fallbackHeaderH + 16);
+    return [Math.min(snapPoints[0], full - 100), full];
+  }, [mapVisible, fallbackHeaderH, windowHeight, snapPoints]);
   const liveCourier = order
     ? isLiveFoodCourierTracking(order.status, order.ride)
     : false;
+  /** A courier has accepted the job; searching for a rider is not live tracking yet. */
+  const courierAssigned = liveCourier && order?.ride?.status !== "SEARCHING_FOR_RIDER";
+  const [statusCardH, setStatusCardH] = useState(0);
 
   const rider = useMemo(
     () =>
@@ -447,7 +463,10 @@ const FoodOrderTracking = () => {
       ? "Payment failed"
       : orderPaymentState === "UNPAID"
       ? "Payment not completed"
-      : orderPaymentState;
+      : orderPaymentState === "REFUNDED"
+      ? "Refunded"
+      : // NOT_REQUIRED (cash) and any unknown codes: nothing to show
+        "";
 
   useEffect(() => {
     const prev = previousPaymentStateRef.current;
@@ -505,9 +524,9 @@ const FoodOrderTracking = () => {
     <View style={styles.container}>
       <StatusBar style="dark" />
 
-      {showMap && mapPoints.pickup && mapPoints.drop && mapHeight > 120 ? (
+      {mapVisible && mapPoints.pickup && mapPoints.drop ? (
         <View style={[styles.mapWrap, { height: mapHeight }]}>
-          {liveCourier ? (
+          {courierAssigned ? (
             <FoodOrderTrackingMap
               mode="live"
               height={mapHeight}
@@ -525,6 +544,12 @@ const FoodOrderTracking = () => {
               height={mapHeight}
               pickup={mapPoints.pickup}
               drop={mapPoints.drop}
+              edgePadding={{
+                top: insets.top + 64,
+                right: 48,
+                bottom: (statusCardH || 140) + 36,
+                left: 48,
+              }}
             />
           )}
 
@@ -536,12 +561,15 @@ const FoodOrderTracking = () => {
             <MaterialIcons name="close" size={22} color={FOOD_THEME.text} />
           </TouchableOpacity>
 
-          <View style={styles.statusCard}>
+          <View
+            style={styles.statusCard}
+            onLayout={(e) => setStatusCardH(e.nativeEvent.layout.height)}
+          >
             <View style={styles.statusCardTop}>
               <View style={styles.statusBadge}>
-                <View style={[styles.statusDot, liveCourier && styles.statusDotLive]} />
+                <View style={[styles.statusDot, courierAssigned && styles.statusDotLive]} />
                 <CustomText fontSize={11} fontFamily="SemiBold" color={FOOD_THEME.accentTeal}>
-                  {liveCourier ? "LIVE" : order.status === "PLACED" ? "WAITING" : "TRACKING"}
+                  {courierAssigned ? "LIVE" : order.status === "PLACED" ? "WAITING" : "TRACKING"}
                 </CustomText>
               </View>
               {etaWindow ? (
@@ -576,7 +604,10 @@ const FoodOrderTracking = () => {
           </View>
         </View>
       ) : (
-        <View style={[styles.fallbackHeader, { paddingTop: insets.top + 8 }]}>
+        <View
+          style={[styles.fallbackHeader, { paddingTop: insets.top + 8 }]}
+          onLayout={(e) => setFallbackHeaderH(e.nativeEvent.layout.height)}
+        >
           <TouchableOpacity onPress={() => router.replace(shopHome as any)} style={styles.closeBtnPlain}>
             <MaterialIcons name="close" size={22} color={FOOD_THEME.text} />
           </TouchableOpacity>
@@ -599,7 +630,7 @@ const FoodOrderTracking = () => {
           enableOverDrag={false}
           enableDynamicSizing={false}
           handleIndicatorStyle={styles.sheetHandle}
-          snapPoints={snapPoints}
+          snapPoints={sheetSnapPoints}
           onChange={handleSheetChanges}
           style={styles.sheet}
         >
@@ -677,7 +708,12 @@ const FoodOrderTracking = () => {
                 </CustomText>
               </View>
               <CustomText fontSize={12} color={FOOD_THEME.textMuted} numberOfLines={2} style={{ lineHeight: 18 }}>
-                {order.items.map((l) => `${l.quantity}× ${l.name}`).join(" · ")}
+                {order.items
+                  .map((l) => {
+                    const opts = formatCartModifierSummary(l.modifiers ?? []);
+                    return `${l.quantity}× ${l.name}${opts ? ` (${opts})` : ""}`;
+                  })
+                  .join(" · ")}
               </CustomText>
             </View>
 
@@ -694,9 +730,16 @@ const FoodOrderTracking = () => {
               </CustomText>
               {order.items.map((line, idx) => (
                 <View key={`${line.name}-${idx}`} style={styles.lineRow}>
-                  <CustomText fontSize={13}>
-                    {line.quantity}× {line.name}
-                  </CustomText>
+                  <View style={{ flex: 1, paddingRight: 8 }}>
+                    <CustomText fontSize={13}>
+                      {line.quantity}× {line.name}
+                    </CustomText>
+                    {line.modifiers?.length ? (
+                      <CustomText fontSize={11} color={FOOD_THEME.textMuted} style={{ marginTop: 2 }}>
+                        {formatCartModifierSummary(line.modifiers)}
+                      </CustomText>
+                    ) : null}
+                  </View>
                   <CustomText fontSize={13}>{formatCurrency(line.price * line.quantity)}</CustomText>
                 </View>
               ))}

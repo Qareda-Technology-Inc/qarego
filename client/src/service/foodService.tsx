@@ -1,3 +1,4 @@
+import type { CartModifier } from "@/utils/menuModifiers";
 import { appAxios } from "./apiInterceptors";
 import { Alert } from "react-native";
 import { FoodOrderStatus } from "@/utils/foodOrderTracking";
@@ -77,7 +78,7 @@ export type FoodOrder = {
   _id: string;
   restaurantName: string;
   restaurant?: Restaurant;
-  items: { name: string; price: number; quantity: number }[];
+  items: { name: string; price: number; quantity: number; modifiers?: CartModifier[] }[];
   subtotal: number;
   serviceFee?: number;
   deliveryFee: number;
