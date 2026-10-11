@@ -3,7 +3,6 @@ import { View, TouchableOpacity, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import CustomText from "@/components/shared/CustomText";
-import CustomerLogoutButton from "@/components/customer/CustomerLogoutButton";
 import { FOOD_THEME } from "@/styles/foodStyles";
 
 type Props = {
@@ -40,7 +39,6 @@ const CommerceTopBar: FC<Props> = ({
       {title}
     </CustomText>
     <View style={styles.topBarRight}>
-      <CustomerLogoutButton iconColor={FOOD_THEME.text} style={styles.iconBtn} />
       <TouchableOpacity
         onPress={() => router.push("/customer/stores/cart")}
         style={styles.iconBtn}

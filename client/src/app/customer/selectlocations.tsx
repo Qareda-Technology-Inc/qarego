@@ -23,7 +23,6 @@ import {
 } from "@/utils/mapUtils";
 import LocationItem from "@/components/customer/LocationItem";
 import MapPickerModal from "@/components/customer/MapPickerModal";
-import CustomerLogoutButton from "@/components/customer/CustomerLogoutButton";
 import { RideHomeTheme as T } from "@/styles/rideHomeTheme";
 import { Colors } from "@/utils/Constants";
 import { parseParcelMode, parcelModeLabels, type ParcelMode } from "@/utils/parcelMode";
@@ -390,11 +389,8 @@ const LocationSelection = () => {
               {headerSubtitle}
             </CustomText>
           </View>
-          {isFoodDelivery || isParcel ? (
-            <CustomerLogoutButton style={styles.backBtn} />
-          ) : (
-            <View style={styles.backBtn} />
-          )}
+          {/* Balances the back button so the title stays centred. */}
+          <View style={styles.headerSpacer} />
         </View>
 
         <FlatList
@@ -502,6 +498,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(15, 23, 42, 0.06)",
     ...T.shadow.card,
+  },
+  headerSpacer: {
+    width: 44,
+    height: 44,
   },
   headerCenter: {
     flex: 1,

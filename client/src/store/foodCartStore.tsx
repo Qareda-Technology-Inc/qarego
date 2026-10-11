@@ -33,6 +33,8 @@ type FoodCartState = {
     price: number;
     modifiers?: CartModifier[];
     category?: string;
+    /** Units to add (default 1). */
+    quantity?: number;
   }) => void;
   updateQuantity: (cartLineId: string, quantity: number) => void;
   removeItem: (cartLineId: string) => void;
@@ -58,7 +60,9 @@ export const useFoodCartStore = create<FoodCartState>((set, get) => ({
     price,
     modifiers = [],
     category,
+    quantity = 1,
   }) => {
+    const qty = Math.max(1, Math.floor(quantity));
     const modifierKey = buildModifierKey(modifiers);
     const cartLineId = buildCartLineId(menuItemId, modifierKey);
     const state = get();
@@ -68,7 +72,7 @@ export const useFoodCartStore = create<FoodCartState>((set, get) => ({
       menuItemId,
       name,
       price,
-      quantity: 1,
+      quantity: qty,
       modifiers,
       category,
     };
@@ -92,7 +96,7 @@ export const useFoodCartStore = create<FoodCartState>((set, get) => ({
         minOrderAmount,
         deliveryFee,
         items: state.items.map((i) =>
-          i.cartLineId === cartLineId ? { ...i, quantity: i.quantity + 1 } : i
+          i.cartLineId === cartLineId ? { ...i, quantity: i.quantity + qty } : i
         ),
       });
     } else {

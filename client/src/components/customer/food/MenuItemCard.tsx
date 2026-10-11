@@ -181,9 +181,12 @@ function ListRowBody({ item, accent }: { item: MenuItem; accent: string }) {
         <PriceLine item={item} accent={accent} saleSize={14} wasSize={12} />
       </View>
       {itemHasModifiers(item) ? (
-        <CustomText fontSize={11} color={FOOD_THEME.textLight} style={listStyles.customizable}>
-          Customizable
-        </CustomText>
+        <View style={listStyles.customizable}>
+          <Ionicons name="options-outline" size={12} color={accent} />
+          <CustomText fontFamily="Medium" fontSize={11} style={{ color: accent }}>
+            Choose options
+          </CustomText>
+        </View>
       ) : null}
     </View>
   );
@@ -347,7 +350,11 @@ const listStyles = StyleSheet.create({
     marginTop: 8,
   },
   customizable: {
-    marginTop: 4,
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: 4,
+    marginTop: 6,
   },
   imageFrame: {
     flex: 38,

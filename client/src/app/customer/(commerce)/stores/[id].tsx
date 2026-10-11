@@ -255,6 +255,13 @@ const RestaurantMenu = () => {
   }, [categoryList, selectedCategory]);
 
   const isClosed = restaurant?.isOpen === false;
+  /** Category and cuisine, without repeating a value that appears in both. */
+  const heroTagline = [restaurant?.category, restaurant?.cuisine]
+    .map((v) => v?.trim())
+    .filter((v, i, all): v is string =>
+      !!v && all.findIndex((o) => o?.toLowerCase() === v.toLowerCase()) === i
+    )
+    .join(" · ");
   const storeCover = resolveMediaUrl(restaurant?.imageUrl);
   const heroBg = storeCover
     ? "#1f2937"
@@ -282,7 +289,7 @@ const RestaurantMenu = () => {
 
   const pushToCart = (
     item: MenuItem,
-    extras?: { price: number; modifiers: CartModifier[] }
+    extras?: { price: number; modifiers: CartModifier[]; quantity?: number }
   ) => {
     if (!restaurant) return;
     addItem({
@@ -295,6 +302,7 @@ const RestaurantMenu = () => {
       price: extras?.price ?? item.price,
       modifiers: extras?.modifiers ?? [],
       category: item.category,
+      quantity: extras?.quantity,
     });
   };
 
@@ -515,9 +523,28 @@ const RestaurantMenu = () => {
             <CustomText fontFamily="Bold" fontSize={26} style={styles.heroTitleOnImage} numberOfLines={2}>
               {restaurant.name}
             </CustomText>
-            <CustomText fontSize={13} style={styles.heroSubtitleOnImage}>
-              {restaurant.estimatedPrepMinutes ?? 25} min prep · Delivery by distance
-            </CustomText>
+            <View style={styles.heroStatusRow}>
+              <View style={[styles.statusPill, isClosed && styles.statusPillClosed]}>
+                <View style={[styles.statusDot, isClosed && styles.statusDotClosed]} />
+                <CustomText fontFamily="SemiBold" fontSize={11} style={styles.statusText}>
+                  {isClosed
+                    ? restaurant.openLabel || "Closed"
+                    : restaurant.todayHours
+                      ? `Open · ${restaurant.todayHours}`
+                      : "Open"}
+                </CustomText>
+              </View>
+              <CustomText fontSize={13} style={[styles.heroSubtitleOnImage, { marginTop: 0 }]}>
+                {[
+                  restaurant.rating && restaurant.ratingCount
+                    ? `★ ${restaurant.rating.toFixed(1)} (${restaurant.ratingCount})`
+                    : null,
+                  `${restaurant.estimatedPrepMinutes ?? 25} min prep`,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </CustomText>
+            </View>
             <CustomText fontSize={12} style={styles.heroDeliveryOnImage}>
               {resolvingLocation
                 ? "Estimating delivery…"
@@ -527,11 +554,11 @@ const RestaurantMenu = () => {
                     ? `${deliveryEstimate.km.toFixed(1)} km · est. ${formatCurrency(deliveryEstimate.fee)}`
                     : "Set delivery location"}
             </CustomText>
-            {(restaurant.cuisine || restaurant.category) && (
+            {heroTagline ? (
               <CustomText fontSize={12} style={styles.heroTaglineOnImage}>
-                {[restaurant.category, restaurant.cuisine].filter(Boolean).join(" · ")}
+                {heroTagline}
               </CustomText>
-            )}
+            ) : null}
           </Animated.View>
         </Animated.View>
 
@@ -579,9 +606,9 @@ const RestaurantMenu = () => {
         item={customizeItem}
         accent={accent}
         onClose={() => setCustomizeItem(null)}
-        onConfirm={({ modifiers, unitPrice }) => {
+        onConfirm={({ modifiers, unitPrice, quantity }) => {
           if (!customizeItem) return;
-          pushToCart(customizeItem, { price: unitPrice, modifiers });
+          pushToCart(customizeItem, { price: unitPrice, modifiers, quantity });
         }}
       />
     </View>
@@ -712,6 +739,37 @@ const styles = StyleSheet.create({
   heroDeliveryOnImage: {
     marginTop: 4,
     color: "rgba(255,255,255,0.92)",
+  },
+  heroStatusRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 4,
+  },
+  statusPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    borderRadius: 999,
+    backgroundColor: "rgba(22,163,74,0.9)",
+  },
+  statusPillClosed: {
+    backgroundColor: "rgba(180,83,9,0.92)",
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#bbf7d0",
+  },
+  statusDotClosed: {
+    backgroundColor: "#fde68a",
+  },
+  statusText: {
+    color: "#fff",
   },
   heroTaglineOnImage: {
     marginTop: 4,

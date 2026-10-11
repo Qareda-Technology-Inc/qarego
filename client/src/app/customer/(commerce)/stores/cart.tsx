@@ -45,6 +45,9 @@ import { uploadMediaUri } from "@/service/mediaUpload";
 
 type FulfillmentMode = "DELIVERY" | "PICKUP" | "SCHEDULED";
 
+/** Promo entry stays hidden until codes are validated server-side. */
+const PROMO_CODES_ENABLED = false;
+
 const SCHEDULE_OPTIONS = [
   { label: "In 30 min", minutes: 30 },
   { label: "In 1 hour", minutes: 60 },
@@ -756,39 +759,44 @@ const FoodCart = () => {
           </View>
         ) : null}
 
-        <TouchableOpacity style={styles.linkRowPlain} onPress={() => setShowPromo((v) => !v)}>
-          <Ionicons name="pricetag-outline" size={18} color="#666" />
-          <CustomText fontSize={14} style={{ marginLeft: 8, flex: 1 }}>
-            {promoCode.trim() ? `Promo: ${promoCode}` : "Add promo"}
-          </CustomText>
-          <Ionicons name={showPromo ? "chevron-up" : "chevron-down"} size={18} color="#999" />
-        </TouchableOpacity>
-        {showPromo ? (
-          <View style={styles.promoRow}>
-            <TextInput
-              style={styles.promoInput}
-              placeholder="Promo code"
-              placeholderTextColor="#999"
-              value={promoCode}
-              onChangeText={setPromoCode}
-              autoCapitalize="characters"
-            />
-            <TouchableOpacity
-              style={[styles.promoApply, { backgroundColor: accent }]}
-              onPress={() =>
-                Alert.alert(
-                  "Promo",
-                  promoCode.trim()
-                    ? "Promo codes will be validated soon."
-                    : "Enter a promo code first."
-                )
-              }
-            >
-              <CustomText fontSize={13} fontFamily="Medium" style={{ color: "#fff" }}>
-                Apply
+        {/* Hidden until the server validates promo codes; Apply only showed a placeholder alert. */}
+        {PROMO_CODES_ENABLED ? (
+          <>
+            <TouchableOpacity style={styles.linkRowPlain} onPress={() => setShowPromo((v) => !v)}>
+              <Ionicons name="pricetag-outline" size={18} color="#666" />
+              <CustomText fontSize={14} style={{ marginLeft: 8, flex: 1 }}>
+                {promoCode.trim() ? `Promo: ${promoCode}` : "Add promo"}
               </CustomText>
+              <Ionicons name={showPromo ? "chevron-up" : "chevron-down"} size={18} color="#999" />
             </TouchableOpacity>
-          </View>
+            {showPromo ? (
+              <View style={styles.promoRow}>
+                <TextInput
+                  style={styles.promoInput}
+                  placeholder="Promo code"
+                  placeholderTextColor="#999"
+                  value={promoCode}
+                  onChangeText={setPromoCode}
+                  autoCapitalize="characters"
+                />
+                <TouchableOpacity
+                  style={[styles.promoApply, { backgroundColor: accent }]}
+                  onPress={() =>
+                    Alert.alert(
+                      "Promo",
+                      promoCode.trim()
+                        ? "Promo codes will be validated soon."
+                        : "Enter a promo code first."
+                    )
+                  }
+                >
+                  <CustomText fontSize={13} fontFamily="Medium" style={{ color: "#fff" }}>
+                    Apply
+                  </CustomText>
+                </TouchableOpacity>
+              </View>
+            ) : null}
+          </>
         ) : null}
 
         <SurfaceCard style={styles.totalsCard}>

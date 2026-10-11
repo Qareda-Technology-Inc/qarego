@@ -5,6 +5,7 @@ import {
   ScrollView,
   StyleSheet,
   Pressable,
+  Image,
 } from "react-native";
 import { useEffect, useMemo, useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
@@ -12,6 +13,7 @@ import CustomText from "@/components/shared/CustomText";
 import { formatCurrency } from "@/utils/Constants";
 import type { MenuItem } from "@/service/foodService";
 import { getMenuItemPricing } from "@/utils/menuItemPricing";
+import { resolveMediaUrl } from "@/utils/mediaUrl";
 import {
   initModifierSelection,
   isModifierSelectionReady,
@@ -24,8 +26,15 @@ type Props = {
   item: MenuItem | null;
   accent: string;
   onClose: () => void;
-  onConfirm: (result: { modifiers: ReturnType<typeof resolveModifierSelections>["modifiers"]; unitPrice: number }) => void;
+  onConfirm: (result: {
+    modifiers: ReturnType<typeof resolveModifierSelections>["modifiers"];
+    unitPrice: number;
+    quantity: number;
+  }) => void;
 };
+
+/** Upper bound for the quantity stepper; larger orders can be adjusted in the cart. */
+const MAX_QTY = 20;
 
 export default function MenuItemCustomizeModal({
   visible,
@@ -35,10 +44,12 @@ export default function MenuItemCustomizeModal({
   onConfirm,
 }: Props) {
   const [selection, setSelection] = useState<ModifierSelection>({});
+  const [quantity, setQuantity] = useState(1);
 
   useEffect(() => {
     if (item && visible) {
       setSelection(initModifierSelection(item));
+      setQuantity(1);
     }
   }, [item, visible]);
 
@@ -49,6 +60,8 @@ export default function MenuItemCustomizeModal({
 
   const ready = item ? isModifierSelectionReady(item, selection) : false;
   const basePricing = item ? getMenuItemPricing(item) : null;
+  const unitPrice = resolved?.unitPrice ?? basePricing?.salePrice ?? item?.price ?? 0;
+  const imageUri = item?.imageUrl ? resolveMediaUrl(item.imageUrl) : null;
 
   const toggleAddOn = (groupId: string, optionId: string) => {
     setSelection((prev) => {
@@ -73,6 +86,7 @@ export default function MenuItemCustomizeModal({
         <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
           <View style={styles.handle} />
           <View style={styles.header}>
+            {imageUri ? <Image source={{ uri: imageUri }} style={styles.thumb} /> : null}
             <View style={{ flex: 1 }}>
               <CustomText fontFamily="SemiBold" fontSize={18}>
                 {item.name}
@@ -170,13 +184,28 @@ export default function MenuItemCustomizeModal({
               </CustomText>
             ) : null}
             <View style={styles.priceRow}>
-              <View>
-                <CustomText fontSize={12} color="#6b7280">
-                  Item total
+              <View style={styles.qtyRow}>
+                <TouchableOpacity
+                  style={[styles.qtyBtn, quantity <= 1 && styles.qtyBtnDisabled]}
+                  onPress={() => setQuantity((q) => Math.max(1, q - 1))}
+                  disabled={quantity <= 1}
+                  accessibilityLabel="Decrease quantity"
+                  hitSlop={6}
+                >
+                  <Ionicons name="remove" size={18} color="#111827" />
+                </TouchableOpacity>
+                <CustomText fontFamily="SemiBold" fontSize={16} style={styles.qtyText}>
+                  {quantity}
                 </CustomText>
-                <CustomText fontFamily="SemiBold" fontSize={18}>
-                  {formatCurrency(resolved?.unitPrice ?? basePricing?.salePrice ?? item.price)}
-                </CustomText>
+                <TouchableOpacity
+                  style={styles.qtyBtn}
+                  onPress={() => setQuantity((q) => Math.min(MAX_QTY, q + 1))}
+                  disabled={quantity >= MAX_QTY}
+                  accessibilityLabel="Increase quantity"
+                  hitSlop={6}
+                >
+                  <Ionicons name="add" size={18} color="#111827" />
+                </TouchableOpacity>
               </View>
               <TouchableOpacity
                 style={[
@@ -187,12 +216,16 @@ export default function MenuItemCustomizeModal({
                 disabled={!ready}
                 onPress={() => {
                   if (!resolved || resolved.error) return;
-                  onConfirm({ modifiers: resolved.modifiers, unitPrice: resolved.unitPrice });
+                  onConfirm({
+                    modifiers: resolved.modifiers,
+                    unitPrice: resolved.unitPrice,
+                    quantity,
+                  });
                   onClose();
                 }}
               >
                 <CustomText fontFamily="SemiBold" fontSize={15} style={{ color: "#fff" }}>
-                  Add to cart
+                  Add · {formatCurrency(unitPrice * quantity)}
                 </CustomText>
               </TouchableOpacity>
             </View>
@@ -286,5 +319,32 @@ const styles = StyleSheet.create({
   },
   addBtnDisabled: {
     opacity: 0.45,
+  },
+  thumb: {
+    width: 64,
+    height: 64,
+    borderRadius: 12,
+    backgroundColor: "#f3f4f6",
+  },
+  qtyRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  qtyBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  qtyBtnDisabled: {
+    opacity: 0.4,
+  },
+  qtyText: {
+    minWidth: 22,
+    textAlign: "center",
   },
 });
