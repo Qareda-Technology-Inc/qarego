@@ -12,6 +12,7 @@ type Props = {
   ride: any;
   actionLabel: string;
   meetLabel?: string;
+  contactName?: string;
   contactPhone?: string;
   pickupLabel?: string;
   dropLabel?: string;
@@ -26,6 +27,7 @@ const RiderActionButton: FC<Props> = ({
   ride,
   actionLabel,
   meetLabel = "Contact",
+  contactName,
   contactPhone,
   pickupLabel = "Pickup",
   dropLabel = "Drop",
@@ -40,6 +42,7 @@ const RiderActionButton: FC<Props> = ({
   const accent = actionColor ?? phase.swipeColor;
   const phone = contactPhone ?? ride?.customer?.phone;
   const customerName =
+    contactName ||
     ride?.customer?.name ||
     ride?.recipientName ||
     (ride?.serviceType === "DELIVERY" ? "Recipient" : "Customer");

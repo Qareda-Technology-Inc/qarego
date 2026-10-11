@@ -400,6 +400,7 @@ const LiveRide = () => {
         ride={rideData}
         actionLabel={rideData ? getRiderSwipeTitle(rideData) : "Loading…"}
         meetLabel={courierUi.meetLabel}
+        contactName={courierUi.contactName}
         contactPhone={courierUi.contactPhone}
         pickupLabel={courierUi.pickupLabel}
         dropLabel={courierUi.dropLabel}

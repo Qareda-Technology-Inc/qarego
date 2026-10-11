@@ -15,6 +15,8 @@ type CourierRide = {
 
 export type RiderCourierUi = {
   meetLabel: string;
+  /** Person the rider should meet/call at this step (matches contactPhone). */
+  contactName?: string;
   contactPhone?: string;
   pickupLabel: string;
   dropLabel: string;
@@ -26,6 +28,12 @@ function parcelLabels(mode: ParcelMode) {
     pickupLabel: labels.riderPickupLabel,
     dropLabel: labels.riderDropLabel,
   };
+}
+
+/** Who receives the parcel at drop-off: the recipient when sending, the customer when receiving. */
+function parcelDropContactName(ride: CourierRide | null | undefined, mode: ParcelMode) {
+  if (mode === "RECEIVE") return ride?.customer?.name || "Customer";
+  return ride?.recipientName || "Recipient";
 }
 
 export function getRiderCourierUi(ride?: CourierRide | null): RiderCourierUi {
@@ -63,6 +71,7 @@ export function getRiderCourierUi(ride?: CourierRide | null): RiderCourierUi {
           mode === "RECEIVE"
             ? "Next: deliver to customer"
             : "Next: deliver to recipient",
+        contactName: parcelDropContactName(ride, mode),
         contactPhone: ride?.recipientPhone || ride?.customer?.phone,
         ...labels,
       };
@@ -71,6 +80,7 @@ export function getRiderCourierUi(ride?: CourierRide | null): RiderCourierUi {
     if (status === "IN_PROGRESS") {
       return {
         meetLabel: mode === "RECEIVE" ? "Meet the customer" : "Meet the recipient",
+        contactName: parcelDropContactName(ride, mode),
         contactPhone: ride?.recipientPhone || ride?.customer?.phone,
         ...labels,
       };

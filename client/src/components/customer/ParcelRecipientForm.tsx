@@ -151,14 +151,15 @@ const ParcelRecipientForm: FC<Props> = ({
 
       <TextInput
         style={styles.input}
-        placeholder="What are you sending? e.g. documents, electronics"
+        placeholder="What's inside? e.g. documents"
         placeholderTextColor={T.inkSoft}
         value={parcelDescription}
         onChangeText={onChangeDescription}
       />
       <TextInput
-        style={[styles.input, styles.inputLast]}
-        placeholder="Note for courier (gate code, landmark, etc.)"
+        style={[styles.input, styles.inputMultiline, styles.inputLast]}
+        placeholder="Note for courier, e.g. blue gate by the school"
+        multiline
         placeholderTextColor={T.inkSoft}
         value={deliveryNote}
         onChangeText={onChangeNote}
@@ -243,11 +244,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 15,
+    // Match the app's body font (CustomText "Regular") instead of the system font.
+    fontFamily: "Regular",
     color: T.ink,
     marginBottom: 10,
     borderWidth: 1,
     borderColor: T.border,
   },
+  inputMultiline: { minHeight: 56, textAlignVertical: "top" },
   inputLast: { marginBottom: 0 },
 });
 

@@ -19,6 +19,8 @@ interface RatingModalProps {
   visible: boolean;
   rideId: string;
   role: "customer" | "rider";
+  /** Parcel trips are rated as a delivery by a courier, not a ride with a driver. */
+  isParcel?: boolean;
   onClose: () => void;
   onSuccess: () => void;
 }
@@ -59,10 +61,14 @@ const NEGATIVE_TAGS = {
   ],
 };
 
+const PARCEL_TAGS = ["Careful with parcel", "On time", "Professional", "Good communication", "Friendly"];
+const PARCEL_NEGATIVE_TAGS = ["Late delivery", "Parcel damaged", "Rude behavior", "Poor communication", "Hard to reach"];
+
 const RatingModal: FC<RatingModalProps> = ({
   visible,
   rideId,
   role,
+  isParcel = false,
   onClose,
   onSuccess,
 }) => {
@@ -121,7 +127,14 @@ const RatingModal: FC<RatingModalProps> = ({
   };
 
   const requiresFeedback = rating > 0 && rating < 3;
-  const tagsToShow = rating >= 3 ? RATING_TAGS[role] : NEGATIVE_TAGS[role];
+  const tagsToShow =
+    isParcel && role === "customer"
+      ? rating >= 3
+        ? PARCEL_TAGS
+        : PARCEL_NEGATIVE_TAGS
+      : rating >= 3
+        ? RATING_TAGS[role]
+        : NEGATIVE_TAGS[role];
 
   return (
     <CenteredFormModal visible={visible} onRequestClose={onClose}>
@@ -130,7 +143,11 @@ const RatingModal: FC<RatingModalProps> = ({
       </CustomText>
 
       <CustomText fontFamily="Bold" style={styles.title}>
-        {role === "customer" ? "Rate your driver" : "Rate your passenger"}
+        {role === "customer"
+          ? isParcel
+            ? "Rate your courier"
+            : "Rate your driver"
+          : "Rate your passenger"}
       </CustomText>
       <CustomText fontSize={13} style={styles.subtitle}>
         Tap a star to rate this trip
@@ -184,7 +201,11 @@ const RatingModal: FC<RatingModalProps> = ({
 
       <View style={styles.reviewContainer}>
         <CustomText fontFamily="Medium" style={styles.label}>
-          {requiresFeedback ? "Additional feedback (required)" : "How was your ride?"}
+          {requiresFeedback
+            ? "Additional feedback (required)"
+            : isParcel
+              ? "How was your delivery?"
+              : "How was your ride?"}
         </CustomText>
         <TextInput
           style={styles.input}

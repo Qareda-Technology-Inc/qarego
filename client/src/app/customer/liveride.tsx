@@ -514,6 +514,7 @@ const LiveRide = () => {
         }
         rideId={rideId || rideData?._id || ""}
         role="customer"
+        isParcel={rideData?.serviceType === "DELIVERY"}
         onClose={() => setShowRating(false)}
         onSuccess={handleRatingSuccess}
       />

@@ -190,7 +190,9 @@ const LocationSelection = () => {
     setLocations([]);
     setMapModalVisible(false);
     const navParams: Record<string, any> = {
-      distanceInKm: distance.toFixed(2),
+      // Unrounded, so the quoted fare matches what the server charges (it prices the exact
+      // distance); screens round for display.
+      distanceInKm: String(distance),
       drop_latitude: String(dropCoords.latitude),
       drop_longitude: String(dropCoords.longitude),
       drop_address: drop || "",
