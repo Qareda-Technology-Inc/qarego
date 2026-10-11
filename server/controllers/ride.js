@@ -127,10 +127,11 @@ export const createRide = async (req, res) => {
     const settings = await getSettings();
     const fareRates = settings.fareRates || undefined;
     const fareResult = calculateFare(distance, fareRates);
-    const fareAmount = fareResult[vehicle];
-    if (fareAmount == null) {
+    if (fareResult[vehicle] == null) {
       throw new BadRequestError("Invalid vehicle type for fare");
     }
+    // Store to the pesewa so receipts, commission and the rider's offer all agree.
+    const fareAmount = Math.round(fareResult[vehicle] * 100) / 100;
 
     const ridePayload = {
       serviceType,

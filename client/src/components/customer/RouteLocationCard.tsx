@@ -191,9 +191,10 @@ const styles = StyleSheet.create({
     marginBottom: 0,
   },
   swapBtn: {
+    // Straddles the gap between the two fields, clear of the pickup field's clear (✕) button.
     position: "absolute",
-    right: 0,
-    top: 52,
+    right: 14,
+    top: 62,
     width: 36,
     height: 36,
     borderRadius: 12,

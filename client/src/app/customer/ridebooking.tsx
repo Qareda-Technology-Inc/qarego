@@ -7,7 +7,7 @@ import {
   useWindowDimensions,
   Alert,
 } from "react-native";
-import React, { memo, useCallback, useMemo, useState, useEffect } from "react";
+import React, { memo, useCallback, useMemo, useState, useEffect, useRef } from "react";
 import { useLocalSearchParams } from "expo-router";
 import { useRoute } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -244,8 +244,11 @@ const RideBooking = () => {
 
   const displayOptions = serviceType === "DELIVERY" ? parcelOptions : rideOptions;
 
+  const sheetRef = useRef<BottomSheet>(null);
   const handleOptionSelect = useCallback((type: "Motorcycle" | "Pragya" | "Comfort") => {
     setSelectedOption(type);
+    // Payment and Confirm sit below the fold at the starting height; reveal them.
+    sheetRef.current?.snapToIndex(2);
   }, []);
 
   const getOptionMeta = useCallback(
@@ -497,6 +500,7 @@ const RideBooking = () => {
       </View>
 
       <BottomSheet
+        ref={sheetRef}
         index={0}
         snapPoints={sheetSnapPoints}
         enableDynamicSizing={false}
@@ -534,9 +538,7 @@ const RideBooking = () => {
                     Choose a ride
                   </CustomText>
                   <CustomText fontSize={13} style={styles.rideSheetSubtitle}>
-                    {distanceLabel
-                      ? `${distanceLabel} trip · tap an option below`
-                      : "Tap an option to continue"}
+                    {distanceLabel ? "Tap an option below" : "Tap an option to continue"}
                   </CustomText>
                 </View>
                 {distanceLabel ? (
@@ -629,7 +631,7 @@ const RideBooking = () => {
                         fontSize={17}
                         style={[styles.optionPrice, isBusy && styles.optionPriceBusy]}
                       >
-                        {isBusy ? "Busy" : formatCurrency(Math.round(Number(ride?.price ?? 0)))}
+                        {isBusy ? "Busy" : formatCurrency(Number(ride?.price ?? 0))}
                       </CustomText>
                       {isSelected ? (
                         <Ionicons

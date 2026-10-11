@@ -5,12 +5,14 @@ import { MessageButton, MessageType } from "@/components/shared/MessagePopup";
 let installed = false;
 let originalAlert: typeof Alert.alert | null = null;
 
-function inferType(title?: string): MessageType {
+function inferType(title?: string, buttons?: AlertButton[]): MessageType {
   const t = (title || "").toLowerCase();
   if (t.includes("error") || t.includes("failed") || t.includes("wrong")) return "error";
   if (t.includes("warning")) return "warning";
   if (t.includes("success")) return "success";
-  return "confirm";
+  // The question-mark "confirm" style is for real choices. A single-button notice
+  // ("Ride Started!", "Order placed") is informational, not a question.
+  return buttons && buttons.length > 1 ? "confirm" : "info";
 }
 
 function mapButtons(buttons?: AlertButton[]): MessageButton[] | undefined {
@@ -31,7 +33,7 @@ export function installAlertOverride(): void {
     bridgeShowMessage({
       title: title || "Notice",
       message,
-      type: inferType(title),
+      type: inferType(title, buttons),
       buttons: mapButtons(buttons),
       dismissOnBackdrop: !buttons || buttons.length <= 1,
     });

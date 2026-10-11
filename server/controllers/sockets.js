@@ -203,6 +203,17 @@ const handleSocketConnection = (io) => {
 
             // Re-populate customer with rating info for each retry
             const rideWithCustomer = await Ride.findById(rideId).populate("customer", "name phone averageRating totalRatings");
+            // Stop once a rider has the ride (or it is gone). The "rideAccepted" listener below
+            // never fires for this socket, so the ride's own status is the source of truth.
+            if (
+              !rideWithCustomer ||
+              rideWithCustomer.status !== "SEARCHING_FOR_RIDER" ||
+              rideWithCustomer.rider
+            ) {
+              rideAccepted = !!rideWithCustomer;
+              clearInterval(retryInterval);
+              return;
+            }
             const offered = await sendNearbyRiders(
               socket,
               { latitude: pickupLat, longitude: pickupLon },
@@ -213,8 +224,15 @@ const handleSocketConnection = (io) => {
             if (offered > 0 || retries >= MAX_RETRIES) {
               clearInterval(retryInterval);
               if (!rideAccepted && retries >= MAX_RETRIES) {
-                await Ride.findByIdAndDelete(rideId);
-                socket.emit("error", { message: "No riders found within 5 minutes." });
+                // Only remove a ride nobody has taken; never delete an accepted trip.
+                const removed = await Ride.findOneAndDelete({
+                  _id: rideId,
+                  status: "SEARCHING_FOR_RIDER",
+                  rider: null,
+                });
+                if (removed) {
+                  socket.emit("error", { message: "No riders found within 5 minutes." });
+                }
               }
             }
           };

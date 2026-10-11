@@ -2,8 +2,6 @@ import {
   View,
   ActivityIndicator,
   Alert,
-  TouchableOpacity,
-  StyleSheet,
   useWindowDimensions,
   Platform,
   InteractionManager,
@@ -47,7 +45,6 @@ import {
 import { customerRatesRiderForRide } from "@/utils/ratingFlow";
 import { buildLiveRideSnapPoints } from "@/utils/bottomSheetSnapPoints";
 import { router } from "expo-router";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const ACTIVE_RIDE_STATUSES = new Set(["START", "ARRIVED", "IN_PROGRESS"]);
 const LIVE_MAP_STATUSES = new Set(["START", "ARRIVED", "IN_PROGRESS"]);
@@ -65,7 +62,6 @@ function isRideSearchFatalError(message: string): boolean {
 
 const LiveRide = () => {
   const { height: windowHeight } = useWindowDimensions();
-  const insets = useSafeAreaInsets();
   const isFocused = useIsFocused();
   const { emit, on, off, connectNonce } = useWS();
   const [rideData, setRideData] = useState<any>(null);
@@ -443,17 +439,7 @@ const LiveRide = () => {
             rider={rider}
             courierRevision={courierRevision}
           />
-          {rideData?.status === "COMPLETED" && customerRatesRiderForRide(rideData) ? (
-            <TouchableOpacity
-              style={[styles.rateButton, { top: insets.top + 12 }]}
-              onPress={handleRequestRate}
-              activeOpacity={0.85}
-            >
-              <CustomText fontFamily="SemiBold" fontSize={14} style={{ color: "#fff" }}>
-                {rideData?.serviceType === "DELIVERY" ? "Rate your courier" : "Rate your driver"}
-              </CustomText>
-            </TouchableOpacity>
-          ) : null}
+          {/* Rating is offered once, from the trip sheet below. */}
         </>
       ) : null}
 
@@ -535,23 +521,5 @@ const LiveRide = () => {
   );
 };
 
-const styles = StyleSheet.create({
-  rateButton: {
-    position: "absolute",
-    left: 16,
-    right: 16,
-    backgroundColor: "orange",
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 10,
-    elevation: 4,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
-  },
-});
 
 export default memo(LiveRide);

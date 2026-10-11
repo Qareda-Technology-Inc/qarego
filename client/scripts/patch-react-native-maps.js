@@ -8,7 +8,7 @@
  * Polyline asynchronously after the map already has children.
  *
  * We clamp the insertion index to the array bounds so the insert can never go
- * out of range. Re-applies after every `npm install`.
+ * out of range, and skip nil children. Re-applies after every `npm install`.
  */
 const fs = require("fs");
 const path = require("path");
@@ -22,6 +22,13 @@ const targets = [
   ["ios", "Pods", "react-native-maps", "ios", "AirMaps", "AIRMap.m"],
 ];
 
+// The interop can also hand over a nil child (e.g. when a Marker mounts mid-trip as the
+// courier's first location arrives); inserting nil throws NSInvalidArgumentException and
+// kills the app. Skip nil children instead.
+const nilSignature =
+  "- (void)insertReactSubview:(id<RCTComponent>)subview atIndex:(NSInteger)atIndex {";
+const nilGuard = nilSignature + "\n  if (subview == nil) { return; }";
+
 const original = "[_reactSubviews insertObject:(UIView *)subview atIndex:(NSUInteger) atIndex];";
 const patched =
   "[_reactSubviews insertObject:(UIView *)subview atIndex:MIN((NSUInteger) atIndex, _reactSubviews.count)];";
@@ -31,6 +38,11 @@ for (const parts of targets) {
   if (!fs.existsSync(target)) continue;
 
   let source = fs.readFileSync(target, "utf8");
+  if (!source.includes(nilGuard) && source.includes(nilSignature)) {
+    source = source.split(nilSignature).join(nilGuard);
+    fs.writeFileSync(target, source);
+    console.log(`[patch-react-native-maps] Added nil-child guard in ${parts.join("/")}.`);
+  }
   if (source.includes(patched)) continue;
   if (!source.includes(original)) {
     console.warn(
@@ -42,4 +54,47 @@ for (const parts of targets) {
   source = source.split(original).join(patched);
   fs.writeFileSync(target, source);
   console.log(`[patch-react-native-maps] Clamped insert index in ${parts.join("/")}.`);
+}
+
+/**
+ * react-native-maps 1.29 imports `codegenNativeComponent` / `codegenNativeCommands` from
+ * 'react-native', which only exports them from RN 0.80+. On RN 0.79 they are undefined and
+ * the app crashes at load ("codegenNativeCommands is not a function"). Rewrite those imports
+ * to the deep paths RN 0.79 provides. Idempotent; re-applies after every `npm install`.
+ */
+const deepPaths = {
+  codegenNativeComponent: "react-native/Libraries/Utilities/codegenNativeComponent",
+  codegenNativeCommands: "react-native/Libraries/Utilities/codegenNativeCommands",
+};
+const mapsSrc = path.join(root, "node_modules", "react-native-maps", "src");
+const importRe = /import\s*\{([^}]*)\}\s*from\s*'react-native';/g;
+
+function walk(dir) {
+  if (!fs.existsSync(dir)) return [];
+  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) return walk(full);
+    return /\.(ts|tsx|js)$/.test(entry.name) ? [full] : [];
+  });
+}
+
+let rewritten = 0;
+for (const file of walk(mapsSrc)) {
+  const source = fs.readFileSync(file, "utf8");
+  const next = source.replace(importRe, (whole, names) => {
+    const parts = names.split(",").map((n) => n.trim()).filter(Boolean);
+    const deep = parts.filter((n) => deepPaths[n]);
+    if (!deep.length) return whole;
+    const rest = parts.filter((n) => !deepPaths[n]);
+    const lines = deep.map((n) => `import ${n} from '${deepPaths[n]}';`);
+    if (rest.length) lines.unshift(`import {${rest.join(", ")}} from 'react-native';`);
+    return lines.join("\n");
+  });
+  if (next !== source) {
+    fs.writeFileSync(file, next);
+    rewritten += 1;
+  }
+}
+if (rewritten) {
+  console.log(`[patch-react-native-maps] Rewrote codegen imports for RN 0.79 in ${rewritten} file(s).`);
 }

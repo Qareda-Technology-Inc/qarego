@@ -118,7 +118,7 @@ const DraggableMap: FC<{ height: number }> = ({ height }) => {
         showsTraffic={false}
         showsScale={false}
         showsBuildings
-        showsPointsOfInterest
+        showsPointsOfInterests
         showsUserLocation
       >
         {markers

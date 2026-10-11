@@ -1,6 +1,5 @@
 import {
   View,
-  Text,
   Modal,
   TouchableOpacity,
   TextInput,
@@ -24,6 +23,7 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { RFValue } from "react-native-responsive-fontsize";
 import { customMapStyle, indiaIntialRegion } from "@/utils/CustomMap";
 import { mapStyles } from "@/styles/mapStyles";
+import CustomText from "@/components/shared/CustomText";
 
 interface MapPickerModalProps {
   visible: boolean;
@@ -170,11 +170,21 @@ const MapPickerModal: FC<MapPickerModalProps> = ({
       onRequestClose={onClose}
     >
       <View style={modalStyles?.modalContainer}>
-        <Text style={modalStyles?.centerText}>Select {title}</Text>
-
-        <TouchableOpacity onPress={onClose}>
-          <Text style={modalStyles?.cancelButton}>Cancel</Text>
-        </TouchableOpacity>
+        <View style={modalStyles.header}>
+          <View style={modalStyles.headerSide} />
+          <CustomText fontFamily="Bold" fontSize={16} style={modalStyles.centerText}>
+            {title === "drop" ? "Choose destination" : "Choose pickup"}
+          </CustomText>
+          <TouchableOpacity
+            onPress={onClose}
+            style={[modalStyles.headerSide, modalStyles.closeButton]}
+            accessibilityRole="button"
+            accessibilityLabel="Close"
+            hitSlop={8}
+          >
+            <Ionicons name="close" size={20} color="#0f172a" />
+          </TouchableOpacity>
+        </View>
 
         <View style={modalStyles.searchContainer}>
           <Ionicons name="search-outline" size={RFValue(16)} color="#777" />
@@ -196,9 +206,9 @@ const MapPickerModal: FC<MapPickerModalProps> = ({
             ListHeaderComponent={
               <View>
                 {text.length > 4 ? null : (
-                  <Text style={{ marginHorizontal: 16 }}>
+                  <CustomText fontSize={12} color="#64748b" style={{ marginHorizontal: 16 }}>
                     Enter at least 4 characters to search
-                  </Text>
+                  </CustomText>
                 )}
               </View>
             }
@@ -240,7 +250,7 @@ const MapPickerModal: FC<MapPickerModalProps> = ({
                 showsTraffic={false}
                 showsScale={false}
                 showsBuildings={false}
-                showsPointsOfInterest={false}
+                showsPointsOfInterests={false}
                 customMapStyle={customMapStyle}
                 showsUserLocation={true}
               />
@@ -267,9 +277,16 @@ const MapPickerModal: FC<MapPickerModalProps> = ({
             </View>
 
             <View style={modalStyles?.footerContainer}>
-              <Text style={modalStyles.addressText} numberOfLines={2}>
-                {address === "" ? "Getting address..." : address}
-              </Text>
+              <View style={modalStyles.addressRow}>
+                <Ionicons
+                  name="location"
+                  size={18}
+                  color={title === "drop" ? "#ef4444" : "#16a34a"}
+                />
+                <CustomText fontFamily="Medium" fontSize={14} numberOfLines={2} style={modalStyles.addressText}>
+                  {address === "" ? "Getting address…" : address}
+                </CustomText>
+              </View>
               <View style={modalStyles.buttonContainer}>
                 <TouchableOpacity
                   style={modalStyles.button}
@@ -287,7 +304,9 @@ const MapPickerModal: FC<MapPickerModalProps> = ({
                     }
                   }}
                 >
-                  <Text style={modalStyles.buttonText}>Set Address</Text>
+                  <CustomText fontFamily="SemiBold" fontSize={15} style={modalStyles.buttonText}>
+                    {title === "drop" ? "Use this destination" : "Use this pickup"}
+                  </CustomText>
                 </TouchableOpacity>
               </View>
             </View>

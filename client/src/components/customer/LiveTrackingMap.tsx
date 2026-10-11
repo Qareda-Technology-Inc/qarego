@@ -1,13 +1,12 @@
 import { View, Image, TouchableOpacity, Platform } from "react-native";
 import React, { FC, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import MapView, { Marker, Callout } from "react-native-maps";
+import MapView, { Marker } from "react-native-maps";
 import { customMapStyle, indiaIntialRegion } from "@/utils/CustomMap";
 import MapDrivingRoute, { riderNearRoute } from "@/components/shared/MapDrivingRoute";
 import NearbyVehicleMarker from "@/components/customer/NearbyVehicleMarker";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { RFValue } from "react-native-responsive-fontsize";
 import { mapStyles } from "@/styles/mapStyles";
-import CustomText from "../shared/CustomText";
 import { parseRideParcelMode } from "@/utils/parcelMode";
 import { getCustomerRiderMapStatus, getCustomerRouteLabels } from "@/utils/customerCourierUi";
 import { getVehicleMarkerType } from "@/utils/mapUtils";
@@ -56,6 +55,9 @@ const LiveTrackingMap: FC<{
   const lastCameraCoordRef = useRef<{ latitude: number; longitude: number } | null>(null);
   const [mapReady, setMapReady] = useState(false);
   const [overlaysReady, setOverlaysReady] = useState(false);
+  // Markers snapshot their child views once tracking stops; keep tracking briefly after they
+  // mount so the pin images load first (same approach as RoutesMap), otherwise they stay blank.
+  const [markerTracks, setMarkerTracks] = useState(true);
 
   const pickupKey = coordKey(pickup);
   const dropKey = coordKey(drop);
@@ -133,7 +135,8 @@ const LiveTrackingMap: FC<{
 
     try {
       mapRef.current?.fitToCoordinates(coordinates, {
-        edgePadding: { top: 72, right: 48, bottom: 120, left: 48 },
+        // Top clears the status bar / notch so the far pin is never hidden under it.
+        edgePadding: { top: 120, right: 56, bottom: 120, left: 56 },
         animated: true,
       });
       hasFittedRef.current = true;
@@ -169,6 +172,27 @@ const LiveTrackingMap: FC<{
     }
     return indiaIntialRegion;
   };
+
+  // onMapReady does not always fire for this screen's Google map on iOS (new architecture),
+  // which left pins, route and camera fit unrendered. Fall back to a short delay after mount.
+  useEffect(() => {
+    if (mapReady) return;
+    const t = setTimeout(() => {
+      if (!mountedRef.current) return;
+      setMapReady(true);
+      scheduleFit();
+    }, 1200);
+    return () => clearTimeout(t);
+  }, [mapReady, scheduleFit]);
+
+  useEffect(() => {
+    if (!overlaysReady) {
+      setMarkerTracks(true);
+      return;
+    }
+    const t = setTimeout(() => setMarkerTracks(false), 2000);
+    return () => clearTimeout(t);
+  }, [overlaysReady]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -253,22 +277,14 @@ const LiveTrackingMap: FC<{
           }, 800);
         }}
       >
-        {mapReady && overlaysReady && activeRoute ? (
-          <MapDrivingRoute
-            origin={activeRoute.origin}
-            destination={activeRoute.destination}
-            strokeColor={activeRoute.strokeColor}
-            strokeWidth={5}
-            onReady={isCompleted ? undefined : scheduleFit}
-          />
-        ) : null}
-
+        {/* Markers use title/description for the tap label. Custom <Callout> children were
+            dropped by the Google Maps interop on iOS (nil subview), hiding the pins. */}
         {mapReady && overlaysReady && dropCoord ? (
           <Marker
             coordinate={dropCoord}
             anchor={{ x: 0.5, y: 1 }}
             zIndex={1}
-            tracksViewChanges={false}
+            tracksViewChanges={markerTracks}
             title={routeLabels.dropLabel}
             description={drop?.address || routeLabels.dropLabel}
           >
@@ -276,16 +292,6 @@ const LiveTrackingMap: FC<{
               source={require("@/assets/icons/drop_marker.png")}
               style={{ height: 30, width: 30, resizeMode: "contain" }}
             />
-            <Callout tooltip>
-              <View style={{ padding: 10, maxWidth: 220, backgroundColor: "white", borderRadius: 8 }}>
-                <CustomText fontFamily="SemiBold" fontSize={13} style={{ marginBottom: 6, color: "#333" }}>
-                  {routeLabels.dropLabel}
-                </CustomText>
-                <CustomText fontSize={11} numberOfLines={3} style={{ color: "#666" }}>
-                  {drop?.address || routeLabels.dropLabel}
-                </CustomText>
-              </View>
-            </Callout>
           </Marker>
         ) : null}
 
@@ -294,7 +300,7 @@ const LiveTrackingMap: FC<{
             coordinate={pickupCoord}
             anchor={{ x: 0.5, y: 1 }}
             zIndex={2}
-            tracksViewChanges={false}
+            tracksViewChanges={markerTracks}
             title={routeLabels.pickupLabel}
             description={pickup?.address || routeLabels.pickupLabel}
           >
@@ -302,16 +308,6 @@ const LiveTrackingMap: FC<{
               source={require("@/assets/icons/marker.png")}
               style={{ height: 30, width: 30, resizeMode: "contain" }}
             />
-            <Callout tooltip>
-              <View style={{ padding: 10, maxWidth: 220, backgroundColor: "white", borderRadius: 8 }}>
-                <CustomText fontFamily="SemiBold" fontSize={13} style={{ marginBottom: 6, color: "#333" }}>
-                  {routeLabels.pickupLabel}
-                </CustomText>
-                <CustomText fontSize={11} numberOfLines={3} style={{ color: "#666" }}>
-                  {pickup?.address || routeLabels.pickupLabel}
-                </CustomText>
-              </View>
-            </Callout>
           </Marker>
         ) : null}
 
@@ -323,10 +319,22 @@ const LiveTrackingMap: FC<{
             zIndex={3}
             title={isParcel ? "Your courier" : "Your rider"}
             description={riderMapStatus}
-            tracksViewChanges={false}
+            tracksViewChanges={markerTracks}
           >
             <NearbyVehicleMarker type={vehicleMarkerType} rotation={rider?.heading || 0} />
           </Marker>
+        ) : null}
+
+        {/* Route last: directions mount their Polyline asynchronously; appending it after the
+            markers avoids out-of-order native inserts that dropped pins on iOS. */}
+        {mapReady && overlaysReady && activeRoute ? (
+          <MapDrivingRoute
+            origin={activeRoute.origin}
+            destination={activeRoute.destination}
+            strokeColor={activeRoute.strokeColor}
+            strokeWidth={5}
+            onReady={isCompleted ? undefined : scheduleFit}
+          />
         ) : null}
       </MapView>
 
