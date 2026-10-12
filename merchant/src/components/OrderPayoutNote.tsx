@@ -41,7 +41,7 @@ export function OrderPayoutNote({ order }: { order: FoodOrderRow }) {
       </span>
       {commission > 0 ? (
         <span className="text-xs text-emerald-800/80">
-          Food {formatCurrency(order.subtotal)} − {formatCurrency(commission)} QareGO commission
+          {order.gasMode ? "Gas" : "Food"} {formatCurrency(order.subtotal)} − {formatCurrency(commission)} QareGO commission
         </span>
       ) : null}
     </div>

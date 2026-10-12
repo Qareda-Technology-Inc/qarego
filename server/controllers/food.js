@@ -45,7 +45,8 @@ const withOpenState = (restaurant, now = new Date()) => {
 
 /** GET /food/restaurants */
 export const listRestaurants = async (req, res) => {
-  const restaurants = await Restaurant.find({ isActive: true })
+  // Gas stations are reached through the Cooking gas flow, not the store lists.
+  const restaurants = await Restaurant.find({ isActive: true, vertical: { $ne: "GAS" } })
     .sort({ rating: -1, name: 1 })
     .select("-__v")
     .lean();
@@ -111,7 +112,12 @@ export const createFoodOrder = async (req, res) => {
     throw new BadRequestError("Restaurant and items are required");
   }
 
-  const restaurant = await Restaurant.findOne({ _id: restaurantId, isActive: true });
+  // Gas is priced by the owner and ordered via /food/gas/orders, not store menus.
+  const restaurant = await Restaurant.findOne({
+    _id: restaurantId,
+    isActive: true,
+    vertical: { $ne: "GAS" },
+  });
   if (!restaurant) {
     throw new NotFoundError("Restaurant not found");
   }
@@ -338,7 +344,12 @@ export const getFoodDeliveryQuote = async (req, res) => {
     throw new BadRequestError("restaurantId, latitude, and longitude are required");
   }
 
-  const restaurant = await Restaurant.findOne({ _id: restaurantId, isActive: true });
+  // Gas is priced by the owner and ordered via /food/gas/orders, not store menus.
+  const restaurant = await Restaurant.findOne({
+    _id: restaurantId,
+    isActive: true,
+    vertical: { $ne: "GAS" },
+  });
   if (!restaurant) {
     throw new NotFoundError("Restaurant not found");
   }
@@ -436,6 +447,27 @@ export const getFoodOrder = async (req, res) => {
   res.status(StatusCodes.OK).json({ order });
 };
 
+/** POST /food/orders/:id/cancel — customer cancels before the store accepts */
+export const cancelMyFoodOrder = async (req, res) => {
+  const owned = await FoodOrder.findOne({ _id: req.params.id, customer: req.user.id })
+    .select("_id status")
+    .lean();
+  if (!owned) throw new NotFoundError("Order not found");
+
+  const io = req.app.get("io");
+  const result = await applyRestaurantAction(req.params.id, "customer_cancel", io, {
+    cancelReason: req.body?.cancelReason?.trim() || "Cancelled by customer",
+  });
+  if (result.error === "invalid_transition" || result.error === "already_settled") {
+    throw new BadRequestError(
+      "The store has already started on this order. Contact the store to cancel."
+    );
+  }
+  if (result.error) throw new BadRequestError("Could not cancel this order");
+
+  res.status(StatusCodes.OK).json({ order: result.order });
+};
+
 /** GET /food/orders */
 export const listMyFoodOrders = async (req, res) => {
   const orders = await FoodOrder.find({ customer: req.user.id })
@@ -468,9 +500,10 @@ export const adminListFoodOrders = async (req, res) => {
     throw new BadRequestError("Admin access required");
   }
 
-  const { status } = req.query;
+  const { status, refundStatus } = req.query;
   const query = {};
   if (status) query.status = status;
+  if (refundStatus) query.refundStatus = refundStatus;
 
   const orders = await FoodOrder.find(query)
     .sort({ createdAt: -1 })
@@ -492,18 +525,41 @@ export const adminRestaurantOrderAction = async (req, res) => {
   const { action } = req.body;
   const { cancelReason } = req.body;
 
+  if (action === "mark_refunded") {
+    // Admin refunded the customer manually in Hubtel; record it.
+    const order = await FoodOrder.findOneAndUpdate(
+      { _id: req.params.id, refundStatus: "DUE" },
+      { $set: { refundStatus: "REFUNDED", refundedAt: new Date(), paymentStatus: "REFUNDED" } },
+      { new: true }
+    ).lean();
+    if (!order) throw new BadRequestError("No refund is due on this order");
+    return res.status(StatusCodes.OK).json({ order });
+  }
+
   if (!["accept", "reject", "ready"].includes(action)) {
-    throw new BadRequestError("action must be accept, reject, or ready");
+    throw new BadRequestError("action must be accept, reject, ready, or mark_refunded");
   }
 
   const io = req.app.get("io");
   const result = await applyRestaurantAction(req.params.id, action, io, {
     cancelReason: cancelReason?.trim() || null,
+    cancelledBy: "ADMIN",
   });
 
   if (result.error === "not_found") throw new NotFoundError("Order not found");
   if (result.error === "invalid_transition") {
     throw new BadRequestError("Cannot perform this action for the current order status");
+  }
+  if (result.error === "gas_in_custody") {
+    throw new BadRequestError(
+      "The customer's cylinder is with the courier or station. Return it before cancelling."
+    );
+  }
+  if (result.error === "gas_not_at_station") {
+    throw new BadRequestError("The customer's empty cylinder hasn't reached the station yet");
+  }
+  if (result.error === "already_settled") {
+    throw new BadRequestError("This order has already been paid out and can no longer be cancelled");
   }
   if (result.error === "payment_required") {
     throw new BadRequestError(

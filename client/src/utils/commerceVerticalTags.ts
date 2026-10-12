@@ -44,6 +44,7 @@ export const COMMERCE_VERTICAL_TAGS: Record<StoreVertical, VerticalTag[]> = {
   FOOD: FOOD_RESTAURANT_TAGS,
   GROCERY: GROCERY_SUPERMARKET_TAGS,
   PHARMACY: PHARMACY_HEALTH_TAGS,
+  GAS: [],
 };
 
 const emojiByName = new Map<string, string>();

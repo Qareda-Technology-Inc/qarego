@@ -93,6 +93,11 @@ export type FoodOrder = {
   notes?: string | null;
   prescriptionUrls?: string[];
   cancelReason?: string | null;
+  cancelledBy?: "CUSTOMER" | "RESTAURANT" | "ADMIN" | null;
+  refundStatus?: "NONE" | "DUE" | "REFUNDED";
+  gasMode?: "REFILL" | "EXCHANGE" | null;
+  gasStage?: "TO_STATION" | "AT_STATION" | null;
+  gasSizeKg?: number | null;
   deliveryCode?: string | null;
   fulfillmentType?: "DELIVERY" | "PICKUP" | "SCHEDULED";
   restaurantRating?: number | null;
@@ -100,6 +105,7 @@ export type FoodOrder = {
   ride?: {
     _id: string;
     status?: string;
+    gasLeg?: "COLLECT" | "RETURN" | "DELIVER" | null;
     vehicle?: string;
     otp?: string;
     fare?: number;
@@ -211,6 +217,12 @@ export const fetchFoodOrder = async (orderId: string): Promise<FoodOrder | null>
 export const rateFoodOrder = async (orderId: string, rating: number, review?: string) => {
   const res = await appAxios.post(`/food/orders/${orderId}/rate`, { rating, review });
   return res.data;
+};
+
+/** Customer cancels while the store hasn't accepted yet (status PLACED). */
+export const cancelFoodOrder = async (orderId: string): Promise<FoodOrder | null> => {
+  const res = await appAxios.post(`/food/orders/${orderId}/cancel`);
+  return res.data?.order ?? null;
 };
 
 export const fetchActiveFoodOrder = async (): Promise<FoodOrder | null> => {

@@ -11,7 +11,7 @@ const restaurantSchema = new Schema(
     /** Commerce module: Food, Grocery, or Pharmacy */
     vertical: {
       type: String,
-      enum: ["FOOD", "GROCERY", "PHARMACY"],
+      enum: ["FOOD", "GROCERY", "PHARMACY", "GAS"],
       default: "FOOD",
     },
     /** Primary catalog tag (legacy display) — first entry in tags */

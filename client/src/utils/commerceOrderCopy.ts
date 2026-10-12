@@ -197,6 +197,53 @@ const COPY: Record<StoreVertical, CommerceOrderCopy> = {
     pushPreparingFood: "is preparing your order",
     pushEnjoyDelivered: "Your order from",
   },
+  GAS: {
+    storeEmoji: "🔥",
+    storeNoun: "gas station",
+    storeNameFallback: "Gas station",
+    merchantOrdersTab: "Orders",
+    merchantOrdersTitle: "Gas orders",
+    merchantInProgressStat: "Being filled",
+    merchantActiveFilter: "In progress",
+    merchantMenuNav: "Station",
+    merchantOpenOrders: "Open orders",
+    merchantStaffWorkload: "fill queue",
+    merchantMapPickupTitle: "Gas station",
+    customerOrderMore: "Order gas again",
+    customerBackToShop: "Back to cooking gas",
+    customerEnjoyDelivered: "Your gas is here!",
+    customerWaitingAccept: "Waiting for the gas station to accept…",
+    customerRateStore: "Rate",
+    trackingSentToStore: "Sent to gas station",
+    trackingStoreAccepted: "Station accepted",
+    trackingPreparing: "Getting your gas ready",
+    trackingPrepWorking: "The station is filling your cylinder",
+    trackingReadyCourier: "Waiting for courier",
+    trackingCourierAssigned: "Heading to the station",
+    trackingCourierToStore: "Courier at the station",
+    trackingOnTheWay: "Bringing your gas",
+    trackingDeliveredStep: "Gas delivered",
+    trackingCancelledStore: "Station declined or could not fill",
+    trackingWaitingStore: "Waiting for gas station",
+    trackingPreparingHero: "The station is getting your gas ready",
+    trackingStoreCooking: "Filling your cylinder",
+    trackingCourierAtStore: "Collecting your gas",
+    trackingModuleHome: "/customer/gas",
+    riderPickupLabel: "Gas station",
+    riderHeadingToPickup: "Heading to gas station",
+    riderAtPickup: "At gas station",
+    riderMeetAtPickup: "Collect at gas station",
+    riderOfferPrefix: "Gas",
+    riderOfferFallback: "Gas delivery",
+    riderOfferTitle: "Gas delivery offer",
+    riderNewOfferTitle: "New gas delivery",
+    riderOfferBadge: "Gas",
+    liveEnjoy: "Gas delivered",
+    liveCourierAtStore: "Courier at gas station",
+    liveDeliveryFallback: "Gas delivery",
+    pushPreparingFood: "is getting your gas ready",
+    pushEnjoyDelivered: "Your gas from",
+  },
 };
 
 export function normalizeCommerceVertical(value?: unknown): StoreVertical {
@@ -223,5 +270,6 @@ export function resolveOrderVertical(input?: {
 
 export function commerceHomePath(vertical: StoreVertical): string {
   if (vertical === "FOOD") return "/customer/hub";
+  if (vertical === "GAS") return "/customer/gas";
   return `/customer/stores?type=${vertical}`;
 }

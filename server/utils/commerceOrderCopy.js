@@ -16,11 +16,16 @@ const COPY = {
     pushEnjoyDelivered: "Your order from",
     smsOpenOrders: "Open orders",
   },
+  GAS: {
+    pushPreparing: "is getting your gas ready",
+    pushEnjoyDelivered: "Your gas from",
+    smsOpenOrders: "Open orders",
+  },
 };
 
 export function normalizeCommerceVertical(value) {
   const v = String(value ?? "FOOD").toUpperCase();
-  if (v === "GROCERY" || v === "PHARMACY") return v;
+  if (v === "GROCERY" || v === "PHARMACY" || v === "GAS") return v;
   return "FOOD";
 }
 

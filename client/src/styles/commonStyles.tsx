@@ -9,6 +9,11 @@ export const commonStyles = StyleSheet.create({
         alignItems: 'center',
         backgroundColor: Colors.background
     },
+    /** Full-page screen: stretches children to the full width (container centres them). */
+    page: {
+        flex: 1,
+        backgroundColor: Colors.background
+    },
     containerBlack: {
         flex: 1,
         backgroundColor: Colors.background

@@ -4,8 +4,24 @@
     {
       "name": "merchant",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "merchant", "run", "dev"],
+      "runtimeArgs": [
+        "--prefix",
+        "merchant",
+        "run",
+        "dev"
+      ],
       "port": 3001
+    },
+    {
+      "name": "admin",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "admin",
+        "run",
+        "dev"
+      ],
+      "port": 3000
     }
   ]
 }

@@ -3,6 +3,7 @@
  * MoMo: Hubtel disburse restaurantNet + riderNet on delivery; platform keeps platformNet.
  * Cash POD: rider balance -= platformNet (ledger only).
  */
+import { getGasConfig } from "./gasOrders.js";
 import FoodOrder from "../models/FoodOrder.js";
 import Restaurant from "../models/Restaurant.js";
 import Ride from "../models/Ride.js";
@@ -51,12 +52,16 @@ export function buildCourierCashCollection(order) {
  * Compute frozen split for a food order from admin rates.
  * restaurant commission applies to subtotal; rider commission applies to delivery fee.
  */
-export function computeFoodOrderSplit(order, settings) {
+export function computeFoodOrderSplit(order, settings, options = {}) {
   const subtotal = roundMoney(order?.subtotal ?? 0);
   const deliveryFee = roundMoney(order?.deliveryFee ?? 0);
   const serviceFee = roundMoney(order?.serviceFee ?? 0);
 
-  const restaurantCommissionRate = getCommissionRateForService(settings, "FOOD");
+  // Gas stations pay their own (owner-set) commission on the gas cost.
+  const restaurantCommissionRate =
+    options.stationCommissionRate != null
+      ? Number(options.stationCommissionRate)
+      : getCommissionRateForService(settings, "FOOD");
   const riderCommissionRate = getFoodDeliveryCommissionRate(settings);
 
   const restaurantCommission = roundMoney(subtotal * restaurantCommissionRate);
@@ -378,7 +383,11 @@ export async function settleFoodOrderOnDelivery(orderId) {
   }
 
   const settings = await getSettings();
-  const split = computeFoodOrderSplit(order, settings);
+  const split = computeFoodOrderSplit(
+    order,
+    settings,
+    order.gasMode ? { stationCommissionRate: getGasConfig(settings).stationCommissionRate } : {}
+  );
 
   if (order.restaurantNet == null) {
     Object.assign(order, split);

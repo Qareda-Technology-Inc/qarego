@@ -239,9 +239,31 @@ const LiveRide = () => {
     const food = current.serviceType === "FOOD";
     const parcel = current.serviceType === "DELIVERY";
     const mode = parseRideParcelMode(current);
+    // Gas refill, first leg: customer's empty → station. No code; then wait for the return trip.
+    const gasCollect = (current as { gasLeg?: string }).gasLeg === "COLLECT";
 
     setActionLoading(true);
     try {
+      if (gasCollect) {
+        const next =
+          current.status === "START" ? "ARRIVED" : current.status === "ARRIVED" ? "IN_PROGRESS" : "COMPLETED";
+        const result = await updateRideStatus(current._id, next);
+        if (!result.ok) {
+          Alert.alert("There was an error");
+          return;
+        }
+        if (result.ride) setRideData(result.ride);
+        if (next === "ARRIVED") {
+          Alert.alert("Empty collected", "Check the cylinder, then take it to the gas station.");
+        } else if (next === "COMPLETED") {
+          Alert.alert(
+            "Handed to the station",
+            "Stay nearby. When the station has filled it, the return trip comes straight to you."
+          );
+          resetAndNavigate("/rider/home");
+        }
+        return;
+      }
       if (current.status === "START") {
         if (food || parcel) {
           const result = await updateRideStatus(current._id, "ARRIVED");

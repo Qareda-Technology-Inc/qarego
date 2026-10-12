@@ -1,5 +1,5 @@
 import express from 'express';
-import { refreshToken, auth, updateUser, requestOtp, verifyOtp, adminLogin } from '../controllers/auth.js';
+import { refreshToken, auth, updateUser, deleteMyAccount, requestOtp, verifyOtp, adminLogin } from '../controllers/auth.js';
 import { merchantLogin } from '../controllers/merchant.js';
 import authMiddleware from '../middleware/authentication.js';
 
@@ -12,5 +12,6 @@ router.post('/verify-otp', verifyOtp);
 router.post('/admin/login', adminLogin);
 router.post('/merchant/login', merchantLogin);
 router.patch('/update-user', authMiddleware, updateUser);
+router.delete('/account', authMiddleware, deleteMyAccount);
 
 export default router;

@@ -11,6 +11,8 @@ type CourierRide = {
   customer?: { name?: string; phone?: string };
   recipientName?: string;
   recipientPhone?: string;
+  gasLeg?: string | null;
+  restaurantName?: string;
 };
 
 export type RiderCourierUi = {
@@ -40,11 +42,24 @@ export function getRiderCourierUi(ride?: CourierRide | null): RiderCourierUi {
   const status = ride?.status;
   const labels = parcelLabels(parseRideParcelMode(ride));
 
+  if (ride?.gasLeg === "COLLECT") {
+    const atCustomer = status === "START";
+    return {
+      meetLabel: atCustomer ? "Collect the empty cylinder" : "Hand it to the station",
+      contactName: atCustomer ? ride?.customer?.name || "Customer" : ride?.restaurantName || "Gas station",
+      contactPhone: ride?.customer?.phone,
+      pickupLabel: "Customer (empty cylinder)",
+      dropLabel: "Gas station",
+    };
+  }
+
   if (isFoodDelivery(ride)) {
     const c = getCommerceOrderCopy(ride?.storeVertical);
     const enRouteToCustomer = status === "ARRIVED" || status === "IN_PROGRESS";
     return {
       meetLabel: enRouteToCustomer ? "Meet the customer" : c.riderMeetAtPickup,
+      // At the store, the person to look for is the store, not the customer.
+      contactName: enRouteToCustomer ? undefined : ride?.restaurantName || c.storeNameFallback,
       contactPhone: ride?.customer?.phone,
       pickupLabel: c.riderPickupLabel,
       dropLabel: "Customer",
@@ -106,6 +121,11 @@ export function getRiderSwipeTitle(ride?: CourierRide | null): string {
   const isFood = isFoodDelivery(ride);
   const isParcel = ride?.serviceType === "DELIVERY";
 
+  if (ride?.gasLeg === "COLLECT") {
+    if (status === "START") return "Collected the empty";
+    if (status === "ARRIVED") return "Heading to the station";
+    if (status === "IN_PROGRESS") return "Handed to the station";
+  }
   if (status === "START") {
     if (isFood) return "Confirm pickup";
     if (isParcel) return "Confirm collection";
@@ -138,12 +158,39 @@ export function getRiderDeliveryPhase(ride?: CourierRide | null): RiderDeliveryP
   const isParcel = ride?.serviceType === "DELIVERY";
   const parcelMode = parseRideParcelMode(ride);
 
+  if (ride?.gasLeg === "COLLECT") {
+    const step = status === "START" ? 1 : status === "ARRIVED" ? 2 : 3;
+    return {
+      step,
+      totalSteps: 3,
+      phaseLabel:
+        step === 1 ? "Collect empty cylinder" : step === 2 ? "Go to gas station" : "Hand to station",
+      phaseHint:
+        step === 1
+          ? "Go to the customer and collect their empty gas cylinder"
+          : step === 2
+            ? `Take the cylinder to ${ride?.restaurantName || "the gas station"}`
+            : "Give the cylinder to the station staff",
+      accentColor: "#c2410c",
+      swipeColor: "#c2410c",
+    };
+  }
   if (status === "START") {
     return {
       step: 1,
       totalSteps: 3,
-      phaseLabel: isFood ? "Collect order" : isParcel ? "Collect parcel" : "Go to pickup",
-      phaseHint: isFood ? "Head to the restaurant and confirm when you have the order" : "Navigate to the pickup point",
+      phaseLabel: ride?.gasLeg
+        ? "Collect the gas"
+        : isFood
+          ? "Collect order"
+          : isParcel
+            ? "Collect parcel"
+            : "Go to pickup",
+      phaseHint: ride?.gasLeg
+        ? `Head to ${ride?.restaurantName || "the gas station"} and confirm when you have the cylinder`
+        : isFood
+          ? "Head to the restaurant and confirm when you have the order"
+          : "Navigate to the pickup point",
       accentColor: Colors.theme,
       swipeColor: Colors.theme,
     };
@@ -175,7 +222,9 @@ export function getRiderDeliveryPhase(ride?: CourierRide | null): RiderDeliveryP
       step: 3,
       totalSteps: 3,
       phaseLabel: isFood || isParcel ? "Complete delivery" : "Finish trip",
-      phaseHint: isFood
+      phaseHint: ride?.gasLeg === "DELIVER"
+        ? "Swap for the customer's empty, take their code, then return the empty to the station"
+        : isFood
         ? "Ask the customer for their 4-digit code before handing over"
         : isParcel
           ? "Enter the recipient's delivery code to finish"

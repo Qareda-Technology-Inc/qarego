@@ -130,7 +130,7 @@ const RiderServices = () => {
   };
 
   return (
-    <View style={commonStyles.container}>
+    <View style={commonStyles.page}>
       <SafeAreaView style={{ backgroundColor: "#fff" }} />
       <View style={styles.header}>
         <TouchableOpacity

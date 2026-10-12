@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet } from "react-native";
+import { Text, StyleSheet, type StyleProp, type TextStyle } from "react-native";
 import React, { FC } from "react";
 import { Colors } from "@/utils/Constants";
 import { RFValue } from "react-native-responsive-fontsize";
@@ -14,6 +14,18 @@ const fontSizes = {
   h8: 9,
 };
 
+type CustomTextProps = {
+  variant?: keyof typeof fontSizes;
+  style?: StyleProp<TextStyle>;
+  fontSize?: number;
+  children?: React.ReactNode;
+  fontFamily?: "SemiBold" | "Regular" | "Bold" | "Medium" | "Light";
+  numberOfLines?: number;
+  ellipsizeMode?: "head" | "middle" | "tail" | "clip";
+  /** Text colour; an explicit `style.color` still wins. */
+  color?: string;
+};
+
 const CustomText: FC<CustomTextProps> = ({
   variant = "h6",
   style,
@@ -21,6 +33,8 @@ const CustomText: FC<CustomTextProps> = ({
   fontSize,
   numberOfLines,
   children,
+  color,
+  ellipsizeMode,
 }) => {
   return (
     <Text
@@ -30,9 +44,11 @@ const CustomText: FC<CustomTextProps> = ({
           fontSize: RFValue(fontSize ? fontSize : fontSizes[variant]),
           fontFamily,
         },
+        color ? { color } : null,
         style,
       ]}
       numberOfLines={numberOfLines ? numberOfLines : undefined}
+      ellipsizeMode={ellipsizeMode}
     >
       {children}
     </Text>

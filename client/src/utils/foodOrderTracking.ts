@@ -47,10 +47,101 @@ function getCurrentStepIndex(
   return 0;
 }
 
+type CancelInfo = {
+  cancelledBy?: "CUSTOMER" | "RESTAURANT" | "ADMIN" | null;
+  cancelReason?: string | null;
+  refundStatus?: "NONE" | "DUE" | "REFUNDED";
+  gasMode?: "REFILL" | "EXCHANGE" | null;
+  gasStage?: "TO_STATION" | "AT_STATION" | null;
+  restaurantName?: string;
+};
+
+type GasRide = { status?: string; gasLeg?: string | null } | null | undefined;
+
+/**
+ * Gas REFILL runs in the other direction first: the courier collects the empty from the
+ * customer, the station fills it, then it comes back. These steps replace the store ones.
+ */
+function gasRefillStepIndex(orderStatus: FoodOrderStatus, ride: GasRide, info: CancelInfo) {
+  if (orderStatus === "DELIVERED") return 7;
+  if (orderStatus === "READY_FOR_PICKUP" || orderStatus === "PICKED_UP") return 5;
+  if (info.gasStage === "AT_STATION") return 4;
+  if (info.gasStage === "TO_STATION" || (ride?.gasLeg === "COLLECT" && ride.status === "IN_PROGRESS")) {
+    return 3;
+  }
+  if (orderStatus === "PREPARING") return 2;
+  return 0;
+}
+
+function buildGasRefillSteps(orderStatus: FoodOrderStatus, ride: GasRide, info: CancelInfo): TrackingStep[] {
+  const station = info.restaurantName || "the gas station";
+  const searching = ride?.gasLeg === "COLLECT" && ride.status === "SEARCHING_FOR_RIDER";
+  const defs = [
+    { id: "placed", label: "Request sent", subtitle: `Sent to ${station}` },
+    { id: "accepted", label: "Station accepted", subtitle: "They'll fill your cylinder" },
+    {
+      id: "collect",
+      label: searching ? "Finding a courier" : "Courier collecting your empty",
+      subtitle: "Have your empty cylinder ready",
+    },
+    { id: "to_station", label: "Taking it to the station", subtitle: station },
+    { id: "filling", label: "Filling your cylinder", subtitle: "The station is filling it now" },
+    { id: "returning", label: "Bringing your gas back", subtitle: "Pay cash and share your code" },
+    { id: "done", label: "Gas delivered", subtitle: "Enjoy your cooking" },
+  ];
+  const current = gasRefillStepIndex(orderStatus, ride, info);
+  return defs.map((step, index) => ({
+    ...step,
+    state: index < current ? "done" : index === current ? "active" : "pending",
+  }));
+}
+
+function gasRefillHero(orderStatus: FoodOrderStatus, ride: GasRide, info: CancelInfo) {
+  const station = info.restaurantName || "The station";
+  if (orderStatus === "PLACED" || orderStatus === "CONFIRMED") {
+    return { title: "Confirming request", subtitle: "Waiting for the gas station to accept" };
+  }
+  if (ride?.gasLeg === "COLLECT") {
+    if (ride.status === "SEARCHING_FOR_RIDER") {
+      return { title: "Finding a courier", subtitle: "They'll collect your empty cylinder" };
+    }
+    if (ride.status === "START") {
+      return { title: "Courier on the way", subtitle: "Have your empty cylinder ready" };
+    }
+    if (ride.status === "ARRIVED") {
+      return { title: "Courier has arrived", subtitle: "Hand over your empty cylinder" };
+    }
+    if (ride.status === "IN_PROGRESS") {
+      return { title: "On the way to the station", subtitle: "Your cylinder is with the courier" };
+    }
+  }
+  if (orderStatus === "PREPARING") {
+    return { title: "Filling your cylinder", subtitle: `${station} is filling it now` };
+  }
+  if (ride?.status === "IN_PROGRESS") {
+    return { title: "Bringing your gas back", subtitle: "Pay cash and share your code on arrival" };
+  }
+  return { title: "Gas filled", subtitle: "The courier is collecting it from the station" };
+}
+
+/** Why the order was cancelled, from the customer's point of view. */
+function cancelledSubtitle(c: ReturnType<typeof getCommerceOrderCopy>, info?: CancelInfo | null) {
+  if (info?.cancelledBy === "CUSTOMER") return "You cancelled this order";
+  return info?.cancelReason?.trim() || c.trackingCancelledStore;
+}
+
+/** What happens to the customer's money after a cancellation. */
+export function cancelledMoneyNote(info?: CancelInfo | null): string {
+  if (info?.refundStatus === "DUE") return "Your MoMo payment will be refunded";
+  if (info?.refundStatus === "REFUNDED") return "Your MoMo payment has been refunded";
+  return "You were not charged for this order";
+}
+
 export function buildFoodTrackingSteps(
   orderStatus: FoodOrderStatus,
   ride?: { status?: string; rider?: unknown } | null,
-  vertical?: StoreVertical
+  vertical?: StoreVertical,
+  cancelInfo?: CancelInfo | null
 ): TrackingStep[] {
   const v = vertical ?? "FOOD";
   const c = getCommerceOrderCopy(v);
@@ -60,10 +151,13 @@ export function buildFoodTrackingSteps(
       {
         id: "cancelled",
         label: "Order cancelled",
-        subtitle: c.trackingCancelledStore,
+        subtitle: cancelledSubtitle(c, cancelInfo),
         state: "active",
       },
     ];
+  }
+  if (cancelInfo?.gasMode === "REFILL") {
+    return buildGasRefillSteps(orderStatus, ride as GasRide, cancelInfo);
   }
 
   const current = getCurrentStepIndex(orderStatus, ride);
@@ -90,9 +184,11 @@ export function buildFoodTrackingSteps(
 /** Delivery code shown to customer when courier is assigned (until delivered). */
 export function getFoodDeliveryCode(order: {
   deliveryCode?: string | null;
-  ride?: { otp?: string } | null;
+  ride?: { otp?: string; gasLeg?: string | null } | null;
 }): string | null {
-  const code = order.deliveryCode || order.ride?.otp;
+  // Gas collection leg: nothing is delivered to the customer yet, so no code to share.
+  const code =
+    order.deliveryCode || (order.ride?.gasLeg === "COLLECT" ? null : order.ride?.otp);
   return code && String(code).length >= 4 ? String(code) : null;
 }
 
@@ -125,21 +221,34 @@ export function shouldShowFoodDeliveryCodeOnLiveRide(
 export function getHeroStatusLabel(
   orderStatus: FoodOrderStatus,
   ride?: { status?: string } | null,
-  order?: { restaurant?: { vertical?: string }; restaurantName?: string; vertical?: string; storeVertical?: string } | null
+  order?:
+    | ({
+        restaurant?: { vertical?: string };
+        restaurantName?: string;
+        vertical?: string;
+        storeVertical?: string;
+      } & CancelInfo)
+    | null
 ): { title: string; subtitle: string } {
   const vertical = resolveOrderVertical(order ?? undefined);
   const c = getCommerceOrderCopy(vertical);
 
   if (orderStatus === "CANCELLED") {
-    return { title: "Order cancelled", subtitle: "You were not charged for this order" };
+    return { title: "Order cancelled", subtitle: cancelledMoneyNote(order) };
   }
-  if (orderStatus === "DELIVERED" || ride?.status === "COMPLETED") {
+  if (orderStatus === "DELIVERED" || (ride?.status === "COMPLETED" && order?.gasMode !== "REFILL")) {
     return { title: "Delivered", subtitle: c.customerEnjoyDelivered };
+  }
+  if (order?.gasMode === "REFILL") {
+    return gasRefillHero(orderStatus, ride as GasRide, order);
   }
   if (ride?.status === "IN_PROGRESS") {
     return {
       title: "On the way",
-      subtitle: "Share your delivery code with the courier when they arrive",
+      subtitle:
+        order?.gasMode === "EXCHANGE"
+          ? "Have your empty cylinder ready and share your code"
+          : "Share your delivery code with the courier when they arrive",
     };
   }
   if (ride?.status === "START" || ride?.status === "ARRIVED") {

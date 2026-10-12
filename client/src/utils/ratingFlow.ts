@@ -17,7 +17,8 @@ export function isFoodOrderRateable(order: FoodOrder | null): boolean {
   if (!order || order.restaurantRating) return false;
   if (order.status === "DELIVERED") return true;
   // Courier marked ride complete — order row may still say PICKED_UP until WS/API catches up.
-  if (order.ride?.status === "COMPLETED") return true;
+  // (Not the gas collection leg: that only means the empty reached the station.)
+  if (order.ride?.status === "COMPLETED" && order.ride?.gasLeg !== "COLLECT") return true;
   if (order.fulfillmentType === "PICKUP" && order.status === "READY_FOR_PICKUP") {
     return true;
   }
@@ -26,7 +27,11 @@ export function isFoodOrderRateable(order: FoodOrder | null): boolean {
 
 /** Sync order status when linked courier ride is completed. */
 export function withDeliveredFoodOrderStatus<T extends FoodOrder>(order: T): T {
-  if (order.status === "DELIVERED" || order.ride?.status !== "COMPLETED") {
+  if (
+    order.status === "DELIVERED" ||
+    order.ride?.status !== "COMPLETED" ||
+    order.ride?.gasLeg === "COLLECT"
+  ) {
     return order;
   }
   return { ...order, status: "DELIVERED" };

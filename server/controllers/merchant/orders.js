@@ -164,7 +164,7 @@ export const listAssignableRiders = async (req, res) => {
 /** PATCH /merchant/orders/:id — accept, reject, mark ready, or assign rider */
 export const myOrderAction = async (req, res) => {
   const { action, cancelReason, driverId } = req.body;
-  if (!["accept", "reject", "ready", "assign_rider"].includes(action)) {
+  if (!["accept", "reject", "ready", "assign_rider", "empty_returned"].includes(action)) {
     throw new BadRequestError(
       "action must be accept, reject, ready, or assign_rider"
     );
@@ -188,6 +188,17 @@ export const myOrderAction = async (req, res) => {
   if (result.error === "not_found") throw new NotFoundError("Order not found");
   if (result.error === "invalid_transition") {
     throw new BadRequestError("Cannot perform this action for the current order status");
+  }
+  if (result.error === "gas_in_custody") {
+    throw new BadRequestError(
+      "The customer's cylinder is with the courier or station. Return it before cancelling."
+    );
+  }
+  if (result.error === "gas_not_at_station") {
+    throw new BadRequestError("The customer's empty cylinder hasn't reached the station yet");
+  }
+  if (result.error === "already_settled") {
+    throw new BadRequestError("This order has already been paid out and can no longer be cancelled");
   }
   if (result.error === "payment_required") {
     throw new BadRequestError(

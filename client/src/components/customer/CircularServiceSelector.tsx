@@ -10,7 +10,7 @@ import { router } from "expo-router";
 import { openCommerceModule } from "@/utils/commerceNavigation";
 import { useUserStore } from "@/store/userStore";
 
-export type ServiceType = "RIDE" | "PARCEL" | "FOOD" | "GROCERY" | "PHARMACY";
+export type ServiceType = "RIDE" | "PARCEL" | "FOOD" | "GROCERY" | "PHARMACY" | "GAS";
 
 type Service = {
   type: ServiceType;
@@ -69,6 +69,15 @@ const SERVICES: Record<ServiceType, Service> = {
     ink: "#7f1d1d",
     tint: "#fee2e2",
   },
+  GAS: {
+    type: "GAS",
+    label: "Cooking gas",
+    description: "Refill or exchange at your door",
+    ioniconName: "flame",
+    themeColor: "#c2410c",
+    ink: "#7c2d12",
+    tint: "#ffedd5",
+  },
 };
 
 const LOCKED = { tint: "#f1f5f9", icon: "#94a3b8", text: "#94a3b8" };
@@ -88,7 +97,13 @@ type Props = {
  * Services not allowed in the current zone are greyed out with a lock.
  */
 const CircularServiceSelector = ({ goToHomeOnSelect = false }: Props) => {
-  const isServiceAllowed = useUserStore((s) => s.isServiceAllowed);
+  const isZoneServiceAllowed = useUserStore((s) => s.isServiceAllowed);
+  const coverage = useUserStore((s) => s.serviceCoverage);
+  // Gas isn't a zone service type: available anywhere inside the service area.
+  const isServiceAllowed = (type: ServiceType) =>
+    type === "GAS"
+      ? !coverage || coverage.openMode || coverage.inServiceArea
+      : isZoneServiceAllowed(type);
 
   const handleSelect = (type: ServiceType) => {
     if (!isServiceAllowed(type)) return;
@@ -106,6 +121,10 @@ const CircularServiceSelector = ({ goToHomeOnSelect = false }: Props) => {
     }
     if (type === "PARCEL") {
       router.navigate("/customer/parcel");
+      return;
+    }
+    if (type === "GAS") {
+      router.navigate("/customer/gas");
       return;
     }
     openCommerceModule(type);
@@ -156,6 +175,9 @@ const CircularServiceSelector = ({ goToHomeOnSelect = false }: Props) => {
           <CompactTile {...tileProps("PHARMACY")} />
         </Animated.View>
       </View>
+      <Animated.View entering={FadeInUp.delay(355).duration(380).springify().damping(18)}>
+        <CompactTile {...tileProps("GAS")} />
+      </Animated.View>
     </View>
   );
 };

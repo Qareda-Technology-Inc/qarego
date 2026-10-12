@@ -29,5 +29,6 @@ export function inferVerticalFromCategoryName(category) {
   const hay = String(category || "").toLowerCase();
   if (/(grocery|grocer|mart|supermarket|provision|market)/i.test(hay)) return "GROCERY";
   if (/(pharmacy|pharma|drug|medicine|chemist|health)/i.test(hay)) return "PHARMACY";
+  if (/(\bgas\b|lpg|cylinder|filling)/i.test(hay)) return "GAS";
   return "FOOD";
 }

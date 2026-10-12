@@ -361,6 +361,8 @@ export const updateRideStatus = async (req, res) => {
     }
 
     const isFood = ride.serviceType === "FOOD";
+    // Gas REFILL first leg: courier hands the empty to the station (no customer code there).
+    const isGasCollect = ride.gasLeg === "COLLECT";
     const isParcel = ride.serviceType === "DELIVERY";
     const current = ride.status;
     const invalidTransition = () =>
@@ -389,7 +391,7 @@ export const updateRideStatus = async (req, res) => {
       if (status === "COMPLETED" && current !== "IN_PROGRESS") {
         throw invalidTransition();
       }
-      if (status === "COMPLETED") {
+      if (status === "COMPLETED" && !isGasCollect) {
         if (!otp || String(otp) !== String(ride.otp)) {
           throw new BadRequestError("Invalid delivery code. Ask the customer for their 4-digit code.");
         }
@@ -410,7 +412,19 @@ export const updateRideStatus = async (req, res) => {
     ride.status = status;
     await ride.save();
 
-    if (ride.foodOrder) {
+    if (ride.foodOrder && isGasCollect) {
+      if (status === "IN_PROGRESS") {
+        await FoodOrder.findByIdAndUpdate(ride.foodOrder, { gasStage: "TO_STATION" });
+      }
+      if (status === "COMPLETED") {
+        // Empty is at the station; the station fills it and marks it ready for the return leg.
+        await FoodOrder.findByIdAndUpdate(ride.foodOrder, {
+          gasStage: "AT_STATION",
+          gasCourier: ride.rider?._id || ride.rider,
+          ride: null,
+        });
+      }
+    } else if (ride.foodOrder) {
       if (status === "IN_PROGRESS") {
         await FoodOrder.findByIdAndUpdate(ride.foodOrder, { status: "PICKED_UP" });
       }
@@ -441,7 +455,9 @@ export const updateRideStatus = async (req, res) => {
       const deferForMomo =
         (ride.serviceType === "RIDE" || ride.serviceType === "DELIVERY") &&
         ride.paymentMethod === "MOBILE_MONEY";
-      if (ride.serviceType === "FOOD" && ride.foodOrder) {
+      if (isGasCollect) {
+        // Paid with the return leg, when the whole round trip is settled.
+      } else if (ride.serviceType === "FOOD" && ride.foodOrder) {
         try {
           const settlement = await settleFoodOrderOnDelivery(ride.foodOrder);
           if (settlement?.settlementStatus === "failed") {

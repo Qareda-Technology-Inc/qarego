@@ -11,9 +11,9 @@ const auth = async (req, res, next) => {
   const token = authHeader.split(" ")[1];
   try {
     const payload = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
-    const user = await User.findById(payload.id).select("role");
+    const user = await User.findById(payload.id).select("role deletedAt");
 
-    if (!user) {
+    if (!user || user.deletedAt) {
       throw new NotFoundError("User not found");
     }
 

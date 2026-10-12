@@ -7,6 +7,9 @@ import { normalizePhone } from "../utils/phone.js";
 import { normalizeServicePreferencesInput } from "../utils/riderServicePreferences.js";
 import { sanitizeMediaUrl } from "../utils/mediaStorage.js";
 import { getReviewAccount, ensureReviewUser } from "../utils/reviewLogin.js";
+import Ride from "../models/Ride.js";
+import FoodOrder from "../models/FoodOrder.js";
+import { formatCurrency } from "../utils/currency.js";
 
 // Generate a 4-digit OTP
 const generateOTP = () => {
@@ -253,7 +256,7 @@ export const refreshToken = async (req, res) => {
     const payload = jwt.verify(refresh_token, process.env.REFRESH_TOKEN_SECRET);
     const user = await User.findById(payload.id);
 
-    if (!user) {
+    if (!user || user.deletedAt) {
       throw new UnauthenticatedError("Invalid refresh token");
     }
 
@@ -317,4 +320,67 @@ export const updateUser = async (req, res) => {
     message: "User updated successfully",
     user: payload,
   });
+};
+
+const ACTIVE_TRIP_STATUSES = ["SEARCHING_FOR_RIDER", "START", "ARRIVED", "IN_PROGRESS"];
+const OPEN_ORDER_STATUSES = ["PLACED", "CONFIRMED", "PREPARING", "READY_FOR_PICKUP", "PICKED_UP"];
+
+/**
+ * DELETE /auth/account — the signed-in customer or rider deletes their account (required by
+ * Google Play). Personal data is removed and sign-in is blocked; trips, orders and payments are
+ * kept, anonymised, for accounting. Signing in again with the same number starts a new account.
+ */
+export const deleteMyAccount = async (req, res) => {
+  const user = await User.findById(req.user.id);
+  if (!user || user.deletedAt) throw new UnauthenticatedError("Authentication invalid");
+  if (!["customer", "rider"].includes(user.role)) {
+    throw new BadRequestError("Staff accounts are removed by an administrator");
+  }
+
+  const activeTrip = await Ride.exists({
+    $or: [{ customer: user._id }, { rider: user._id }],
+    status: { $in: ACTIVE_TRIP_STATUSES },
+  });
+  if (activeTrip) {
+    throw new BadRequestError("Finish or cancel your current trip before deleting your account");
+  }
+  const openOrder = await FoodOrder.exists({
+    customer: user._id,
+    status: { $in: OPEN_ORDER_STATUSES },
+  });
+  if (openOrder) {
+    throw new BadRequestError("Wait for your current order to finish before deleting your account");
+  }
+
+  if (user.role === "rider") {
+    const balance = Math.round((Number(user.balance) || 0) * 100) / 100;
+    if (balance < 0) {
+      throw new BadRequestError(
+        `You owe ${formatCurrency(-balance)} in commission. Clear it before deleting your account.`
+      );
+    }
+    if (balance > 0) {
+      throw new BadRequestError(
+        `You have ${formatCurrency(balance)} still to be paid out. Wait for your payout before deleting your account.`
+      );
+    }
+  }
+
+  await User.updateOne(
+    { _id: user._id },
+    {
+      $set: {
+        name: "Deleted user",
+        email: null,
+        profileImage: null,
+        pushTokens: [],
+        isOnline: false,
+        deletedAt: new Date(),
+      },
+      // Unset (not null) so the sparse unique indexes free the phone number for a new account.
+      $unset: { phone: "", username: "", driverDetails: "" },
+    }
+  );
+
+  res.status(StatusCodes.OK).json({ deleted: true });
 };

@@ -116,6 +116,12 @@ export async function notifyAssignedRider(io, ride, driverId) {
  */
 export async function createCourierRideForOrder(foodOrder, restaurant, io, options = {}) {
   const { broadcast = true, driverId = null } = options;
+  // Gas: EXCHANGE delivers a full cylinder; REFILL's second leg returns the filled one.
+  const gasLeg = foodOrder.gasMode
+    ? foodOrder.gasMode === "REFILL"
+      ? "RETURN"
+      : "DELIVER"
+    : null;
 
   if (foodOrder.ride) {
     const existing = await Ride.findById(foodOrder.ride);
@@ -193,6 +199,7 @@ export async function createCourierRideForOrder(foodOrder, restaurant, io, optio
     storeVertical: restaurant.vertical || "FOOD",
     foodOrderSummary: itemSummary,
     cashCollection: buildCourierCashCollection(foodOrder),
+    gasLeg,
   });
 
   foodOrder.ride = ride._id;
@@ -218,6 +225,44 @@ export async function createCourierRideForOrder(foodOrder, restaurant, io, optio
   return ride;
 }
 
+/**
+ * Gas REFILL, first leg: a courier collects the customer's empty cylinder and takes it to
+ * the station. Pays the full round-trip fee (settled once, when the filled cylinder is
+ * delivered); no cash changes hands on this leg.
+ */
+async function createGasCollectionRide(foodOrder, restaurant, io) {
+  const itemSummary = foodOrder.items.map((i) => `${i.quantity}x ${i.name}`).join(", ");
+  const ride = await Ride.create({
+    serviceType: "FOOD",
+    vehicle: "motorcycle",
+    distance: foodOrder.deliveryDistanceKm,
+    fare: foodOrder.driverFee || foodOrder.deliveryFee,
+    pickup: {
+      address: foodOrder.delivery.address,
+      latitude: foodOrder.delivery.latitude,
+      longitude: foodOrder.delivery.longitude,
+    },
+    drop: {
+      address: `${restaurant.name} — ${restaurant.address}`,
+      latitude: restaurant.latitude,
+      longitude: restaurant.longitude,
+    },
+    customer: foodOrder.customer,
+    otp: generateOTP(),
+    paymentMethod: foodOrder.paymentMethod,
+    foodOrder: foodOrder._id,
+    restaurantName: restaurant.name,
+    storeVertical: "GAS",
+    foodOrderSummary: itemSummary,
+    cashCollection: null,
+    gasLeg: "COLLECT",
+  });
+  foodOrder.ride = ride._id;
+  foodOrder.collectionRide = ride._id;
+  await broadcastRideToDrivers(io, ride);
+  return ride;
+}
+
 export async function applyRestaurantAction(orderId, action, io, options = {}) {
   const foodOrder = await FoodOrder.findById(orderId);
   if (!foodOrder) return { error: "not_found" };
@@ -238,19 +283,67 @@ export async function applyRestaurantAction(orderId, action, io, options = {}) {
         };
       }
       foodOrder.status = "PREPARING";
-      scheduleCourierBroadcast(foodOrder, restaurant);
+      if (foodOrder.gasMode === "REFILL") {
+        // Nothing to prepare until the empty arrives: send a courier to collect it now.
+        foodOrder.preparingStartedAt = new Date();
+        foodOrder.courierBroadcastSent = true;
+        await createGasCollectionRide(foodOrder, restaurant, io);
+      } else {
+        scheduleCourierBroadcast(foodOrder, restaurant);
+      }
       break;
     case "reject":
-      if (!["PLACED", "CONFIRMED", "PREPARING"].includes(foodOrder.status)) {
+    case "customer_cancel": {
+      // Store/admin can cancel until the courier has the food (incl. ready for pickup, e.g.
+      // when no courier comes). Customers can only cancel before the store accepts.
+      const allowed =
+        action === "customer_cancel"
+          ? ["PLACED"]
+          : ["PLACED", "CONFIRMED", "PREPARING", "READY_FOR_PICKUP"];
+      if (!allowed.includes(foodOrder.status)) {
         return { error: "invalid_transition" };
       }
+      // A customer's own cylinder is with the courier or the station: it has to go back first.
+      if (foodOrder.gasMode === "REFILL" && foodOrder.gasStage) {
+        return { error: "gas_in_custody" };
+      }
+      // Pickup orders settle when marked ready; never cancel money that has already moved.
+      if (["processing", "settled"].includes(foodOrder.settlementStatus)) {
+        return { error: "already_settled" };
+      }
+      // Any assigned courier is released with no charge or strike.
       await cancelCourierRideForOrder(foodOrder, io);
       foodOrder.status = "CANCELLED";
+      foodOrder.cancelledAt = new Date();
+      foodOrder.cancelledBy =
+        action === "customer_cancel" ? "CUSTOMER" : options.cancelledBy || "RESTAURANT";
       if (options.cancelReason) foodOrder.cancelReason = options.cancelReason;
+      if (foodOrder.paymentStatus === "PAID") foodOrder.refundStatus = "DUE";
+      foodOrder.settlementStatus = "not_required";
+      foodOrder.courierBroadcastAt = null;
       break;
+    }
     case "ready": {
       if (!["PREPARING", "CONFIRMED"].includes(foodOrder.status)) {
         return { error: "invalid_transition" };
+      }
+      if (foodOrder.gasMode === "REFILL") {
+        if (foodOrder.gasStage !== "AT_STATION") return { error: "gas_not_at_station" };
+        foodOrder.status = "READY_FOR_PICKUP";
+        foodOrder.ride = null;
+        // Same courier brings it back (they know the customer); anyone else if they can't.
+        try {
+          await createCourierRideForOrder(foodOrder, restaurant, io, {
+            driverId: foodOrder.gasCourier ? String(foodOrder.gasCourier) : null,
+            broadcast: !foodOrder.gasCourier,
+          });
+        } catch (err) {
+          console.warn("[gas] return leg not assigned to collector, broadcasting:", err?.message);
+          const ride = await Ride.findById(foodOrder.ride);
+          if (ride) await broadcastRideToDrivers(io, ride);
+        }
+        foodOrder.courierBroadcastSent = true;
+        break;
       }
       foodOrder.status = "READY_FOR_PICKUP";
       if (foodOrder.fulfillmentType !== "PICKUP") {
@@ -296,6 +389,12 @@ export async function applyRestaurantAction(orderId, action, io, options = {}) {
       }
       break;
     }
+    case "empty_returned":
+      if (foodOrder.gasMode !== "EXCHANGE" || !["PICKED_UP", "DELIVERED"].includes(foodOrder.status)) {
+        return { error: "invalid_transition" };
+      }
+      foodOrder.gasEmptyReturnedAt = new Date();
+      break;
     default:
       return { error: "unknown_action" };
   }

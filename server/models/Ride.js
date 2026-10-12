@@ -45,9 +45,12 @@ const rideSchema = new Schema(
     foodOrder: { type: Schema.Types.ObjectId, ref: "FoodOrder", default: null },
     restaurantName: { type: String, default: null },
     /** FOOD courier rides: store module vertical for rider/customer copy */
+    /** Cooking gas legs: COLLECT = customer's empty to station (REFILL), RETURN = filled back to customer,
+     *  DELIVER = full cylinder to customer (EXCHANGE). */
+    gasLeg: { type: String, enum: ["COLLECT", "RETURN", "DELIVER", null], default: null },
     storeVertical: {
       type: String,
-      enum: ["FOOD", "GROCERY", "PHARMACY"],
+      enum: ["FOOD", "GROCERY", "PHARMACY", "GAS"],
       default: null,
     },
     foodOrderSummary: { type: String, default: null },

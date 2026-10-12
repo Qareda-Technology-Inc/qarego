@@ -108,6 +108,30 @@ const foodOrderSchema = new Schema(
     /** 4-digit code — customer shares with courier at delivery (mirrors linked ride OTP) */
     deliveryCode: { type: String, default: null },
     cancelReason: { type: String, default: null },
+    /** Cooking gas orders (vertical GAS) */
+    gasMode: { type: String, enum: ["REFILL", "EXCHANGE", null], default: null },
+    gasSizeKg: { type: Number, default: null },
+    /** REFILL progress: courier taking the empty to the station, then cylinder at the station. */
+    gasStage: { type: String, enum: ["TO_STATION", "AT_STATION", null], default: null },
+    /** Courier who collected the empty (REFILL); the return leg goes back to them. */
+    gasCourier: { type: Schema.Types.ObjectId, ref: "User", default: null },
+    collectionRide: { type: Schema.Types.ObjectId, ref: "Ride", default: null },
+    /** EXCHANGE: station confirms the customer's empty cylinder came back. */
+    gasEmptyReturnedAt: { type: Date, default: null },
+    cancelledBy: {
+      type: String,
+      enum: ["CUSTOMER", "RESTAURANT", "ADMIN", null],
+      default: null,
+    },
+    cancelledAt: { type: Date, default: null },
+    /** Paid MoMo orders that were cancelled: refunded manually through Hubtel, then marked here. */
+    refundStatus: {
+      type: String,
+      enum: ["NONE", "DUE", "REFUNDED"],
+      default: "NONE",
+      index: true,
+    },
+    refundedAt: { type: Date, default: null },
     restaurantRating: { type: Number, min: 1, max: 5, default: null },
     restaurantReview: { type: String, default: null },
   },

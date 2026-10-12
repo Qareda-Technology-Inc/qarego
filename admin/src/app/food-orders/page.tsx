@@ -8,8 +8,13 @@ import { UtensilsCrossed, Clock, CheckCircle, XCircle, ChefHat } from 'lucide-re
 
 type FoodOrderRow = {
   _id: string;
-  restaurantName: string;
+  restaurantName?: string;
+  restaurant?: { name?: string };
   status: string;
+  paymentMethod?: 'CASH' | 'MOBILE_MONEY';
+  refundStatus?: 'NONE' | 'DUE' | 'REFUNDED';
+  cancelledBy?: 'CUSTOMER' | 'RESTAURANT' | 'ADMIN' | null;
+  cancelReason?: string | null;
   total: number;
   subtotal: number;
   items: { name: string; quantity: number; price: number }[];
@@ -22,7 +27,7 @@ type FoodOrderRow = {
 export default function FoodOrdersPage() {
   const [orders, setOrders] = useState<FoodOrderRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<'pending' | 'active' | 'all'>('pending');
+  const [filter, setFilter] = useState<'pending' | 'active' | 'refunds' | 'all'>('pending');
   const [acting, setActing] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -31,8 +36,8 @@ export default function FoodOrdersPage() {
       const query =
         filter === 'pending'
           ? '?status=PLACED'
-          : filter === 'active'
-            ? ''
+          : filter === 'refunds'
+            ? '?refundStatus=DUE'
             : '';
       const data = await fetcher(`/food/admin/orders${query}`);
       let list: FoodOrderRow[] = data.orders ?? [];
@@ -59,12 +64,27 @@ export default function FoodOrdersPage() {
     return () => clearInterval(t);
   }, [load]);
 
-  const act = async (orderId: string, action: 'accept' | 'reject' | 'ready') => {
+  const act = async (
+    orderId: string,
+    action: 'accept' | 'reject' | 'ready' | 'mark_refunded'
+  ) => {
+    let cancelReason: string | undefined;
+    if (action === 'reject') {
+      const reason = window.prompt('Reason for cancelling (shown to the customer):', '');
+      if (reason === null) return;
+      cancelReason = reason.trim() || undefined;
+    }
+    if (
+      action === 'mark_refunded' &&
+      !window.confirm('Confirm you have refunded this customer in Hubtel?')
+    ) {
+      return;
+    }
     setActing(orderId);
     try {
       await fetcher(`/food/admin/orders/${orderId}`, {
         method: 'PATCH',
-        body: JSON.stringify({ action }),
+        body: JSON.stringify({ action, cancelReason }),
       });
       await load();
     } catch (e: unknown) {
@@ -87,7 +107,7 @@ export default function FoodOrdersPage() {
       </div>
 
       <div className="flex flex-wrap gap-2">
-        {(['pending', 'active', 'all'] as const).map((f) => (
+        {(['pending', 'active', 'refunds', 'all'] as const).map((f) => (
           <button
             key={f}
             onClick={() => setFilter(f)}
@@ -97,7 +117,13 @@ export default function FoodOrdersPage() {
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
             }`}
           >
-            {f === 'pending' ? 'Awaiting accept' : f === 'active' ? 'In kitchen' : 'All'}
+            {f === 'pending'
+              ? 'Awaiting accept'
+              : f === 'active'
+                ? 'In kitchen'
+                : f === 'refunds'
+                  ? 'Refunds due'
+                  : 'All'}
           </button>
         ))}
         <button
@@ -123,8 +149,20 @@ export default function FoodOrdersPage() {
             >
               <div className="flex-1">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h2 className="font-semibold text-lg">{order.restaurantName}</h2>
+                  <h2 className="font-semibold text-lg">
+                    {order.restaurant?.name || order.restaurantName || 'Store'}
+                  </h2>
                   <StatusBadge status={order.status} />
+                  {order.refundStatus === 'DUE' && (
+                    <span className="text-xs font-medium px-2 py-1 rounded-full bg-amber-100 text-amber-800">
+                      MoMo refund due
+                    </span>
+                  )}
+                  {order.refundStatus === 'REFUNDED' && (
+                    <span className="text-xs font-medium px-2 py-1 rounded-full bg-gray-100 text-gray-700">
+                      Refunded
+                    </span>
+                  )}
                 </div>
                 <p className="text-sm text-gray-600 mt-1">
                   {order.customer?.name || 'Customer'} · {order.customer?.phone || '—'}
@@ -141,6 +179,13 @@ export default function FoodOrdersPage() {
                   <p className="text-sm text-orange-700 mt-2">Note: {order.notes}</p>
                 ) : null}
                 <p className="font-semibold mt-3">{formatCurrency(order.total)} total</p>
+                {order.status === 'CANCELLED' && (order.cancelledBy || order.cancelReason) ? (
+                  <p className="text-sm text-red-700 mt-1">
+                    Cancelled
+                    {order.cancelledBy ? ` by ${order.cancelledBy.toLowerCase()}` : ''}
+                    {order.cancelReason ? ` — ${order.cancelReason}` : ''}
+                  </p>
+                ) : null}
                 <p className="text-xs text-gray-400 mt-1">
                   {new Date(order.createdAt).toLocaleString()}
                 </p>
@@ -183,6 +228,26 @@ export default function FoodOrdersPage() {
                     <Clock className="h-4 w-4" />
                     Courier dispatching…
                   </p>
+                )}
+                {(order.status === 'PREPARING' || order.status === 'READY_FOR_PICKUP') && (
+                  <Button
+                    disabled={acting === order._id}
+                    onClick={() => act(order._id, 'reject')}
+                    variant="outline"
+                    className="border-red-300 text-red-600"
+                  >
+                    <XCircle className="h-4 w-4 mr-1 inline" />
+                    Cancel order
+                  </Button>
+                )}
+                {order.refundStatus === 'DUE' && (
+                  <Button
+                    disabled={acting === order._id}
+                    onClick={() => act(order._id, 'mark_refunded')}
+                    className="bg-amber-500 hover:bg-amber-600"
+                  >
+                    Mark refunded
+                  </Button>
                 )}
               </div>
             </div>

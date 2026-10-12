@@ -16,6 +16,7 @@ const CustomerLayout = () => {
       <Stack.Screen name="home" />
       <Stack.Screen name="(commerce)" options={{ headerShown: false }} />
       <Stack.Screen name="parcel" />
+      <Stack.Screen name="gas" />
       <Stack.Screen name="selectlocations" />
       <Stack.Screen name="ridebooking" />
       <Stack.Screen name="liveride" />

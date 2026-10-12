@@ -78,7 +78,7 @@ const CustomerProfile = () => {
   const isProfileIncomplete = !user?.name;
 
   return (
-    <View style={commonStyles.container}>
+    <View style={commonStyles.page}>
       <SafeAreaView style={{ backgroundColor: '#fff' }} />
       
       <View style={styles.header}>
@@ -110,13 +110,13 @@ const CustomerProfile = () => {
             <CustomText fontSize={14} color="#666" style={{ marginBottom: 5 }}>Profile Photo</CustomText>
             <TouchableOpacity onPress={pickImage} style={styles.uploadButton}>
               {profileImage && !isStoredMedia(profileImage) ? (
-                <CustomText color={Colors.primary}>New photo selected</CustomText>
+                <CustomText color={Colors.primaryText}>New photo selected</CustomText>
               ) : resolveMediaUrl(profileImage) ? (
                 <Image source={{ uri: resolveMediaUrl(profileImage)! }} style={styles.previewImage} />
               ) : (
                 <View style={{ flexDirection: "row", alignItems: "center" }}>
                   <Ionicons name="cloud-upload-outline" size={20} color={Colors.primary} />
-                  <CustomText style={{ marginLeft: 10 }} color={Colors.primary}>Upload Photo</CustomText>
+                  <CustomText style={{ marginLeft: 10 }} color={Colors.primaryText}>Upload Photo</CustomText>
                 </View>
               )}
             </TouchableOpacity>

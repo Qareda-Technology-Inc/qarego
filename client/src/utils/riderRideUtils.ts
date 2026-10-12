@@ -62,7 +62,12 @@ export function getRiderOfferBadge(ride: RiderOfferRide): {
   return { label: "Ride", color: "#2563eb" };
 }
 
+/** Gas refill first leg runs customer → station (the reverse of a normal delivery). */
+const isGasCollect = (ride?: RiderOfferRide | null) =>
+  (ride as { gasLeg?: string | null } | null | undefined)?.gasLeg === "COLLECT";
+
 export function getRiderPickupLabel(ride?: RiderOfferRide | null): string {
+  if (isGasCollect(ride)) return "Collect empty cylinder";
   if (isFoodDelivery(ride)) {
     return getCommerceOrderCopy(ride?.storeVertical).riderPickupLabel;
   }
@@ -73,6 +78,7 @@ export function getRiderPickupLabel(ride?: RiderOfferRide | null): string {
 }
 
 export function getRiderDropLabel(ride?: RiderOfferRide | null): string {
+  if (isGasCollect(ride)) return "Take to gas station";
   if (isFoodDelivery(ride)) return "Customer";
   if (ride?.serviceType === "DELIVERY") {
     return ride.parcelMode === "RECEIVE" ? "Customer" : "Recipient";

@@ -54,6 +54,11 @@ const userSchema = new Schema(
       type: Number,
       default: 5.0,
     },
+    /** Set when the person deleted their account; personal data is removed and login is blocked. */
+    deletedAt: {
+      type: Date,
+      default: null,
+    },
     /** For customers: when true, cannot request new rides */
     isSuspended: {
       type: Boolean,

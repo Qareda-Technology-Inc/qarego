@@ -5,7 +5,7 @@ import CustomText from "@/components/shared/CustomText";
 import { useRiderStore } from "@/store/riderStore";
 import { Ionicons } from "@expo/vector-icons";
 import { Colors } from "@/utils/Constants";
-import { logout } from "@/service/authService";
+import { logout, confirmDeleteAccount } from "@/service/authService";
 import { useWS } from "@/service/WSProvider";
 import { router } from "expo-router";
 import {
@@ -17,6 +17,7 @@ import { sendTestPushNotification } from "@/service/testPush";
 import {
   canCourierGoOnDuty,
   driverStatusLabel,
+  driverStatusColors,
   getDriverAccountStatus,
   isDriverPendingApproval,
 } from "@/utils/driverProfileAccess";
@@ -63,17 +64,28 @@ const RiderAccount = () => {
     { icon: "options-outline", label: "Work mode", library: Ionicons, onPress: () => router.push('/rider/services') },
     { icon: "shield-outline", label: "Reliability", library: Ionicons, onPress: () => router.push('/rider/reliability') },
     { icon: "stats-chart-outline", label: "Performance", library: Ionicons, onPress: () => router.push('/rider/analytics') },
-    { icon: "shield-checkmark-outline", label: "Safety", library: Ionicons, onPress: () => {} },
+    // Developer check only; riders don't need it in store builds.
+    ...(__DEV__
+      ? [
+          {
+            icon: "notifications-outline",
+            label: pushBusy ? "Sending test push…" : "Test push notification",
+            library: Ionicons,
+            onPress: handleTestPush,
+          },
+        ]
+      : []),
     {
-      icon: "notifications-outline",
-      label: pushBusy ? "Sending test push…" : "Test push notification",
+      icon: "trash-outline",
+      label: "Delete Account",
       library: Ionicons,
-      onPress: handleTestPush,
+      color: "red",
+      onPress: () => confirmDeleteAccount(disconnect),
     },
   ];
 
   return (
-    <View style={commonStyles.container}>
+    <View style={commonStyles.page}>
       <SafeAreaView style={{ backgroundColor: '#fff' }} />
       
       <ScrollView contentContainerStyle={{ paddingBottom: 100 }}>
@@ -138,15 +150,15 @@ const RiderAccount = () => {
                 </View>
                 
                 <View style={styles.userInfo}>
-                    <CustomText variant="h5" fontFamily="Bold">{user?.name || "Rider Name"}</CustomText>
+                    <CustomText variant="h5" fontFamily="Bold">{user?.name || "Rider"}</CustomText>
                     <View style={styles.ratingContainer}>
                         <Ionicons name="star" size={14} color="#FFD700" />
                         <CustomText fontFamily="Medium" fontSize={14} style={{ marginLeft: 4 }}>
                             {user?.averageRating?.toFixed(1) || "5.0"}
                         </CustomText>
                     </View>
-                    <CustomText fontSize={12} color="#666">{user?.phone || "+1234567890"}</CustomText>
-                    <CustomText fontSize={11} color={Colors.primary} style={{ marginTop: 4 }}>
+                    <CustomText fontSize={12} color="#666">{user?.phone || ""}</CustomText>
+                    <CustomText fontSize={11} fontFamily="SemiBold" color={driverStatusColors(driverStatus).text} style={{ marginTop: 4 }}>
                       {driverStatusLabel(driverStatus)}
                     </CustomText>
                 </View>

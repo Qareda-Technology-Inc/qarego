@@ -75,7 +75,7 @@ export default function RiderAnalyticsScreen() {
   }
 
   return (
-    <View style={commonStyles.container}>
+    <View style={commonStyles.page}>
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <TouchableOpacity
           onPress={() => router.back()}
@@ -100,7 +100,7 @@ export default function RiderAnalyticsScreen() {
             <CustomText
               fontSize={12}
               fontFamily={days === d ? "SemiBold" : "Regular"}
-              style={{ color: days === d ? "#fff" : Colors.text }}
+              style={{ color: Colors.text }}
             >
               {d}d
             </CustomText>
@@ -153,8 +153,10 @@ export default function RiderAnalyticsScreen() {
                 <CustomText fontFamily="SemiBold" fontSize={15} style={styles.serviceLabel}>
                   {row.label}
                 </CustomText>
-                <CustomText fontSize={12} color={Colors.primary}>
-                  {pct(life?.acceptanceRate)} accept
+                <CustomText fontSize={12} color={Colors.primaryText}>
+                  {life?.acceptanceRate == null
+                    ? "No offers yet"
+                    : `${pct(life.acceptanceRate)} accepted`}
                 </CustomText>
               </View>
               <View style={styles.statRow}>
@@ -192,7 +194,7 @@ export default function RiderAnalyticsScreen() {
           onPress={() => router.push("/rider/reliability")}
           activeOpacity={0.85}
         >
-          <Ionicons name="shield-outline" size={20} color={Colors.primary} />
+          <Ionicons name="shield-outline" size={20} color={Colors.primaryText} />
           <CustomText fontSize={13} style={styles.linkText}>
             Strikes & service pauses
           </CustomText>

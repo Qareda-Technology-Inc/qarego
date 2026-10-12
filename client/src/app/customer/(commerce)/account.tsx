@@ -7,7 +7,7 @@ import CustomText from "@/components/shared/CustomText";
 import { useUserStore } from "@/store/userStore";
 import { Ionicons } from "@expo/vector-icons";
 import { Colors } from "@/utils/Constants";
-import { logout } from "@/service/authService";
+import { logout, confirmDeleteAccount } from "@/service/authService";
 import { useWS } from "@/service/WSProvider";
 import { router } from "expo-router";
 import { resolveMediaUrl } from "@/service/mediaUpload";
@@ -28,14 +28,12 @@ const CustomerAccount = () => {
 
   const menuItems = [
     { icon: "person-outline", label: "Personal Info", library: Ionicons, onPress: () => router.push('/customer/profile') },
-    { icon: "people-outline", label: "Family Profile", library: Ionicons, onPress: () => router.push('/customer/family') },
-    { icon: "shield-checkmark-outline", label: "Safety", library: Ionicons, onPress: () => {} },
-    { icon: "lock-closed-outline", label: "Privacy", library: Ionicons, onPress: () => {} },
-    { icon: "trash-outline", label: "Delete Account", library: Ionicons, color: "red", onPress: () => {} },
+    // Safety and Privacy stay hidden until there are pages for them.
+    { icon: "trash-outline", label: "Delete Account", library: Ionicons, color: "red", onPress: () => confirmDeleteAccount(disconnect) },
   ];
 
   return (
-    <View style={commonStyles.container}>
+    <View style={commonStyles.page}>
       <ScrollView
         contentContainerStyle={{
           paddingTop: insets.top + 8,
@@ -79,7 +77,7 @@ const CustomerAccount = () => {
                             {user?.averageRating?.toFixed(1) || "5.0"}
                         </CustomText>
                     </View>
-                    <CustomText fontSize={12} color="#666">{user?.phone || "+1234567890"}</CustomText>
+                    <CustomText fontSize={12} color="#666">{user?.phone || ""}</CustomText>
                 </View>
             </View>
         </View>

@@ -14,6 +14,7 @@ import { SettingsCheckboxOption } from '@/components/SettingsCheckboxOption';
 import { SettingsAudioUpload } from '@/components/SettingsAudioUpload';
 import { MenuCategoryLayoutsCard } from '@/components/MenuCategoryLayoutsCard';
 import { FoodPromoBannersCard } from '@/components/FoodPromoBannersCard';
+import { GasPricesCard } from '@/components/GasPricesCard';
 
 /** Parse a number field; allow 0. Returns null when empty/invalid. */
 function parseOptionalNumber(raw: string): number | null {
@@ -773,6 +774,8 @@ export default function SettingsPage() {
         <MenuCategoryLayoutsCard />
 
         <FoodPromoBannersCard />
+
+        <GasPricesCard />
 
         <Card>
           <CardHeader>

@@ -283,6 +283,8 @@ export async function buildFoodOrderCustomerPush(order) {
 
 export function notifyCustomerFoodOrderPush(customerId, order) {
   if (!isFirebaseConfigured() || !customerId || !order) return;
+  // The customer cancelled it themselves; they don't need a push about it.
+  if (order.status === "CANCELLED" && order.cancelledBy === "CUSTOMER") return;
   void (async () => {
     try {
       const payload = await buildFoodOrderCustomerPush(order);

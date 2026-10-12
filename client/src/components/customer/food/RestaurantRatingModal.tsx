@@ -156,7 +156,7 @@ const RestaurantRatingModal: FC<Props> = ({
         <TextInput
           style={styles.input}
           placeholder={
-            requiresFeedback ? "Tell us what went wrong…" : "Share more about your meal…"
+            requiresFeedback ? "Tell us what went wrong…" : "Anything else you'd like to share…"
           }
           multiline
           numberOfLines={3}

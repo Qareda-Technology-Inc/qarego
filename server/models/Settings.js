@@ -120,6 +120,15 @@ const settingsSchema = new Schema(
      * Customer food/grocery/pharmacy home promos — admin uploads images.
      * [{ imageUrl, vertical?: FOOD|GROCERY|PHARMACY|ALL, enabled, sortOrder }]
      */
+    /**
+     * Cooking gas (LPG). Owner sets sizes and prices here; stations don't.
+     * { enabled, momoEnabled, stationCommissionRate,
+     *   cylinders: [{ sizeKg, label, refillPrice, exchangePrice, active }] }
+     */
+    gas: {
+      type: Schema.Types.Mixed,
+      default: null,
+    },
     foodPromoBanners: {
       type: Schema.Types.Mixed,
       default: () => [],

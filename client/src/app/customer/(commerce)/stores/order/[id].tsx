@@ -6,6 +6,7 @@ import {
   useWindowDimensions,
   Image,
   Linking,
+  Alert,
 } from "react-native";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { router, useLocalSearchParams } from "expo-router";
@@ -25,6 +26,7 @@ import {
   FoodOrder,
   FoodOrderPaymentStatus,
   initiateFoodOrderPayment,
+  cancelFoodOrder,
 } from "@/service/foodService";
 import { fetchCourierLocation, getRideById } from "@/service/rideService";
 import { useWS } from "@/service/WSProvider";
@@ -187,8 +189,12 @@ const FoodOrderTracking = () => {
     const handler = (updated: FoodOrder) => {
       if (String(updated?._id) !== String(id)) return;
       setOrder((prev) => {
-        const mergedRide =
-          prev?.ride || updated.ride
+        // Gas refill: the collection trip ended and the server cleared it; don't keep the old
+        // (completed) ride around, or the screen would think the order was delivered.
+        const rideCleared = updated.ride == null && updated.gasMode === "REFILL";
+        const mergedRide = rideCleared
+          ? null
+          : prev?.ride || updated.ride
             ? {
                 ...(prev?.ride ?? {}),
                 ...(updated.ride ?? {}),
@@ -226,6 +232,37 @@ const FoodOrderTracking = () => {
     const t = setInterval(loadPaymentStatus, PAYMENT_POLL_MS);
     return () => clearInterval(t);
   }, [paymentInfo?.orderPaymentStatus, order?.paymentStatus, loadPaymentStatus]);
+
+  const [cancelling, setCancelling] = useState(false);
+  const handleCancelOrder = useCallback(() => {
+    if (!order?._id) return;
+    Alert.alert("Cancel this order?", "The store hasn't started on it yet.", [
+      { text: "Keep order", style: "cancel" },
+      {
+        text: "Cancel order",
+        style: "destructive",
+        onPress: async () => {
+          setCancelling(true);
+          try {
+            const updated = await cancelFoodOrder(order._id);
+            if (updated) setOrder((prev) => (prev ? { ...prev, ...updated } : updated));
+          } catch (err: any) {
+            showToast({
+              title: "Couldn't cancel",
+              message:
+                err?.response?.data?.message ||
+                "The store may have just accepted it. Contact the store to cancel.",
+              type: "error",
+            });
+            const fresh = await fetchFoodOrder(order._id).catch(() => null);
+            if (fresh) setOrder(fresh);
+          } finally {
+            setCancelling(false);
+          }
+        },
+      },
+    ]);
+  }, [order?._id, showToast]);
 
   const handleResumePayment = useCallback(async () => {
     if (!id) return;
@@ -392,7 +429,7 @@ const FoodOrderTracking = () => {
   const shopHome = commerceHomePath(vertical);
 
   const steps = useMemo(
-    () => (order ? buildFoodTrackingSteps(order.status, order.ride, vertical) : []),
+    () => (order ? buildFoodTrackingSteps(order.status, order.ride, vertical, order) : []),
     [order, vertical]
   );
 
@@ -421,6 +458,20 @@ const FoodOrderTracking = () => {
     const full = Math.round(windowHeight - fallbackHeaderH + 16);
     return [Math.min(snapPoints[0], full - 100), full];
   }, [mapVisible, fallbackHeaderH, windowHeight, snapPoints]);
+  // The sheet mounts before the header is measured; once the no-map snap points are known,
+  // move it up so it sits right under the header instead of leaving an empty band.
+  const sheetRef = useRef<BottomSheet>(null);
+  useEffect(() => {
+    if (mapVisible || !fallbackHeaderH || sheetSnapPoints.length < 2) return;
+    const t = setTimeout(() => {
+      try {
+        sheetRef.current?.snapToIndex(sheetSnapPoints.length - 1);
+      } catch {
+        /* snap points changed mid-transition; the next render re-runs this */
+      }
+    }, 50);
+    return () => clearTimeout(t);
+  }, [mapVisible, fallbackHeaderH, sheetSnapPoints]);
   const liveCourier = order
     ? isLiveFoodCourierTracking(order.status, order.ride)
     : false;
@@ -455,7 +506,9 @@ const FoodOrderTracking = () => {
     order?.paymentMethod === "MOBILE_MONEY" &&
     ["UNPAID", "PENDING", "FAILED"].includes(orderPaymentState);
   const paymentStateText =
-    orderPaymentState === "PAID"
+    order?.refundStatus === "DUE"
+      ? "Refund due"
+      : orderPaymentState === "PAID"
       ? "Paid"
       : orderPaymentState === "PENDING"
       ? "Awaiting payment confirmation"
@@ -463,7 +516,7 @@ const FoodOrderTracking = () => {
       ? "Payment failed"
       : orderPaymentState === "UNPAID"
       ? "Payment not completed"
-      : orderPaymentState === "REFUNDED"
+      : orderPaymentState === "REFUNDED" || order?.refundStatus === "REFUNDED"
       ? "Refunded"
       : // NOT_REQUIRED (cash) and any unknown codes: nothing to show
         "";
@@ -625,6 +678,7 @@ const FoodOrderTracking = () => {
 
       {sheetReady ? (
         <BottomSheet
+          ref={sheetRef}
           index={1}
           animateOnMount
           enableOverDrag={false}
@@ -666,6 +720,23 @@ const FoodOrderTracking = () => {
                   </CustomText>
                 </TouchableOpacity>
               </View>
+            ) : null}
+
+            {order.status === "PLACED" ? (
+              <TouchableOpacity
+                onPress={handleCancelOrder}
+                disabled={cancelling}
+                style={styles.cancelOrderBtn}
+                accessibilityRole="button"
+              >
+                {cancelling ? (
+                  <ActivityIndicator size="small" color="#dc2626" />
+                ) : (
+                  <CustomText fontFamily="SemiBold" fontSize={14} color="#dc2626">
+                    Cancel order
+                  </CustomText>
+                )}
+              </TouchableOpacity>
             ) : null}
 
             {showCourierCard ? (
@@ -996,6 +1067,15 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderWidth: 1,
     borderColor: FOOD_THEME.divider,
+  },
+  cancelOrderBtn: {
+    marginTop: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#fecaca",
+    backgroundColor: "#fef2f2",
+    paddingVertical: 12,
+    alignItems: "center",
   },
   paymentRetryBtn: {
     marginLeft: 10,

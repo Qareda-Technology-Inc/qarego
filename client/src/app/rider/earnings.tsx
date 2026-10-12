@@ -322,7 +322,7 @@ export default function RiderEarnings() {
   }
 
   return (
-    <View style={commonStyles.container}>
+    <View style={commonStyles.page}>
       <SafeAreaView style={styles.safeArea} />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
@@ -332,7 +332,7 @@ export default function RiderEarnings() {
           Earnings
         </CustomText>
         <TouchableOpacity onPress={() => router.push("/rider/analytics")} style={styles.performanceLink}>
-          <Ionicons name="stats-chart-outline" size={20} color={Colors.primary} />
+          <Ionicons name="stats-chart-outline" size={20} color={Colors.primaryText} />
         </TouchableOpacity>
       </View>
 

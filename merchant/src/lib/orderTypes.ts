@@ -5,6 +5,11 @@ export type FoodOrderRow = {
   subtotal: number;
   /** Store's share after commission (food subtotal − commission), frozen at checkout. */
   restaurantNet?: number | null;
+  /** Cooking gas orders */
+  gasMode?: "REFILL" | "EXCHANGE" | null;
+  gasStage?: "TO_STATION" | "AT_STATION" | null;
+  gasSizeKg?: number | null;
+  gasEmptyReturnedAt?: string | null;
   items: {
     name: string;
     quantity: number;

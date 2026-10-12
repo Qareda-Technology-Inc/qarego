@@ -69,6 +69,10 @@ async function processFoodPaymentSuccess(payment, payload) {
     if (order && order.paymentStatus !== 'PAID') {
       order.paymentStatus = 'PAID';
       order.paymentReference = payment.clientReference;
+      // Payment landed after the order was cancelled: the customer is owed a refund.
+      if (order.status === 'CANCELLED' && order.refundStatus !== 'REFUNDED') {
+        order.refundStatus = 'DUE';
+      }
       await order.save();
     }
     if (payment.payoutStatus !== 'deferred') {

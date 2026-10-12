@@ -1,4 +1,4 @@
-export type StoreVertical = "FOOD" | "GROCERY" | "PHARMACY";
+export type StoreVertical = "FOOD" | "GROCERY" | "PHARMACY" | "GAS";
 
 export interface StoreTypeOption {
   _id: string;
@@ -58,6 +58,12 @@ export const VERTICAL_META: Record<
     prepLabel: "Fulfillment time (minutes)",
     prepDefault: "15",
     namePlaceholder: "e.g. City Chemist — Kaneshie",
+  },
+  GAS: {
+    label: "Cooking gas station",
+    prepLabel: "Average fill time (minutes)",
+    prepDefault: "15",
+    namePlaceholder: "e.g. Tarkwa LPG Station",
   },
 };
 

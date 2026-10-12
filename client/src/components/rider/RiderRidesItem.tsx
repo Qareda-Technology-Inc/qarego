@@ -131,7 +131,11 @@ const RiderRidesItem: FC<{ item: RideItem; removeIt: () => void; isBestOffer?: b
           />
           <View style={{ marginLeft: 8, flex: 1 }}>
             <CustomText style={{ textTransform: "capitalize" }} fontSize={12} fontFamily="SemiBold">
-              {food ? commerceCopy.riderOfferTitle : getVehicleLabel(item?.vehicle ?? "motorcycle")}
+              {(item as { gasLeg?: string }).gasLeg === "COLLECT"
+                ? "Gas refill · collect & return"
+                : food
+                  ? commerceCopy.riderOfferTitle
+                  : getVehicleLabel(item?.vehicle ?? "motorcycle")}
             </CustomText>
             <CustomText fontSize={10} style={orderStyles.label}>
               #{item?._id?.slice(0, 8).toUpperCase()}

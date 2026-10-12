@@ -75,7 +75,7 @@ const RiderRides = () => {
   );
 
   return (
-    <View style={commonStyles.container}>
+    <View style={commonStyles.page}>
       <SafeAreaView style={styles.safeArea} />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
@@ -96,7 +96,7 @@ const RiderRides = () => {
             <CustomText
               fontSize={13}
               fontFamily="Medium"
-              style={{ color: filter === chip.key ? "#fff" : Colors.text }}
+              style={{ color: Colors.text }}
             >
               {chip.label}
             </CustomText>

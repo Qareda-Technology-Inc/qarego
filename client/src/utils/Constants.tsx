@@ -17,6 +17,8 @@ export const formatCurrency = (amount: number | undefined | null): string => {
 
 export enum Colors {
     primary = '#EDD228',
+    /** Brand yellow is too light for text on white; use this darker gold for text. */
+    primaryText = '#8A6A00',
     background = '#fff',
     text = '#222',
     theme = '#CF551F',

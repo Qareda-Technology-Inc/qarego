@@ -1,4 +1,4 @@
-export type StoreVertical = "FOOD" | "GROCERY" | "PHARMACY";
+export type StoreVertical = "FOOD" | "GROCERY" | "PHARMACY" | "GAS";
 
 export type CommerceOrderCopy = {
   ordersTab: string;
@@ -101,11 +101,36 @@ const COPY: Record<StoreVertical, CommerceOrderCopy> = {
     enableAlertsBody: "Tap once so new orders play a sound and show notifications.",
     mapPickupTitle: "Pharmacy (pickup)",
   },
+  GAS: {
+    ordersTab: "Orders",
+    ordersTitle: "Gas orders",
+    inProgressStat: "Being filled",
+    activeFilter: "In progress",
+    menuNav: "Station",
+    menuAddLabel: "Add item",
+    cooksNav: "Staff",
+    cooksDescription:
+      "Staff can view and manage the order queue. They cannot change prices or manage staff.",
+    cooksEmpty: "No staff yet. Add someone to share the order workload.",
+    openOrders: "Open orders",
+    staffWorkload: "fill queue",
+    productCountLabel: "items",
+    backToOrders: "Back to orders",
+    dashboardInKitchen: "in progress",
+    dashboardTakingYou: "Taking you to orders…",
+    menuSubtitle: "Gas prices are set by QareGO.",
+    settingsNotFound: "Station not found.",
+    settingsOffline: "Your station is currently offline platform-wide. Contact the admin.",
+    loginSubtitle: "Manage your gas station's orders",
+    enableAlertsTitle: "Enable order alerts",
+    enableAlertsBody: "Tap once so new orders play a sound and show notifications.",
+    mapPickupTitle: "Gas station",
+  },
 };
 
 export function normalizeVertical(value?: string | null): StoreVertical {
   const v = String(value ?? "FOOD").toUpperCase();
-  if (v === "GROCERY" || v === "PHARMACY") return v;
+  if (v === "GROCERY" || v === "PHARMACY" || v === "GAS") return v;
   return "FOOD";
 }
 

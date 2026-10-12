@@ -166,10 +166,20 @@ export default function OrdersPage() {
 
   const act = async (
     orderId: string,
-    action: "accept" | "reject" | "ready" | "assign_rider",
+    action: "accept" | "reject" | "ready" | "assign_rider" | "cancel" | "empty_returned",
     driverId?: string
   ) => {
     if (action === "reject" && !confirm("Decline this order?")) return;
+    // Cancelling after accepting (e.g. no courier came): ask why, the customer sees it.
+    let cancelReason: string | undefined;
+    if (action === "cancel") {
+      const reason = prompt(
+        "Cancel this order? Any assigned courier is released.\n\nReason (shown to the customer):",
+        ""
+      );
+      if (reason === null) return;
+      cancelReason = reason.trim() || "Cancelled by the store";
+    }
     if (action === "accept" || action === "reject") {
       stopNewOrderRing();
       window.dispatchEvent(new CustomEvent("kitchen:order-handled"));
@@ -179,8 +189,9 @@ export default function OrdersPage() {
       await fetcher(`/merchant/orders/${orderId}`, {
         method: "PATCH",
         body: JSON.stringify({
-          action,
+          action: action === "cancel" ? "reject" : action,
           ...(driverId ? { driverId } : {}),
+          ...(cancelReason ? { cancelReason } : {}),
         }),
       });
       await Promise.all([load(), loadStats()]);
@@ -302,6 +313,12 @@ export default function OrdersPage() {
                   <h2 className="font-semibold text-lg">{order.customer?.name || "Customer"}</h2>
                   <StatusBadge status={order.status} />
                   <PaymentBadge method={order.paymentMethod} />
+                  {order.gasMode ? (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-800">
+                      {order.gasMode === "REFILL" ? "Refill" : "Exchange"}
+                      {order.gasSizeKg ? ` · ${order.gasSizeKg} kg` : ""}
+                    </span>
+                  ) : null}
                 </div>
                 <p className="text-sm text-gray-600 mt-1">{order.customer?.phone || "—"}</p>
                 <p className="text-sm text-muted mt-1">{order.delivery?.address}</p>
@@ -398,7 +415,20 @@ export default function OrdersPage() {
                     </Button>
                   </>
                 )}
-                {order.status === "PREPARING" && (
+                {order.status === "PREPARING" && order.gasMode === "REFILL" && order.gasStage !== "AT_STATION" && (
+                  <p className="text-sm text-gray-600 flex items-center gap-1">
+                    <Bike className="h-4 w-4" />
+                    {order.gasStage === "TO_STATION"
+                      ? "Courier is bringing the empty cylinder"
+                      : "Courier collecting the customer's empty"}
+                  </p>
+                )}
+                {order.status === "PREPARING" && order.gasMode === "REFILL" && order.gasStage === "AT_STATION" && (
+                  <Button disabled={acting === order._id} onClick={() => act(order._id, "ready")}>
+                    <ChefHat className="h-4 w-4 mr-1 inline" /> Mark filled
+                  </Button>
+                )}
+                {order.status === "PREPARING" && order.gasMode !== "REFILL" && (
                   <>
                     <Button
                       disabled={acting === order._id}
@@ -452,6 +482,28 @@ export default function OrdersPage() {
                   <p className="text-sm text-gray-600 flex items-center gap-1">
                     <Clock className="h-4 w-4" /> Waiting for rider…
                   </p>
+                )}
+                {order.gasMode === "EXCHANGE" &&
+                  (order.status === "PICKED_UP" || order.status === "DELIVERED") &&
+                  !order.gasEmptyReturnedAt && (
+                    <Button
+                      disabled={acting === order._id}
+                      variant="outline"
+                      onClick={() => act(order._id, "empty_returned")}
+                    >
+                      Empty cylinder returned
+                    </Button>
+                  )}
+                {((order.status === "PREPARING" && !(order.gasMode === "REFILL" && order.gasStage)) ||
+                  (order.status === "READY_FOR_PICKUP" && order.fulfillmentType !== "PICKUP")) && (
+                  <Button
+                    disabled={acting === order._id}
+                    variant="outline"
+                    className="border-red-300 text-red-600"
+                    onClick={() => act(order._id, "cancel")}
+                  >
+                    <XCircle className="h-4 w-4 mr-1 inline" /> Cancel order
+                  </Button>
                 )}
               </div>
             </div>

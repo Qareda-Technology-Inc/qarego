@@ -52,6 +52,21 @@ export function driverStatusLabel(status: DriverAccountStatus): string {
   }
 }
 
+/** Text + background colours for the account status, so riders can tell good from bad at a glance. */
+export function driverStatusColors(status: DriverAccountStatus): { text: string; bg: string } {
+  switch (status) {
+    case "active":
+      return { text: "#15803d", bg: "#dcfce7" };
+    case "pending":
+      return { text: "#b45309", bg: "#fef3c7" };
+    case "suspended":
+    case "suspended_debt":
+      return { text: "#b91c1c", bg: "#fee2e2" };
+    default:
+      return { text: "#475569", bg: "#f1f5f9" };
+  }
+}
+
 export function vehicleCategoryLabel(category?: string | null): string {
   switch (category) {
     case "motorcycle":

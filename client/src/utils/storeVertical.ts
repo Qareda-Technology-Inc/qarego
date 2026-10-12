@@ -1,7 +1,7 @@
 import type { Restaurant } from "@/service/foodService";
 import { cuisineHeroBg } from "@/styles/foodStyles";
 
-export type StoreVertical = "FOOD" | "GROCERY" | "PHARMACY";
+export type StoreVertical = "FOOD" | "GROCERY" | "PHARMACY" | "GAS";
 
 /** Store type filter on the Stores tab. ALL = every type. */
 export type StoreTypeFilter = "ALL" | StoreVertical;
@@ -87,6 +87,25 @@ export const STORE_VERTICAL_CONFIG: Record<StoreVertical, StoreVerticalConfig> =
     storeLabel: "pharmacy",
     menuSectionLabel: "Health products",
   },
+  // Gas stations aren't browsed like stores (see /customer/gas); this keeps lookups total.
+  GAS: {
+    title: "Cooking gas",
+    filterLabel: "Gas",
+    allTitle: "Gas stations",
+    searchPlaceholder: "Search",
+    subtitle: "Refill or exchange at your door",
+    emptyDescription: "No gas station is available yet in your area.",
+    discoverTitle: "Gas stations",
+    discoverSubtitle: "Near you",
+    quickTitle: "Fast gas delivery",
+    newTitle: "New on QareGO",
+    accent: "#ea580c",
+    accentDark: "#c2410c",
+    heroBg: "#c2410c",
+    defaultEmoji: "🔥",
+    storeLabel: "station",
+    menuSectionLabel: "Gas",
+  },
 };
 
 /** Type chips for Stores / Search (horizontal row). */
@@ -106,7 +125,7 @@ export const STORE_TYPE_FILTERS: {
 export const normalizeStoreVertical = (value?: string | string[]): StoreVertical => {
   const raw = Array.isArray(value) ? value[0] : value;
   const upper = String(raw ?? "FOOD").toUpperCase();
-  if (upper === "GROCERY" || upper === "PHARMACY" || upper === "FOOD") return upper;
+  if (upper === "GROCERY" || upper === "PHARMACY" || upper === "FOOD" || upper === "GAS") return upper;
   return "FOOD";
 };
 
@@ -120,7 +139,7 @@ export const normalizeStoreTypeFilter = (value?: string | string[]): StoreTypeFi
 /** @deprecated use normalizeStoreTypeFilter */
 export const normalizeRetailVertical = (value?: string | string[]): RetailVerticalFilter => {
   const filter = normalizeStoreTypeFilter(value);
-  if (filter === "FOOD") return "ALL";
+  if (filter === "FOOD" || filter === "GAS") return "ALL";
   return filter;
 };
 

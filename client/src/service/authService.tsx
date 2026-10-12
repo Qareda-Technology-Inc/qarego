@@ -135,3 +135,34 @@ export const logout = async (disconnect?: () => void) => {
   }
   clearSession();
 };
+
+/**
+ * Account deletion (required by Google Play). Asks twice, then the server removes personal data
+ * and blocks sign-in. The server refuses while a trip/order is active or a rider has money owed.
+ */
+export const confirmDeleteAccount = (disconnect?: () => void) => {
+  Alert.alert(
+    "Delete your account?",
+    "Your personal details will be removed and you'll be signed out. This can't be undone.",
+    [
+      { text: "Keep account", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            const { appAxios } = await import("./apiInterceptors");
+            await appAxios.delete("/auth/account");
+            await logout(disconnect);
+            Alert.alert("Account deleted", "Your account has been deleted.");
+          } catch (error: any) {
+            Alert.alert(
+              "Couldn't delete account",
+              error?.response?.data?.msg || "Please try again or contact support."
+            );
+          }
+        },
+      },
+    ]
+  );
+};

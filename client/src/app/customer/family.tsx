@@ -17,7 +17,7 @@ const FamilyProfile = () => {
     };
 
     return (
-        <View style={commonStyles.container}>
+        <View style={commonStyles.page}>
             <SafeAreaView style={{ backgroundColor: '#fff' }} />
             
             <View style={styles.header}>
@@ -60,7 +60,7 @@ const FamilyProfile = () => {
 
                 <TouchableOpacity style={styles.addButton} onPress={handleAddMember}>
                     <Ionicons name="add-circle" size={24} color={Colors.primary} />
-                    <CustomText fontFamily="Medium" color={Colors.primary} style={{ marginLeft: 10 }}>
+                    <CustomText fontFamily="Medium" color={Colors.primaryText} style={{ marginLeft: 10 }}>
                         Add Family Member
                     </CustomText>
                 </TouchableOpacity>

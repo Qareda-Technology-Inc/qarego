@@ -5,6 +5,7 @@ import Link from "next/link";
 import { formatCurrency } from "@/lib/currency";
 import { formatOrderModifierLine } from "@/lib/orderDisplay";
 import { fetchMerchantOrders } from "@/lib/ordersApi";
+import { fetcher } from "@/lib/api";
 import type { FoodOrderRow } from "@/lib/orderTypes";
 import { useAuth } from "@/context/AuthContext";
 import { getCommerceOrderCopy } from "@/lib/commerceOrderCopy";
@@ -246,6 +247,29 @@ export default function OrderHistoryPage() {
                     <p className="text-sm text-muted mt-1">{order.delivery.address}</p>
                   )}
                   <OrderPayoutNote order={order} />
+                  {order.gasMode === "EXCHANGE" && order.status === "DELIVERED" ? (
+                    order.gasEmptyReturnedAt ? (
+                      <p className="mt-2 text-sm text-emerald-700">Empty cylinder returned</p>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        className="mt-2"
+                        onClick={async () => {
+                          try {
+                            await fetcher(`/merchant/orders/${order._id}`, {
+                              method: "PATCH",
+                              body: JSON.stringify({ action: "empty_returned" }),
+                            });
+                            await load();
+                          } catch (e: unknown) {
+                            alert(e instanceof Error ? e.message : "Action failed");
+                          }
+                        }}
+                      >
+                        Empty cylinder returned
+                      </Button>
+                    )
+                  ) : null}
                 </div>
                 <div className="text-right">
                   <p className="font-semibold text-lg">{formatCurrency(order.subtotal)}</p>

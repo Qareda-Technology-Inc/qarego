@@ -15,6 +15,7 @@ import {
   canCourierEditDocuments,
   canCourierEditVehicle,
   driverStatusLabel,
+  driverStatusColors,
   getDriverAccountStatus,
   isDriverPendingApproval,
   vehicleCategoryLabel,
@@ -193,7 +194,7 @@ const RiderProfile = () => {
   );
 
   return (
-    <View style={commonStyles.container}>
+    <View style={commonStyles.page}>
       <SafeAreaView style={{ backgroundColor: '#fff' }} />
       
       <View style={styles.header}>
@@ -209,8 +210,8 @@ const RiderProfile = () => {
       </View>
 
       <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: 40 }}>
-        <View style={styles.statusPill}>
-          <CustomText fontSize={12} fontFamily="SemiBold" color={Colors.primary}>
+        <View style={[styles.statusPill, { backgroundColor: driverStatusColors(driverStatus).bg }]}>
+          <CustomText fontSize={12} fontFamily="SemiBold" color={driverStatusColors(driverStatus).text}>
             Account: {driverStatusLabel(driverStatus)}
           </CustomText>
         </View>
@@ -402,7 +403,7 @@ const RiderProfile = () => {
                 ) : (
                      <View style={{flexDirection: 'row', alignItems: 'center'}}>
                         <Ionicons name="cloud-upload-outline" size={20} color={Colors.primary} />
-                        <CustomText style={{marginLeft: 10}} color={Colors.primary}>Upload Photo</CustomText>
+                        <CustomText style={{marginLeft: 10}} color={Colors.primaryText}>Upload Photo</CustomText>
                      </View>
                 )}
             </TouchableOpacity>
@@ -414,7 +415,7 @@ const RiderProfile = () => {
               <View style={[styles.inputGroup, { width: "48%" }]}>
                 <CustomText fontSize={14} color="#666" style={{ marginBottom: 5 }}>License Front</CustomText>
                 <TouchableOpacity onPress={() => pickImage(setLicenseFront)} style={styles.uploadButton}>
-                  <CustomText color={Colors.primary}>
+                  <CustomText color={Colors.primaryText}>
                     {licenseFront && !isStoredMedia(licenseFront) ? "Changed" : licenseFront ? "Update" : "Upload"}
                   </CustomText>
                 </TouchableOpacity>
@@ -422,7 +423,7 @@ const RiderProfile = () => {
               <View style={[styles.inputGroup, { width: "48%" }]}>
                 <CustomText fontSize={14} color="#666" style={{ marginBottom: 5 }}>License Back</CustomText>
                 <TouchableOpacity onPress={() => pickImage(setLicenseBack)} style={styles.uploadButton}>
-                  <CustomText color={Colors.primary}>
+                  <CustomText color={Colors.primaryText}>
                     {licenseBack && !isStoredMedia(licenseBack) ? "Changed" : licenseBack ? "Update" : "Upload"}
                   </CustomText>
                 </TouchableOpacity>
@@ -434,7 +435,7 @@ const RiderProfile = () => {
               <TouchableOpacity onPress={() => pickImage(setNationalId)} style={styles.uploadButton}>
                 <View style={{ flexDirection: "row", alignItems: "center" }}>
                   <Ionicons name="card-outline" size={20} color={Colors.primary} />
-                  <CustomText style={{ marginLeft: 10 }} color={Colors.primary}>
+                  <CustomText style={{ marginLeft: 10 }} color={Colors.primaryText}>
                     {nationalId && !isStoredMedia(nationalId) ? "Image Selected" : nationalId ? "Change ID" : "Upload ID"}
                   </CustomText>
                 </View>
@@ -444,7 +445,7 @@ const RiderProfile = () => {
             <View style={styles.inputGroup}>
               <CustomText fontSize={14} color="#666" style={{ marginBottom: 5 }}>Vehicle registration / logbook</CustomText>
               <TouchableOpacity onPress={() => pickImage(setRegistrationDoc)} style={styles.uploadButton}>
-                <CustomText color={Colors.primary}>
+                <CustomText color={Colors.primaryText}>
                   {registrationDoc && !isStoredMedia(registrationDoc) ? "Changed" : registrationDoc ? "Update" : "Upload"}
                 </CustomText>
               </TouchableOpacity>
@@ -453,7 +454,7 @@ const RiderProfile = () => {
             <View style={styles.inputGroup}>
               <CustomText fontSize={14} color="#666" style={{ marginBottom: 5 }}>Insurance</CustomText>
               <TouchableOpacity onPress={() => pickImage(setInsuranceDoc)} style={styles.uploadButton}>
-                <CustomText color={Colors.primary}>
+                <CustomText color={Colors.primaryText}>
                   {insuranceDoc && !isStoredMedia(insuranceDoc) ? "Changed" : insuranceDoc ? "Update" : "Upload"}
                 </CustomText>
               </TouchableOpacity>
