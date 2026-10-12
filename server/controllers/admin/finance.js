@@ -1,4 +1,6 @@
 // Admin finance: stats, transactions, food payments, rider credits and weekly payouts.
+import StoreLedgerEntry from "../../models/StoreLedgerEntry.js";
+import Restaurant from "../../models/Restaurant.js";
 import User from "../../models/User.js";
 import Ride from "../../models/Ride.js";
 import Transaction from "../../models/Transaction.js";
@@ -204,25 +206,32 @@ export const retryFoodPaymentPayoutAdmin = async (req, res) => {
 export const creditDriverBalance = async (req, res) => {
   try {
     const { id: driverId } = req.params;
-    const { amount, note } = req.body;
-    if (!amount || typeof amount !== 'number' || amount <= 0) {
+    const { amount: rawAmount, note, kind } = req.body;
+    const amount = Math.round(Number(rawAmount) * 100) / 100;
+    if (!Number.isFinite(amount) || amount <= 0) {
       return res.status(400).json({ message: 'Positive amount is required' });
     }
+    // CASH_REPAYMENT = rider handed over the commission they owe in cash.
+    const isCashRepayment = kind === 'CASH_REPAYMENT';
     const driver = await User.findById(driverId);
     if (!driver || driver.role !== 'rider') {
       return res.status(404).json({ message: 'Driver not found' });
     }
-    const balance = Number(driver.balance ?? 0) + amount;
-    await User.findByIdAndUpdate(driverId, { balance });
+    const balance = Math.round((Number(driver.balance ?? 0) + amount) * 100) / 100;
+    const update = { balance };
+    // Same rule as a MoMo debt top-up: a debt suspension lifts once nothing is owed.
+    const reactivated = driver.driverDetails?.status === 'suspended_debt' && balance >= 0;
+    if (reactivated) update['driverDetails.status'] = 'active';
+    await User.findByIdAndUpdate(driverId, update);
     await Transaction.create({
       driver: driverId,
       amount,
       type: 'MANUAL_CREDIT',
-      note: note || 'Admin credit',
+      note: note?.trim() || (isCashRepayment ? 'Cash commission payment' : 'Admin credit'),
       balanceAfter: balance
     });
-    const updated = await User.findById(driverId).select('name phone balance');
-    res.status(StatusCodes.OK).json({ message: 'Balance credited', driver: updated });
+    const updated = await User.findById(driverId).select('name phone balance driverDetails.status');
+    res.status(StatusCodes.OK).json({ message: 'Balance credited', driver: updated, reactivated });
   } catch (error) {
     console.error('Credit driver error:', error);
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ message: 'Failed to credit driver' });
@@ -286,4 +295,66 @@ export const runWeeklyPayouts = async (req, res) => {
     console.error('Run payouts error:', error);
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ message: 'Failed to run payouts' });
   }
+};
+
+/** GET /admin/rider-debts — riders who owe commission (negative balance), most owed first. */
+export const getRiderDebtsAdmin = async (_req, res) => {
+  const settings = await getSettings();
+  const riders = await User.find({ role: 'rider', balance: { $lt: 0 }, deletedAt: null })
+    .select('name phone balance driverDetails.status driverDetails.vehicle')
+    .sort({ balance: 1 })
+    .limit(500)
+    .lean();
+  res.status(StatusCodes.OK).json({
+    debtLimit: settings.debtLimit ?? -100,
+    riders: riders.map((r) => ({
+      _id: r._id,
+      name: r.name,
+      phone: r.phone,
+      owed: Math.round(-Number(r.balance) * 100) / 100,
+      status: r.driverDetails?.status || 'active',
+    })),
+  });
+};
+
+/** GET /admin/store-debts — stores holding QareGO's share from cash pickup orders. */
+export const getStoreDebtsAdmin = async (_req, res) => {
+  const stores = await Restaurant.find({ commissionOwed: { $gt: 0.004 } })
+    .select("name address commissionOwed owner")
+    .populate("owner", "name phone")
+    .sort({ commissionOwed: -1 })
+    .limit(500)
+    .lean();
+  res.status(StatusCodes.OK).json({
+    stores: stores.map((s) => ({
+      _id: s._id,
+      name: s.name,
+      address: s.address,
+      owner: s.owner ? { name: s.owner.name, phone: s.owner.phone } : null,
+      owed: Math.round(Number(s.commissionOwed) * 100) / 100,
+    })),
+  });
+};
+
+/** POST /admin/stores/:id/commission-payment — store paid QareGO its share in cash. */
+export const recordStoreCommissionPayment = async (req, res) => {
+  const amount = Math.round(Number(req.body?.amount) * 100) / 100;
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return res.status(StatusCodes.BAD_REQUEST).json({ message: "Positive amount is required" });
+  }
+  const store = await Restaurant.findByIdAndUpdate(
+    req.params.id,
+    { $inc: { commissionOwed: -amount } },
+    { new: true }
+  );
+  if (!store) return res.status(StatusCodes.NOT_FOUND).json({ message: "Store not found" });
+  const owedAfter = Math.round(Number(store.commissionOwed) * 100) / 100;
+  await StoreLedgerEntry.create({
+    restaurant: store._id,
+    type: "CASH_PAYMENT",
+    amount: -amount,
+    owedAfter,
+    note: req.body?.note?.trim() || "Cash payment received",
+  });
+  res.status(StatusCodes.OK).json({ owed: owedAfter });
 };

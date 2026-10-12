@@ -4,6 +4,7 @@
  * Cash POD: rider balance -= platformNet (ledger only).
  */
 import { getGasConfig } from "./gasOrders.js";
+import StoreLedgerEntry from "../models/StoreLedgerEntry.js";
 import FoodOrder from "../models/FoodOrder.js";
 import Restaurant from "../models/Restaurant.js";
 import Ride from "../models/Ride.js";
@@ -83,9 +84,7 @@ export function computeFoodOrderSplit(order, settings, options = {}) {
 
 function isOrderReadyForSettlement(order) {
   if (!order) return false;
-  if (order.fulfillmentType === "PICKUP") {
-    return order.status === "READY_FOR_PICKUP" || order.status === "DELIVERED";
-  }
+  // Pickup orders settle when the customer actually collects (marked by the store).
   return order.status === "DELIVERED";
 }
 
@@ -195,6 +194,32 @@ async function disburseToRecipient({
   };
 }
 
+async function recordStorePickupCommission(order, platformNet) {
+  try {
+    const store = await Restaurant.findByIdAndUpdate(
+      order.restaurant,
+      { $inc: { commissionOwed: platformNet } },
+      { new: true }
+    );
+    await StoreLedgerEntry.create({
+      restaurant: order.restaurant,
+      foodOrder: order._id,
+      type: "PICKUP_COMMISSION",
+      amount: platformNet,
+      owedAfter: roundMoney(store?.commissionOwed ?? platformNet),
+      note: `QareGO share of pickup order #${String(order._id).slice(-8).toUpperCase()}`,
+    });
+  } catch (err) {
+    if (err?.code === 11000) {
+      // Already recorded; undo the duplicate increment.
+      await Restaurant.updateOne({ _id: order.restaurant }, { $inc: { commissionOwed: -platformNet } });
+      return { success: true, method: "cash_pickup", note: "Already recorded" };
+    }
+    throw err;
+  }
+  return { success: true, method: "cash_pickup", note: "Store owes QareGO its share" };
+}
+
 async function applyCashSettlement(order, ride, settings) {
   const platformNet = roundMoney(order.platformNet ?? 0);
   if (platformNet <= 0) {
@@ -203,11 +228,8 @@ async function applyCashSettlement(order, ride, settings) {
 
   const riderId = ride?.rider?._id || ride?.rider;
   if (!riderId) {
-    return {
-      success: true,
-      method: "cash_pickup",
-      note: "Pickup cash — restaurant settles platform share offline",
-    };
+    // Customer paid the store at the counter: the store now owes QareGO its share.
+    return recordStorePickupCommission(order, platformNet);
   }
 
   const rideId = ride?._id || order.ride;

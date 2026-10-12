@@ -7,6 +7,8 @@ import {
   useWindowDimensions,
   Alert,
 } from "react-native";
+import { MOMO_AVAILABLE, openMomoComingSoon } from "@/utils/momo";
+import SoonTag from "@/components/shared/SoonTag";
 import React, { memo, useCallback, useMemo, useState, useEffect, useRef } from "react";
 import { useLocalSearchParams } from "expo-router";
 import { useRoute } from "@react-navigation/native";
@@ -681,7 +683,9 @@ const RideBooking = () => {
                   </CustomText>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  onPress={() => setPaymentMethod("MOBILE_MONEY")}
+                  onPress={() =>
+                    MOMO_AVAILABLE ? setPaymentMethod("MOBILE_MONEY") : openMomoComingSoon("pay")
+                  }
                   style={[
                     styles.paymentSeg,
                     paymentMethod === "MOBILE_MONEY" && styles.paymentSegActive,
@@ -705,6 +709,7 @@ const RideBooking = () => {
                   >
                     MoMo
                   </CustomText>
+                  {!MOMO_AVAILABLE ? <SoonTag /> : null}
                 </TouchableOpacity>
               </View>
             </View>

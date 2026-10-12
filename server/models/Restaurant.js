@@ -41,6 +41,8 @@ const restaurantSchema = new Schema(
     owner: { type: Schema.Types.ObjectId, ref: "User", default: null },
     /** Vendor can pause accepting new orders without going inactive platform-wide */
     isAcceptingOrders: { type: Boolean, default: true },
+    /** QareGO's share still owed by the store from cash pickup orders (see StoreLedgerEntry). */
+    commissionOwed: { type: Number, default: 0 },
     /** Merchant instant settlement destination (QareGO collect -> Hubtel send). */
     payoutConfig: {
       instantPayoutEnabled: { type: Boolean, default: false },

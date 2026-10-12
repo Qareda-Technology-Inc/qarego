@@ -8,6 +8,9 @@ import { normalizeServicePreferencesInput } from "../utils/riderServicePreferenc
 import { sanitizeMediaUrl } from "../utils/mediaStorage.js";
 import { getReviewAccount, ensureReviewUser } from "../utils/reviewLogin.js";
 import Ride from "../models/Ride.js";
+import path from "path";
+import { fileURLToPath } from "url";
+import { deleteFromCloudinary, parseCloudinaryUrl, safeUnlink } from "../utils/cloudinary.js";
 import FoodOrder from "../models/FoodOrder.js";
 import { formatCurrency } from "../utils/currency.js";
 
@@ -322,6 +325,8 @@ export const updateUser = async (req, res) => {
   });
 };
 
+const SERVER_ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
+
 const ACTIVE_TRIP_STATUSES = ["SEARCHING_FOR_RIDER", "START", "ARRIVED", "IN_PROGRESS"];
 const OPEN_ORDER_STATUSES = ["PLACED", "CONFIRMED", "PREPARING", "READY_FOR_PICKUP", "PICKED_UP"];
 
@@ -366,6 +371,9 @@ export const deleteMyAccount = async (req, res) => {
     }
   }
 
+  // Remove the files themselves (photos, licence, ID, vehicle papers), not just the links.
+  await deleteUserMedia(user);
+
   await User.updateOne(
     { _id: user._id },
     {
@@ -384,3 +392,36 @@ export const deleteMyAccount = async (req, res) => {
 
   res.status(StatusCodes.OK).json({ deleted: true });
 };
+
+/** Best effort: a missing or already-deleted file must not block account deletion. */
+async function deleteUserMedia(user) {
+  const d = user.driverDetails || {};
+  const urls = [
+    user.profileImage,
+    d.profileImage,
+    d.licenseFront,
+    d.licenseBack,
+    d.nationalId,
+    d.policeClearance,
+    d.vehicle?.registrationDoc,
+    d.vehicle?.insuranceDoc,
+  ].filter((u) => typeof u === "string" && u.trim());
+
+  await Promise.all(
+    [...new Set(urls)].map(async (url) => {
+      try {
+        const cloud = parseCloudinaryUrl(url);
+        if (cloud) {
+          await deleteFromCloudinary(cloud.publicId, cloud.resourceType);
+          return;
+        }
+        if (url.startsWith("/uploads/")) {
+          const abs = path.join(SERVER_ROOT, url.split("?")[0]);
+          if (abs.startsWith(path.join(SERVER_ROOT, "uploads") + path.sep)) safeUnlink(abs);
+        }
+      } catch (err) {
+        console.warn("[account-delete] could not remove file:", url, err?.message || err);
+      }
+    })
+  );
+}

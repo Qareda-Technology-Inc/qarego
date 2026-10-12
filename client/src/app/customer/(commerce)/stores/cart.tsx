@@ -10,6 +10,8 @@ import {
   Pressable,
   Image,
 } from "react-native";
+import { MOMO_AVAILABLE, openMomoComingSoon } from "@/utils/momo";
+import SoonTag from "@/components/shared/SoonTag";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -876,7 +878,9 @@ const FoodCart = () => {
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.payOpt, paymentMethod === "MOBILE_MONEY" && { borderColor: accent }]}
-            onPress={() => setPaymentMethod("MOBILE_MONEY")}
+            onPress={() =>
+              MOMO_AVAILABLE ? setPaymentMethod("MOBILE_MONEY") : openMomoComingSoon("pay")
+            }
           >
             <Ionicons
               name="phone-portrait-outline"
@@ -884,6 +888,7 @@ const FoodCart = () => {
               color={paymentMethod === "MOBILE_MONEY" ? accent : "#666"}
             />
             <CustomText fontSize={13}>MoMo</CustomText>
+            {!MOMO_AVAILABLE ? <SoonTag /> : null}
           </TouchableOpacity>
         </View>
 

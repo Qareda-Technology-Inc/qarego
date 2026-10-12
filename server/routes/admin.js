@@ -24,6 +24,9 @@ import {
   getTransactionsAdmin,
   getFoodPaymentsAdmin,
   creditDriverBalance,
+  getRiderDebtsAdmin,
+  getStoreDebtsAdmin,
+  recordStoreCommissionPayment,
   retryFoodPaymentPayoutAdmin,
   runWeeklyPayouts,
 } from '../controllers/admin.js';
@@ -116,6 +119,9 @@ adminRouter.get('/transactions', getTransactionsAdmin);
 adminRouter.get('/food-payments', getFoodPaymentsAdmin);
 adminRouter.post('/food-payments/:id/retry-payout', retryFoodPaymentPayoutAdmin);
 adminRouter.post('/drivers/:id/credit', creditDriverBalance);
+adminRouter.get('/rider-debts', getRiderDebtsAdmin);
+adminRouter.get('/store-debts', getStoreDebtsAdmin);
+adminRouter.post('/stores/:id/commission-payment', recordStoreCommissionPayment);
 adminRouter.post('/payouts/run', runWeeklyPayouts);
 
 // Multivendor restaurant management

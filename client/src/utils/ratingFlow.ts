@@ -19,9 +19,6 @@ export function isFoodOrderRateable(order: FoodOrder | null): boolean {
   // Courier marked ride complete — order row may still say PICKED_UP until WS/API catches up.
   // (Not the gas collection leg: that only means the empty reached the station.)
   if (order.ride?.status === "COMPLETED" && order.ride?.gasLeg !== "COLLECT") return true;
-  if (order.fulfillmentType === "PICKUP" && order.status === "READY_FOR_PICKUP") {
-    return true;
-  }
   return false;
 }
 

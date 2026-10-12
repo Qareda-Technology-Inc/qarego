@@ -389,6 +389,13 @@ export async function applyRestaurantAction(orderId, action, io, options = {}) {
       }
       break;
     }
+    case "collected":
+      // Pickup: the customer came to the counter, paid and took the order.
+      if (foodOrder.fulfillmentType !== "PICKUP" || foodOrder.status !== "READY_FOR_PICKUP") {
+        return { error: "invalid_transition" };
+      }
+      foodOrder.status = "DELIVERED";
+      break;
     case "empty_returned":
       if (foodOrder.gasMode !== "EXCHANGE" || !["PICKED_UP", "DELIVERED"].includes(foodOrder.status)) {
         return { error: "invalid_transition" };
@@ -402,7 +409,7 @@ export async function applyRestaurantAction(orderId, action, io, options = {}) {
   await foodOrder.save();
   const populated = await emitFoodOrderUpdated(io, orderId);
 
-  if (action === "ready" && foodOrder.fulfillmentType === "PICKUP") {
+  if (action === "collected") {
     try {
       await settleFoodOrderOnDelivery(orderId);
     } catch (err) {

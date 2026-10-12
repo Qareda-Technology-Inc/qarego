@@ -4,6 +4,7 @@ import User from "../models/User.js";
 import { BadRequestError } from "../errors/index.js";
 import { StatusCodes } from "http-status-codes";
 import { getSettings } from "../utils/tripSettlement.js";
+import { isMomoEnabled } from "../utils/momoAvailability.js";
 import { computeFoodOrderSplit } from "../utils/foodOrderSettlement.js";
 import { assertServiceAvailableAt } from "../utils/serviceZones.js";
 import { parseCoord } from "../utils/deliveryFare.js";
@@ -73,7 +74,7 @@ export const createGasOrder = async (req, res) => {
   if (!config.enabled) throw new BadRequestError("Gas delivery is not available right now");
 
   const method = paymentMethod === "MOBILE_MONEY" ? "MOBILE_MONEY" : "CASH";
-  if (method === "MOBILE_MONEY" && !config.momoEnabled) {
+  if (method === "MOBILE_MONEY" && !(config.momoEnabled && isMomoEnabled())) {
     throw new BadRequestError("Gas orders are cash only for now");
   }
   if (!delivery?.address?.trim()) throw new BadRequestError("Pickup address is required");

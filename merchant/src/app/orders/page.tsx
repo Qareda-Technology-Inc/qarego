@@ -166,7 +166,7 @@ export default function OrdersPage() {
 
   const act = async (
     orderId: string,
-    action: "accept" | "reject" | "ready" | "assign_rider" | "cancel" | "empty_returned",
+    action: "accept" | "reject" | "ready" | "assign_rider" | "cancel" | "empty_returned" | "collected",
     driverId?: string
   ) => {
     if (action === "reject" && !confirm("Decline this order?")) return;
@@ -180,6 +180,7 @@ export default function OrdersPage() {
       if (reason === null) return;
       cancelReason = reason.trim() || "Cancelled by the store";
     }
+    if (action === "collected" && !confirm("Customer has paid and collected this order?")) return;
     if (action === "accept" || action === "reject") {
       stopNewOrderRing();
       window.dispatchEvent(new CustomEvent("kitchen:order-handled"));
@@ -478,11 +479,27 @@ export default function OrdersPage() {
                       </p>
                     </div>
                   )}
-                {order.status === "READY_FOR_PICKUP" && !order.ride?.rider?.name && (
-                  <p className="text-sm text-gray-600 flex items-center gap-1">
-                    <Clock className="h-4 w-4" /> Waiting for rider…
-                  </p>
+                {order.status === "READY_FOR_PICKUP" && order.fulfillmentType === "PICKUP" && (
+                  <>
+                    <p className="text-sm text-gray-600 flex items-center gap-1">
+                      <Clock className="h-4 w-4" /> Waiting for the customer to collect
+                    </p>
+                    <Button
+                      disabled={acting === order._id}
+                      className="bg-green-600 hover:bg-green-700"
+                      onClick={() => act(order._id, "collected")}
+                    >
+                      <CheckCircle className="h-4 w-4 mr-1 inline" /> Customer collected
+                    </Button>
+                  </>
                 )}
+                {order.status === "READY_FOR_PICKUP" &&
+                  order.fulfillmentType !== "PICKUP" &&
+                  !order.ride?.rider?.name && (
+                    <p className="text-sm text-gray-600 flex items-center gap-1">
+                      <Clock className="h-4 w-4" /> Waiting for rider…
+                    </p>
+                  )}
                 {order.gasMode === "EXCHANGE" &&
                   (order.status === "PICKED_UP" || order.status === "DELIVERED") &&
                   !order.gasEmptyReturnedAt && (
@@ -495,7 +512,7 @@ export default function OrdersPage() {
                     </Button>
                   )}
                 {((order.status === "PREPARING" && !(order.gasMode === "REFILL" && order.gasStage)) ||
-                  (order.status === "READY_FOR_PICKUP" && order.fulfillmentType !== "PICKUP")) && (
+                  order.status === "READY_FOR_PICKUP") && (
                   <Button
                     disabled={acting === order._id}
                     variant="outline"

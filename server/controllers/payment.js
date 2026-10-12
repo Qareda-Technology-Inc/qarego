@@ -1,3 +1,4 @@
+import { assertMomoEnabled } from "../utils/momoAvailability.js";
 /**
  * Top-up (clear debt) and Hubtel webhook.
  */
@@ -181,6 +182,7 @@ async function completePendingTopUp(pending, hubtelResponse = null) {
 
 /** POST /ride/top-up — MoMo prompt to clear commission debt via Hubtel. */
 export const initiateTopUp = async (req, res) => {
+  assertMomoEnabled();
   const driverId = req.user.id;
   const { amount: requestedAmount } = req.body;
 
@@ -301,6 +303,7 @@ export const getTopUpStatus = async (req, res) => {
 
 /** POST /ride/cashout — Rider withdraws positive wallet balance to MoMo anytime. */
 export const initiateCashout = async (req, res) => {
+  assertMomoEnabled();
   const driverId = req.user.id;
   const { amount: requestedAmount } = req.body;
 

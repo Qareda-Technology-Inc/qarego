@@ -1,3 +1,4 @@
+import { formatCurrency } from "./Constants";
 import {
   getCommerceOrderCopy,
   resolveOrderVertical,
@@ -54,7 +55,33 @@ type CancelInfo = {
   gasMode?: "REFILL" | "EXCHANGE" | null;
   gasStage?: "TO_STATION" | "AT_STATION" | null;
   restaurantName?: string;
+  fulfillmentType?: "DELIVERY" | "PICKUP" | "SCHEDULED";
+  total?: number;
 };
+
+/** Pickup: no courier — the customer collects and pays at the counter. */
+function buildPickupSteps(orderStatus: FoodOrderStatus, info: CancelInfo): TrackingStep[] {
+  const store = info.restaurantName || "the store";
+  const defs = [
+    { id: "placed", label: "Order placed", subtitle: `Sent to ${store}` },
+    { id: "accepted", label: "Order accepted", subtitle: "The store confirmed your order" },
+    { id: "preparing", label: "Being prepared", subtitle: "We'll tell you when it's ready" },
+    { id: "ready", label: "Ready for pickup", subtitle: `Collect it at ${store}` },
+    { id: "done", label: "Collected", subtitle: "Enjoy!" },
+  ];
+  const current =
+    orderStatus === "DELIVERED"
+      ? 5
+      : orderStatus === "READY_FOR_PICKUP"
+        ? 3
+        : orderStatus === "PREPARING" || orderStatus === "CONFIRMED"
+          ? 2
+          : 0;
+  return defs.map((step, index) => ({
+    ...step,
+    state: index < current ? "done" : index === current ? "active" : "pending",
+  }));
+}
 
 type GasRide = { status?: string; gasLeg?: string | null } | null | undefined;
 
@@ -159,6 +186,9 @@ export function buildFoodTrackingSteps(
   if (cancelInfo?.gasMode === "REFILL") {
     return buildGasRefillSteps(orderStatus, ride as GasRide, cancelInfo);
   }
+  if (cancelInfo?.fulfillmentType === "PICKUP") {
+    return buildPickupSteps(orderStatus, cancelInfo);
+  }
 
   const current = getCurrentStepIndex(orderStatus, ride);
   const defs = stepDefs(v);
@@ -237,10 +267,19 @@ export function getHeroStatusLabel(
     return { title: "Order cancelled", subtitle: cancelledMoneyNote(order) };
   }
   if (orderStatus === "DELIVERED" || (ride?.status === "COMPLETED" && order?.gasMode !== "REFILL")) {
-    return { title: "Delivered", subtitle: c.customerEnjoyDelivered };
+    return {
+      title: order?.fulfillmentType === "PICKUP" ? "Collected" : "Delivered",
+      subtitle: c.customerEnjoyDelivered,
+    };
   }
   if (order?.gasMode === "REFILL") {
     return gasRefillHero(orderStatus, ride as GasRide, order);
+  }
+  if (order?.fulfillmentType === "PICKUP") {
+    if (orderStatus === "READY_FOR_PICKUP") {
+      const pay = order.total != null ? `Pay ${formatCurrency(order.total)} at the counter` : "Pay at the counter";
+      return { title: "Ready for pickup", subtitle: `${pay} · ${order.restaurantName || "the store"}` };
+    }
   }
   if (ride?.status === "IN_PROGRESS") {
     return {

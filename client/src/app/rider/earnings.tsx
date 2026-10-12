@@ -11,6 +11,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
+import { MOMO_AVAILABLE, openMomoComingSoon } from "@/utils/momo";
 import React, { useState, useCallback, useRef, useEffect } from "react";
 import { commonStyles } from "@/styles/commonStyles";
 import CustomText from "@/components/shared/CustomText";
@@ -475,7 +476,9 @@ export default function RiderEarnings() {
           {isDebt && (
             <>
               <CustomText fontSize={12} style={styles.debtHint}>
-                Clear debt with MoMo to bring your balance back to zero
+                {MOMO_AVAILABLE
+                  ? "Clear debt with MoMo to bring your balance back to zero"
+                  : "Pay what you owe to QareGO in cash — MoMo top-up is coming soon"}
               </CustomText>
               {topUpMessage && (
                 <CustomText fontSize={12} style={styles.topUpMessage}>
@@ -484,7 +487,7 @@ export default function RiderEarnings() {
               )}
               <TouchableOpacity
                 style={[styles.clearDebtButton, topUpBusy && styles.clearDebtButtonDisabled]}
-                onPress={handleClearDebt}
+                onPress={MOMO_AVAILABLE ? handleClearDebt : () => openMomoComingSoon("topup")}
                 disabled={topUpBusy}
               >
                 <CustomText fontFamily="SemiBold" fontSize={14} style={styles.clearDebtButtonText}>
@@ -591,8 +594,8 @@ export default function RiderEarnings() {
           ) : (
             <TouchableOpacity
               style={[styles.stickyCashOutBtn, cashoutLoading && { opacity: 0.7 }]}
-              onPress={openCashOutModal}
-              disabled={cashoutLoading || !canCashOut}
+              onPress={MOMO_AVAILABLE ? openCashOutModal : () => openMomoComingSoon("cashout")}
+              disabled={cashoutLoading || (MOMO_AVAILABLE && !canCashOut)}
             >
               <Ionicons name="cash-outline" size={20} color="#1a1a1a" style={{ marginRight: 8 }} />
               <CustomText fontFamily="SemiBold" fontSize={15} style={{ color: "#1a1a1a", flex: 1 }}>

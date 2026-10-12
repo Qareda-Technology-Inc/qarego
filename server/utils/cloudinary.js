@@ -119,10 +119,34 @@ export async function uploadToCloudinary(source, options = {}) {
   };
 }
 
-export async function deleteFromCloudinary(publicId) {
+export async function deleteFromCloudinary(publicId, resourceType = "image") {
   if (!publicId || !isCloudinaryConfigured()) return;
   ensureInit();
-  await cloudinary.uploader.destroy(publicId);
+  await cloudinary.uploader.destroy(publicId, { resource_type: resourceType });
+}
+
+/**
+ * Public id + resource type from a Cloudinary delivery URL, e.g.
+ * https://res.cloudinary.com/<cloud>/image/upload/v123/qarego/drivers/abc.jpg
+ *   → { publicId: "qarego/drivers/abc", resourceType: "image" }
+ * Raw files (PDFs) keep their extension in the public id.
+ */
+export function parseCloudinaryUrl(url) {
+  const m = String(url || "").match(/res\.cloudinary\.com\/[^/]+\/(image|raw|video)\/upload\/(.+)$/);
+  if (!m) return null;
+  const resourceType = m[1];
+  let parts = decodeURIComponent(m[2].split("?")[0]).split("/");
+  const versionAt = parts.findIndex((p) => /^v\d+$/.test(p));
+  if (versionAt >= 0) {
+    parts = parts.slice(versionAt + 1);
+  } else {
+    // No version: drop leading transformation segments like "c_fill,w_200".
+    while (parts.length > 1 && /^[a-z]{1,3}_[^/]*$/.test(parts[0])) parts.shift();
+  }
+  const path = parts.join("/");
+  if (!path) return null;
+  const publicId = resourceType === "raw" ? path : path.replace(/\.[a-z0-9]+$/i, "");
+  return { publicId, resourceType };
 }
 
 /** Remove temp multer file after Cloudinary upload */

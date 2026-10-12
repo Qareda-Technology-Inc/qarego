@@ -26,7 +26,10 @@ export function OrderPayoutNote({ order }: { order: FoodOrderRow }) {
       : `You receive ${formatCurrency(net)} by MoMo payout after delivery`;
   } else if (pickup) {
     Icon = Store;
-    text = `Customer pays ${formatCurrency(order.total)} at pickup · your share ${formatCurrency(net)}`;
+    const owed = Math.max(0, Math.round((order.total - net) * 100) / 100);
+    text = delivered
+      ? `Customer paid you ${formatCurrency(order.total)} · ${formatCurrency(owed)} is owed to QareGO`
+      : `Collect ${formatCurrency(order.total)} from the customer · ${formatCurrency(owed)} is QareGO's share`;
   } else {
     text = delivered
       ? `Courier paid you ${formatCurrency(net)} cash at pickup`

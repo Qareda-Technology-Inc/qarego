@@ -1,3 +1,4 @@
+import { assertMomoEnabled } from "../utils/momoAvailability.js";
 import mongoose from "mongoose";
 import Ride from "../models/Ride.js";
 import FoodOrder from "../models/FoodOrder.js";
@@ -115,6 +116,7 @@ export const createRide = async (req, res) => {
     throw new BadRequestError("parcelMode must be SEND or RECEIVE");
   }
 
+  if (paymentMethod === "MOBILE_MONEY") assertMomoEnabled();
   const customer = req.user;
 
   const customerUser = await User.findById(customer.id).select('isSuspended');

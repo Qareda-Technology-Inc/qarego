@@ -410,6 +410,13 @@ export default function App() {
             <span>Ghana</span>
             <span>com.qarego.client</span>
           </div>
+          <div>
+            <strong>Help & legal</strong>
+            <a href="mailto:support@qaretech.com">support@qaretech.com</a>
+            <a href="tel:+233501774210">+233 50 177 4210</a>
+            <a href="/privacy/">Privacy policy</a>
+            <a href="/delete-account/">Delete your account</a>
+          </div>
         </div>
         <p className="footer__copy">© {new Date().getFullYear()} QareGO. All rights reserved.</p>
       </footer>

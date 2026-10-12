@@ -1,3 +1,4 @@
+import { assertMomoEnabled } from "../utils/momoAvailability.js";
 import Restaurant from "../models/Restaurant.js";
 import MenuItem from "../models/MenuItem.js";
 import FoodOrder from "../models/FoodOrder.js";
@@ -104,6 +105,7 @@ export const createFoodOrder = async (req, res) => {
     prescriptionUrls: prescriptionUrlsRaw,
   } = req.body;
 
+  if (paymentMethod === "MOBILE_MONEY") assertMomoEnabled();
   const fulfillmentType = ["DELIVERY", "PICKUP", "SCHEDULED"].includes(fulfillmentRaw)
     ? fulfillmentRaw
     : "DELIVERY";

@@ -39,6 +39,7 @@ export default function RootLayout() {
               <Stack.Screen name="role" />
               <Stack.Screen name="customer" />
               <Stack.Screen name="rider" />
+              <Stack.Screen name="momo-coming-soon" options={{ presentation: "modal" }} />
             </Stack>
           </WSProvider>
         </ApiBootstrap>

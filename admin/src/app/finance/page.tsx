@@ -8,6 +8,8 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Loader2, DollarSign, Wallet, CreditCard, Send } from 'lucide-react';
 import Link from "next/link";
+import { RiderDebtsCard } from "@/components/RiderDebtsCard";
+import { StoreDebtsCard } from "@/components/StoreDebtsCard";
 
 export default function FinancePage() {
   const [stats, setStats] = useState<any>(null);
@@ -56,6 +58,10 @@ export default function FinancePage() {
   return (
     <div className="space-y-6">
       <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Finance Overview</h1>
+
+      <RiderDebtsCard />
+
+      <StoreDebtsCard />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card className="bg-gradient-to-br from-green-500 to-green-600 text-white">

@@ -164,7 +164,7 @@ export const listAssignableRiders = async (req, res) => {
 /** PATCH /merchant/orders/:id — accept, reject, mark ready, or assign rider */
 export const myOrderAction = async (req, res) => {
   const { action, cancelReason, driverId } = req.body;
-  if (!["accept", "reject", "ready", "assign_rider", "empty_returned"].includes(action)) {
+  if (!["accept", "reject", "ready", "assign_rider", "empty_returned", "collected"].includes(action)) {
     throw new BadRequestError(
       "action must be accept, reject, ready, or assign_rider"
     );

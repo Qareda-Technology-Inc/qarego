@@ -500,7 +500,7 @@ const FoodOrderTracking = () => {
   const codeIsActive = order?.ride?.status === "IN_PROGRESS";
 
   const paymentLabel =
-    order?.paymentMethod === "MOBILE_MONEY" ? "Mobile money" : "Cash on delivery";
+    order?.paymentMethod === "MOBILE_MONEY" ? "Mobile money" : order?.fulfillmentType === "PICKUP" ? "Cash at pickup" : "Cash on delivery";
   const orderPaymentState = paymentInfo?.orderPaymentStatus || order?.paymentStatus || "NOT_REQUIRED";
   const paymentNeedsAttention =
     order?.paymentMethod === "MOBILE_MONEY" &&
