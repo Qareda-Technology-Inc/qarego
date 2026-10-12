@@ -98,3 +98,25 @@ for (const file of walk(mapsSrc)) {
 if (rewritten) {
   console.log(`[patch-react-native-maps] Rewrote codegen imports for RN 0.79 in ${rewritten} file(s).`);
 }
+
+/**
+ * Android: react-native-maps 1.29's codegen CMakeLists calls target_compile_reactnative_options,
+ * a CMake helper that only exists from RN 0.80. On RN 0.79 the EAS Android build fails with
+ * "Unknown CMake command". Replace it with the flags RN 0.79's own codegen uses.
+ * (Drop this step after moving to RN 0.80+.)
+ */
+const mapsCmake = path.join(root, "node_modules", "react-native-maps", "android", "src", "main", "jni", "CMakeLists.txt");
+if (fs.existsSync(mapsCmake)) {
+  const cmake = fs.readFileSync(mapsCmake, "utf8");
+  const call = "target_compile_reactnative_options(react_codegen_RNMapsSpecs PRIVATE)";
+  if (cmake.includes(call)) {
+    fs.writeFileSync(
+      mapsCmake,
+      cmake.replace(
+        call,
+        `target_compile_options(\n  react_codegen_RNMapsSpecs\n  PRIVATE\n  -DLOG_TAG=\\"ReactNative\\"\n  -fexceptions\n  -frtti\n  -std=c++20\n  -Wall\n)`
+      )
+    );
+    console.log("[patch-react-native-maps] Replaced target_compile_reactnative_options for RN 0.79 (Android).");
+  }
+}
