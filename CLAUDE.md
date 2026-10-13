@@ -52,7 +52,7 @@ iOS native build notes:
 - `pod install` needs a UTF-8 locale: `export LANG=en_US.UTF-8`.
 - `npm run ios` does not re-run `pod install` when the Podfile changes; run `npm run ios:fix` first.
 - `plugins/withFmtCxx17.js` builds the `fmt` pod as C++17 (Xcode 26 rejects fmt 11's consteval with C++20).
-- react-native-maps 1.29 adds Google Maps on iOS through its own config plugin (`iosGoogleMapsApiKey` in `app.config.js`), not Expo's `ios.config.googleMapsApiKey`. `scripts/patch-react-native-maps.js` rewrites its `codegenNative*` imports for RN 0.79 (drop that step after moving to RN 0.80+) and guards nil map children.
+- react-native-maps 1.29 adds Google Maps on iOS through its own config plugin (`iosGoogleMapsApiKey` in `app.config.js`), not Expo's `ios.config.googleMapsApiKey`. `scripts/patch-react-native-maps.js` rewrites its `codegenNative*` imports and replaces the Android CMake helper `target_compile_reactnative_options` for RN 0.79 (drop both steps after moving to RN 0.80+), and guards nil map children.
 
 ## Architecture
 
