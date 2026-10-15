@@ -328,10 +328,14 @@ const FoodOrderTracking = () => {
     handleResumePayment();
   }, [pay, order, paymentInfo?.orderPaymentStatus, handleResumePayment]);
 
+  // Depend on the rider's id, not the populated rider object: every order update creates a
+  // new object, which re-ran the subscribe effect below and looped until the app ran out
+  // of memory once a courier was assigned.
+  const orderRiderId = normalizeRiderId(order?.ride?.rider);
   const applyCourierLocation = useCallback((payload: unknown) => {
     const next = parseCourierLocationPayload(payload);
     if (!next) return;
-    const expectedRiderId = riderIdRef.current ?? normalizeRiderId(order?.ride?.rider);
+    const expectedRiderId = riderIdRef.current ?? orderRiderId;
     const incomingRiderId =
       payload && typeof payload === "object" && "riderId" in payload
         ? String((payload as { riderId?: unknown }).riderId ?? "")
@@ -341,7 +345,7 @@ const FoodOrderTracking = () => {
     riderCoordsRef.current = next;
     setRiderCoords(next);
     setCourierRevision((n) => n + 1);
-  }, [order?.ride?.rider]);
+  }, [orderRiderId]);
 
   const rideId = order?.ride?._id;
 
@@ -392,7 +396,7 @@ const FoodOrderTracking = () => {
     };
   }, [rideId, emit, on, off, applyCourierLocation]);
 
-  const riderId = normalizeRiderId(order?.ride?.rider);
+  const riderId = orderRiderId;
 
   useEffect(() => {
     if (!rideId || !isFocused) return;

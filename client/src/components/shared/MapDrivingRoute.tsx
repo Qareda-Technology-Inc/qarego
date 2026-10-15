@@ -5,6 +5,7 @@ import { getPoints } from "@/utils/mapUtils";
 import {
   canRequestDrivingRoute,
   coordKey,
+  distanceKm,
   isDirectionsZeroResults,
   parseMapCoord,
   riderNearRoute,
@@ -12,6 +13,7 @@ import {
 } from "@/utils/mapDirections";
 
 const apikey = process.env.EXPO_PUBLIC_MAP_API_KEY || "";
+const MIN_ROUTE_KM = 0.02;
 
 type Props = {
   origin: unknown;
@@ -49,6 +51,10 @@ const MapDrivingRoute: React.FC<Props> = ({
     !canRequestDrivingRoute(o, d);
 
   if (!o || !d) return null;
+  // Nothing to draw when the ends (nearly) coincide, e.g. a courier waiting at the store.
+  // The curved fallback line degenerates to NaN points there, which made Google Maps on
+  // Android run out of memory.
+  if (distanceKm(o, d) < MIN_ROUTE_KM) return null;
 
   if (usePolyline) {
     return (

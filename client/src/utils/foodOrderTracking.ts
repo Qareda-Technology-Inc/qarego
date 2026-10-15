@@ -396,9 +396,15 @@ export function shouldShowFoodOrderMap(
 export function getFoodOrderEtaWindow(order: {
   status: FoodOrderStatus;
   restaurant?: { estimatedPrepMinutes?: number } | null;
-  ride?: { status?: string } | null;
+  ride?: { status?: string; gasLeg?: string | null } | null;
 }): string | null {
   if (order.status === "DELIVERED" || order.status === "CANCELLED") return null;
+  // Gas refill collection runs the other way: customer first, then the station.
+  if (order.ride?.gasLeg === "COLLECT") {
+    if (order.ride.status === "START") return "Courier on the way";
+    if (order.ride.status === "ARRIVED") return "Courier at your door";
+    if (order.ride.status === "IN_PROGRESS") return "To the station";
+  }
   if (order.ride?.status === "IN_PROGRESS") return "Arriving soon";
   if (order.ride?.status === "START" || order.ride?.status === "ARRIVED") {
     return "Courier at store";

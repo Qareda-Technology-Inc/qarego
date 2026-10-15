@@ -301,6 +301,10 @@ const calculateControlPoint = (p1: any, p2: any) => {
 export const getPoints = (places: any) => {
     const p1 = [places[0].latitude, places[0].longitude];
     const p2 = [places[1].latitude, places[1].longitude];
+    // Identical points would divide by zero below and yield NaN coordinates.
+    if (p1[0] === p2[0] && p1[1] === p2[1]) {
+        return [places[0], places[1]].map((p: any) => ({ latitude: p.latitude, longitude: p.longitude }));
+    }
     const controlPoint = calculateControlPoint(p1, p2);
 
     return quadraticBezierCurve(p1, p2, controlPoint, 100);
