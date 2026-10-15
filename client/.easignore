@@ -17,3 +17,5 @@ dist/
 *.mov
 *.wav
 *.mp3
+# Play submit key: read locally by `eas submit`, never needed on the build server
+ServiceAccountQareGo.json
