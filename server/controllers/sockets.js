@@ -180,6 +180,31 @@ const handleSocketConnection = (io) => {
     }
 
     if (user.role === "customer") {
+      // Registered per connection (not inside "searchrider") so a customer who reopened the app
+      // mid-trip can still cancel. Reads the ride fresh so a rider who accepted is told.
+      socket.on("cancelRide", async (rideId) => {
+        try {
+          if (!isValidId(rideId)) return;
+          const ride = await Ride.findOne({ _id: rideId, customer: user.id }).select("rider status").lean();
+          if (!ride || ride.status === "COMPLETED") return;
+          await Ride.deleteOne({ _id: rideId });
+          socket.emit("rideCanceled", { rideId, message: "Ride canceled" });
+
+          const payload = { rideId, message: "Ride canceled by customer." };
+          if (ride.rider) {
+            io.to(`rider_${ride.rider}`).emit("rideCanceled", payload);
+            getRiderSocket(ride.rider)?.emit("rideCanceled", payload);
+          }
+          io.to(`ride_${rideId}`).emit("rideCanceled", payload);
+          // Tell all on-duty riders to remove this offer from their list
+          io.to("onDuty").emit("rideCanceled", { rideId, message: "Ride no longer available." });
+          console.log(`Customer ${user.id} canceled ride ${rideId} (was ${ride.status})`);
+        } catch (err) {
+          console.error("cancelRide failed:", err);
+          socket.emit("error", { message: "Could not cancel the ride" });
+        }
+      });
+
       socket.on("subscribeToZone", (customerCoords) => {
         socket.user.coords = customerCoords;
         sendNearbyRiders(socket, customerCoords).catch(err => console.error("Error sending nearby riders:", err));
@@ -246,19 +271,11 @@ const handleSocketConnection = (io) => {
             clearInterval(retryInterval);
           });
 
-          socket.on("cancelRide", async () => {
+          // The customer-level "cancelRide" handler does the cancel; this only stops retries.
+          socket.on("cancelRide", (canceledId) => {
+            if (canceledId && String(canceledId) !== String(rideId)) return;
             canceled = true;
             clearInterval(retryInterval);
-            await Ride.findByIdAndDelete(rideId);
-            socket.emit("rideCanceled", { message: "Ride canceled" });
-
-            if (ride.rider) {
-              const riderSocket = getRiderSocket(ride.rider._id);
-              riderSocket?.emit("rideCanceled", { rideId, message: "Ride canceled by customer." });
-            }
-            // Tell all on-duty riders to remove this offer from their list
-            io.to("onDuty").emit("rideCanceled", { rideId, message: "Ride no longer available." });
-            console.log(`Customer ${user.id} canceled ride ${rideId}`);
           });
         } catch (error) {
           console.error("Error searching for rider:", error);
@@ -402,6 +419,9 @@ const handleSocketConnection = (io) => {
 
     socket.on("sendChatMessage", async ({ rideId, message }) => {
       try {
+        // Ignore blank sends so they don't show up as empty bubbles.
+        if (!message?.text?.trim() && !message?.image) return;
+
         // Verify user is part of this ride
         const ride = await Ride.findById(rideId);
         if (!ride) {

@@ -29,6 +29,8 @@ import { RideHomeTheme as T } from "@/styles/rideHomeTheme";
 import { Colors } from "@/utils/Constants";
 import { parseParcelMode, parcelModeLabels, type ParcelMode } from "@/utils/parcelMode";
 
+const CURRENT_LOCATION_LABEL = "Current location";
+
 const LocationSelection = () => {
   const { location, setLocation } = useUserStore();
   const params = useLocalSearchParams<{
@@ -236,14 +238,20 @@ const LocationSelection = () => {
   }, [drop, pickup, dropCoords, pickupCoords]);
 
   // The service home has no map, so on a fresh install nothing has saved the
-  // user's position yet. Look it up here so pickup isn't left empty.
+  // user's position yet. Look it up here so pickup isn't left empty, and retry
+  // if an earlier lookup only managed the generic label (e.g. while offline).
   useEffect(() => {
-    if (location?.address) return;
+    if (location?.address && location.address !== CURRENT_LOCATION_LABEL) return;
     let cancelled = false;
     (async () => {
-      const result = await getCurrentLocationAsync();
-      if (!result.ok || cancelled) return;
-      const { latitude, longitude } = result;
+      // Coordinates saved without a street name only need the address lookup.
+      let latitude = location?.latitude;
+      let longitude = location?.longitude;
+      if (latitude == null || longitude == null) {
+        const result = await getCurrentLocationAsync();
+        if (!result.ok || cancelled) return;
+        ({ latitude, longitude } = result);
+      }
       let address = "";
       try {
         address = await reverseGeocode(latitude, longitude);
@@ -251,7 +259,7 @@ const LocationSelection = () => {
         /* fall back to a generic label */
       }
       if (!cancelled) {
-        setLocation({ latitude, longitude, address: address || "Current location" });
+        setLocation({ latitude, longitude, address: address || CURRENT_LOCATION_LABEL });
       }
     })();
     return () => {

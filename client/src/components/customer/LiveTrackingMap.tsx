@@ -185,14 +185,17 @@ const LiveTrackingMap: FC<{
     return () => clearTimeout(t);
   }, [mapReady, scheduleFit]);
 
+  // The rider marker usually mounts later than the pins (its first position comes over the
+  // socket), so track again when it appears or Android leaves the vehicle icon blank.
   useEffect(() => {
     if (!overlaysReady) {
       setMarkerTracks(true);
       return;
     }
+    setMarkerTracks(true);
     const t = setTimeout(() => setMarkerTracks(false), 2000);
     return () => clearTimeout(t);
-  }, [overlaysReady]);
+  }, [overlaysReady, showRiderMarker, vehicleMarkerType]);
 
   useEffect(() => {
     mountedRef.current = true;

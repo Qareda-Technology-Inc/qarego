@@ -129,6 +129,18 @@ const RiderLiveTracking: FC<{
   const dropCoord = useStableMapCoord(drop);
   const riderCoord = useStableMapCoord(rider);
 
+  // Android snapshots a custom marker's view; with tracking off from the start the pin's
+  // image and label are captured before they load and stay blank. Track briefly whenever a
+  // marker mounts or is re-keyed (status change), then stop to save redraws.
+  const hasRiderCoord = !!riderCoord;
+  const [markerTracks, setMarkerTracks] = useState(true);
+  useEffect(() => {
+    if (!overlaysReady) return;
+    setMarkerTracks(true);
+    const t = setTimeout(() => setMarkerTracks(false), 2000);
+    return () => clearTimeout(t);
+  }, [overlaysReady, status, hasRiderCoord, vehicleMarkerType]);
+
   const stripH = mapHeight && mapHeight > 120 ? mapHeight : Math.max(winH * 0.55, 280);
   const mapW = winW;
 
@@ -310,7 +322,7 @@ const RiderLiveTracking: FC<{
             coordinate={dropCoord}
             anchor={{ x: 0.5, y: 1 }}
             zIndex={1}
-            tracksViewChanges={false}
+            tracksViewChanges={markerTracks}
             title={dropLabel}
           >
             {/* Only the current target is labelled, so nearby pins never overlap. */}
@@ -334,7 +346,7 @@ const RiderLiveTracking: FC<{
             coordinate={pickupCoord}
             anchor={{ x: 0.5, y: 1 }}
             zIndex={2}
-            tracksViewChanges={false}
+            tracksViewChanges={markerTracks}
             title={pickupLabel}
           >
             {status === "START" ? (
@@ -353,7 +365,7 @@ const RiderLiveTracking: FC<{
             coordinate={riderCoord}
             anchor={{ x: 0.5, y: 0.5 }}
             zIndex={3}
-            tracksViewChanges={false}
+            tracksViewChanges={markerTracks}
           >
             <NearbyVehicleMarker type={vehicleMarkerType} rotation={rider?.heading || 0} />
           </Marker>
