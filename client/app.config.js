@@ -17,6 +17,13 @@ const googleMapsKey = (
 ).trim();
 
 if (!googleMapsKey) {
+  // Without the key, Android crashes on every map screen, so never ship it.
+  // .env is git-ignored: on EAS, set EXPO_PUBLIC_MAP_API_KEY as an EAS env var.
+  if (process.env.EAS_BUILD) {
+    throw new Error(
+      "[app.config] EXPO_PUBLIC_MAP_API_KEY is not set for this EAS build. Add it with `eas env:create`."
+    );
+  }
   console.warn(
     "[app.config] Missing GOOGLE_API_KEY / EXPO_PUBLIC_MAP_API_KEY — Android/iOS maps will be blank."
   );
@@ -58,7 +65,12 @@ module.exports = {
     // react-native-maps >= 1.21 adds Google Maps on iOS itself (pod subspec + AppDelegate init).
     // Expo's built-in ios.config.googleMapsApiKey would add the old 'react-native-google-maps'
     // pod, which no longer exists, so the iOS key is passed here instead.
-    ["react-native-maps", { iosGoogleMapsApiKey: googleMapsKey }],
+    // The Android key must be passed too: without it this plugin deletes
+    // com.google.android.geo.API_KEY from the manifest and map screens crash.
+    [
+      "react-native-maps",
+      { iosGoogleMapsApiKey: googleMapsKey, androidGoogleMapsApiKey: googleMapsKey },
+    ],
   ],
   ios: {
     ...appJson.expo.ios,

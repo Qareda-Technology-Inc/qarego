@@ -80,6 +80,17 @@ async function ensureLocationServicesEnabled(
   };
 }
 
+/**
+ * Check before asking: on some Android versions the request call never
+ * resolves when permission is already granted, which froze callers.
+ */
+export async function ensureForegroundPermission(): Promise<Location.PermissionStatus> {
+  const current = await Location.getForegroundPermissionsAsync();
+  if (current.status === "granted" || !current.canAskAgain) return current.status;
+  const { status } = await Location.requestForegroundPermissionsAsync();
+  return status;
+}
+
 async function fetchFreshPosition(timeoutMs: number): Promise<Location.LocationObject> {
   const accuracy =
     Platform.OS === "android"
@@ -117,7 +128,7 @@ export async function getCurrentLocationAsync(options?: {
 
   try {
     if (requestPermission) {
-      const { status } = await Location.requestForegroundPermissionsAsync();
+      const status = await ensureForegroundPermission();
       if (status !== "granted") {
         return {
           ok: false,
@@ -145,6 +156,9 @@ export async function getCurrentLocationAsync(options?: {
       const location = await fetchFreshPosition(timeoutMs);
       return { ok: true, ...coordsFromPosition(location) };
     } catch (firstError) {
+      // No fresh fix in time: an older position beats an empty pickup.
+      const last = await Location.getLastKnownPositionAsync().catch(() => null);
+      if (hasValidCoords(last)) return { ok: true, ...coordsFromPosition(last!) };
       if (!emulator) throw firstError;
       await new Promise((resolve) => setTimeout(resolve, 1200));
       const location = await fetchFreshPosition(timeoutMs);

@@ -1,6 +1,5 @@
 import {
   View,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   Switch,
@@ -9,6 +8,7 @@ import {
   Alert,
   ActivityIndicator,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import React, { useCallback, useEffect, useState } from "react";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -131,7 +131,7 @@ const RiderServices = () => {
 
   return (
     <View style={commonStyles.page}>
-      <SafeAreaView style={{ backgroundColor: "#fff" }} />
+      <SafeAreaView edges={["top"]} style={{ backgroundColor: "#fff" }} />
       <View style={styles.header}>
         <TouchableOpacity
           onPress={() => (router.canGoBack() ? router.back() : router.replace("/rider/account"))}

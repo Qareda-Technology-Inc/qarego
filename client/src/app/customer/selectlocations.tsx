@@ -1,6 +1,5 @@
 import {
   View,
-  SafeAreaView,
   TouchableOpacity,
   FlatList,
   StyleSheet,
@@ -9,6 +8,7 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useUserStore } from "@/store/userStore";
 import { StatusBar } from "expo-status-bar";
@@ -20,7 +20,9 @@ import {
   calculateDistance,
   getLatLong,
   getPlacesSuggestions,
+  reverseGeocode,
 } from "@/utils/mapUtils";
+import { getCurrentLocationAsync } from "@/utils/locationUtils";
 import LocationItem from "@/components/customer/LocationItem";
 import MapPickerModal from "@/components/customer/MapPickerModal";
 import { RideHomeTheme as T } from "@/styles/rideHomeTheme";
@@ -233,6 +235,32 @@ const LocationSelection = () => {
     setLocations([]);
   }, [drop, pickup, dropCoords, pickupCoords]);
 
+  // The service home has no map, so on a fresh install nothing has saved the
+  // user's position yet. Look it up here so pickup isn't left empty.
+  useEffect(() => {
+    if (location?.address) return;
+    let cancelled = false;
+    (async () => {
+      const result = await getCurrentLocationAsync();
+      if (!result.ok || cancelled) return;
+      const { latitude, longitude } = result;
+      let address = "";
+      try {
+        address = await reverseGeocode(latitude, longitude);
+      } catch {
+        /* fall back to a generic label */
+      }
+      if (!cancelled) {
+        setLocation({ latitude, longitude, address: address || "Current location" });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // Only on mount: a later address change comes from the user's own choice.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     if (isFoodDelivery) {
       if (location?.address) {
@@ -367,7 +395,7 @@ const LocationSelection = () => {
         <View style={styles.orbTop} />
         <View style={styles.orbSide} />
       </View>
-      <SafeAreaView style={styles.safeTop} />
+      <SafeAreaView edges={["top"]} style={styles.safeTop} />
 
       <KeyboardAvoidingView
         style={styles.keyboard}

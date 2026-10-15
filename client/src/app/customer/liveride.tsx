@@ -423,7 +423,7 @@ const LiveRide = () => {
 
   return (
     <View style={rideStyles.container}>
-      <StatusBar style="light" backgroundColor="orange" translucent={false} />
+      <StatusBar style="dark" />
 
       {rideData ? (
         <>

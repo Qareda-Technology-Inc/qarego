@@ -1,4 +1,5 @@
-import { View, SafeAreaView, ScrollView, TouchableOpacity, StyleSheet, Alert } from "react-native";
+import { View, ScrollView, TouchableOpacity, StyleSheet, Alert } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import React, { useState } from "react";
 import { commonStyles } from "@/styles/commonStyles";
 import CustomText from "@/components/shared/CustomText";
@@ -86,7 +87,7 @@ const RiderAccount = () => {
 
   return (
     <View style={commonStyles.page}>
-      <SafeAreaView style={{ backgroundColor: '#fff' }} />
+      <SafeAreaView edges={["top"]} style={{ backgroundColor: '#fff' }} />
       
       <ScrollView contentContainerStyle={{ paddingBottom: 100 }}>
         {isPending ? (

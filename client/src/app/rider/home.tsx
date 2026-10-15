@@ -22,6 +22,7 @@ import {
 import { getCommerceOrderCopy } from "@/utils/commerceOrderCopy";
 import { getBestOfferId } from "@/utils/offerRanking";
 import * as Location from "expo-location";
+import { ensureForegroundPermission } from "@/utils/locationUtils";
 import { homeStyles } from "@/styles/homeStyles";
 import { StatusBar } from "expo-status-bar";
 import RiderHeader from "@/components/rider/RiderHeader";
@@ -60,7 +61,7 @@ const RiderHome = () => {
   useEffect(() => {
     let locationsSubscription: any;
     const startLocationUpdates = async () => {
-      const { status } = await Location.requestForegroundPermissionsAsync();
+      const status = await ensureForegroundPermission();
       if (status === "granted") {
         locationsSubscription = await Location.watchPositionAsync(
           {
@@ -250,7 +251,7 @@ const RiderHome = () => {
 
   return (
     <View style={[homeStyles.container, { backgroundColor: DS.color.bg }]}>
-      <StatusBar style="light" backgroundColor="orange" translucent={false} />
+      <StatusBar style="dark" />
       <RiderHeader />
 
       {pausedServices.length > 0 ? (

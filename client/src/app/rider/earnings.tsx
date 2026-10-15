@@ -1,6 +1,5 @@
 import {
   View,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   StyleSheet,
@@ -11,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { MOMO_AVAILABLE, openMomoComingSoon } from "@/utils/momo";
 import React, { useState, useCallback, useRef, useEffect } from "react";
 import { commonStyles } from "@/styles/commonStyles";
@@ -324,7 +324,7 @@ export default function RiderEarnings() {
 
   return (
     <View style={commonStyles.page}>
-      <SafeAreaView style={styles.safeArea} />
+      <SafeAreaView edges={["top"]} style={styles.safeArea} />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={24} color={Colors.text} />

@@ -56,7 +56,7 @@ const styles = StyleSheet.create({
   },
   item: {
     alignItems: "center",
-    width: 68,
+    width: 80,
     marginRight: 2,
   },
   circle: {

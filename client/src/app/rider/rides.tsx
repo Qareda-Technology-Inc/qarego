@@ -1,12 +1,12 @@
 import {
   View,
   FlatList,
-  SafeAreaView,
   TouchableOpacity,
   ActivityIndicator,
   StyleSheet,
   RefreshControl,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { commonStyles } from "@/styles/commonStyles";
 import RideCard from "@/components/shared/RideCard";
@@ -76,7 +76,7 @@ const RiderRides = () => {
 
   return (
     <View style={commonStyles.page}>
-      <SafeAreaView style={styles.safeArea} />
+      <SafeAreaView edges={["top"]} style={styles.safeArea} />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={24} color={Colors.text} />

@@ -1,12 +1,12 @@
 import {
   View,
   Alert,
-  SafeAreaView,
   TouchableOpacity,
   Image,
   Linking,
   ActivityIndicator,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useWS } from "@/service/WSProvider";
 import { useRiderStore } from "@/store/riderStore";
@@ -210,7 +210,7 @@ const RiderHeader = () => {
   return (
     <>
       <View style={riderStyles.headerContainer}>
-        <SafeAreaView />
+        <SafeAreaView edges={["top"]} />
 
         <View style={commonStyles.flexRowBetween}>
           <TouchableOpacity

@@ -4,6 +4,7 @@ import { useRiderStore } from "@/store/riderStore";
 import { useWS } from "@/service/WSProvider";
 import { useRoute } from "@react-navigation/native";
 import * as Location from "expo-location";
+import { ensureForegroundPermission } from "@/utils/locationUtils";
 import { resetAndNavigate } from "@/utils/Helpers";
 import { StatusBar } from "expo-status-bar";
 import { rideStyles } from "@/styles/rideStyles";
@@ -107,7 +108,7 @@ const LiveRide = () => {
     };
 
     const startLocationUpdates = async () => {
-      const { status } = await Location.requestForegroundPermissionsAsync();
+      const status = await ensureForegroundPermission();
       if (status !== "granted") {
         console.log("Location permission denied");
         return;

@@ -66,12 +66,15 @@ export const splashStyles = StyleSheet.create({
     height: 78,
     resizeMode: "contain",
   },
+  // Full width so Android doesn't keep a width measured before fonts load.
   brandName: {
+    alignSelf: "stretch",
     color: Colors.text,
     letterSpacing: -0.6,
     textAlign: "center",
   },
   tagline: {
+    alignSelf: "stretch",
     marginTop: 10,
     color: DS.color.textMuted,
     textAlign: "center",

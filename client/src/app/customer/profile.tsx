@@ -1,4 +1,5 @@
-import { View, SafeAreaView, StyleSheet, TextInput, Alert, TouchableOpacity, ScrollView, Image } from "react-native";
+import { View, StyleSheet, TextInput, Alert, TouchableOpacity, ScrollView, Image } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import React, { useState, useEffect } from "react";
 import { commonStyles } from "@/styles/commonStyles";
 import CustomText from "@/components/shared/CustomText";
@@ -79,7 +80,7 @@ const CustomerProfile = () => {
 
   return (
     <View style={commonStyles.page}>
-      <SafeAreaView style={{ backgroundColor: '#fff' }} />
+      <SafeAreaView edges={["top"]} style={{ backgroundColor: '#fff' }} />
       
       <View style={styles.header}>
         <TouchableOpacity
