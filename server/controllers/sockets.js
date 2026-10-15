@@ -3,7 +3,7 @@ import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
 import User from "../models/User.js";
 import Ride from "../models/Ride.js";
-import FoodOrder from "../models/FoodOrder.js";
+import FoodOrder, { FOOD_CODE_FIELDS } from "../models/FoodOrder.js";
 import Restaurant from "../models/Restaurant.js";
 import ChatMessage from "../models/ChatMessage.js";
 
@@ -334,12 +334,17 @@ const handleSocketConnection = (io) => {
         socket.emit("error", { message: "Invalid order id" });
         return;
       }
-      socket.join(`food_order_${orderId}`);
-      if (user.role === "customer") {
-        socket.join(`customer_${user.id}`);
-      }
       try {
+        // The room carries the customer's order (and delivery code), so only they may join.
+        const owned = await FoodOrder.exists({ _id: orderId, customer: user.id });
+        if (!owned) {
+          socket.emit("error", { message: "Order not found" });
+          return;
+        }
+        socket.join(`food_order_${orderId}`);
+        socket.join(`customer_${user.id}`);
         const order = await FoodOrder.findById(orderId)
+          .select(FOOD_CODE_FIELDS)
           .populate("restaurant", "name cuisine imageEmoji address")
           .populate("ride")
           .lean();

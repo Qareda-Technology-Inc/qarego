@@ -342,16 +342,15 @@ const LiveRide = () => {
         return;
       }
 
-      if (otp === current.otp) {
-        const result = await updateRideStatus(current._id, "ARRIVED", otp);
-        if (result.ok) {
-          setOtpModalVisible(false);
-          if (result.ride) setRideData(result.ride);
-        } else {
-          Alert.alert("Technical Error", result.message || "Could not verify OTP.");
-        }
+      // The server checks the code; the rider app is not sent it.
+      const result = await updateRideStatus(current._id, "ARRIVED", otp);
+      if (result.ok) {
+        setOtpModalVisible(false);
+        if (result.ride) setRideData(result.ride);
+      } else if (/invalid|otp|code/i.test(result.message)) {
+        Alert.alert("Wrong OTP", "Ask the customer for the 4-digit code on their screen.");
       } else {
-        Alert.alert("Wrong OTP");
+        Alert.alert("Could not confirm arrival", result.message || "Please try again.");
       }
     },
     [otpPurpose, handleDeliveryComplete]

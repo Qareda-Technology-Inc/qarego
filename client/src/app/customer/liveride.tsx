@@ -60,6 +60,13 @@ function isRideSearchFatalError(message: string): boolean {
   );
 }
 
+/** Live updates may omit the trip codes (only the customer's own fetch has them); keep the
+ *  ones already shown rather than blanking the code card. */
+function keepRideCodes(prev: any, next: any) {
+  if (!next || !prev || String(prev._id) !== String(next._id)) return next;
+  return { ...next, otp: next.otp ?? prev.otp, deliveryOtp: next.deliveryOtp ?? prev.deliveryOtp };
+}
+
 const LiveRide = () => {
   const { height: windowHeight } = useWindowDimensions();
   const isFocused = useIsFocused();
@@ -145,7 +152,7 @@ const LiveRide = () => {
       .catch(() => {});
 
     const onRideData = (data: any) => {
-      setRideData(data);
+      setRideData((prev: any) => keepRideCodes(prev, data));
       const id = normalizeRiderId(data?.rider);
       if (id) riderIdRef.current = id;
       const seeded = coordsFromRideRider(data);
@@ -163,7 +170,7 @@ const LiveRide = () => {
     };
 
     const onRideUpdate = (data: any) => {
-      setRideData(data);
+      setRideData((prev: any) => keepRideCodes(prev, data));
       const id = normalizeRiderId(data?.rider);
       if (id) riderIdRef.current = id;
       const seeded = coordsFromRideRider(data);

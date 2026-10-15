@@ -1,6 +1,6 @@
 // Admin trips: lists, detail, reports, live map and manual dispatch.
 import User from "../../models/User.js";
-import Ride from "../../models/Ride.js";
+import Ride, { RIDE_CODE_FIELDS } from "../../models/Ride.js";
 import { StatusCodes } from "http-status-codes";
 import { getSettings } from "../../utils/tripSettlement.js";
 import { generateOTP } from "../../utils/mapUtils.js";
@@ -123,7 +123,7 @@ export const assignRideToDriver = async (req, res) => {
       return res.status(StatusCodes.BAD_REQUEST).json({ message: 'driverId is required' });
     }
 
-    const ride = await Ride.findById(rideId);
+    const ride = await Ride.findById(rideId).select(RIDE_CODE_FIELDS);
     if (!ride) {
       return res.status(StatusCodes.NOT_FOUND).json({ message: 'Ride not found' });
     }

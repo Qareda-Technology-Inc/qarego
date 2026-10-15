@@ -40,8 +40,8 @@ const rideSchema = new Schema(
     deliveryNote: { type: String, default: null },
     parcelDescription: { type: String, default: null },
     parcelPhotoUrl: { type: String, default: null },
-    /** Parcel only: recipient handoff code (pickup uses `otp`). */
-    deliveryOtp: { type: String, default: null },
+    /** Parcel only: recipient handoff code (pickup uses `otp`). Secret: see RIDE_CODE_FIELDS. */
+    deliveryOtp: { type: String, default: null, select: false },
     foodOrder: { type: Schema.Types.ObjectId, ref: "FoodOrder", default: null },
     restaurantName: { type: String, default: null },
     /** FOOD courier rides: store module vertical for rider/customer copy */
@@ -101,9 +101,11 @@ const rideSchema = new Schema(
       enum: ["SEARCHING_FOR_RIDER", "START", "ARRIVED", "IN_PROGRESS", "COMPLETED"],
       default: "SEARCHING_FOR_RIDER",
     },
+    /** Secret: see RIDE_CODE_FIELDS. */
     otp: {
       type: String,
       default: null,
+      select: false,
     },
     customerRating: {
       type: Number,
@@ -130,6 +132,21 @@ const rideSchema = new Schema(
     timestamps: true,
   }
 );
+
+/**
+ * The customer's pickup/delivery codes prove the rider met the customer, so they must never
+ * reach riders (or anyone but the customer). They are not loaded unless a query asks with
+ * `.select(RIDE_CODE_FIELDS)`, and are stripped whenever a document is serialized; the
+ * customer's own reads add them back explicitly (see ride controller).
+ */
+export const RIDE_CODE_FIELDS = "+otp +deliveryOtp";
+const stripCodes = (_doc, ret) => {
+  delete ret.otp;
+  delete ret.deliveryOtp;
+  return ret;
+};
+rideSchema.set("toJSON", { transform: stripCodes });
+rideSchema.set("toObject", { transform: stripCodes });
 
 const Ride = mongoose.model("Ride", rideSchema);
 export default Ride;

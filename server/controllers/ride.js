@@ -1,6 +1,6 @@
 import { assertMomoEnabled } from "../utils/momoAvailability.js";
 import mongoose from "mongoose";
-import Ride from "../models/Ride.js";
+import Ride, { RIDE_CODE_FIELDS } from "../models/Ride.js";
 import FoodOrder from "../models/FoodOrder.js";
 import User from "../models/User.js";
 import Transaction from "../models/Transaction.js";
@@ -236,10 +236,10 @@ export const getRideById = async (req, res) => {
     throw new NotFoundError("Ride not found");
   }
   try {
-    const ride = await Ride.findById(rideId).populate(
-      "customer",
-      "name phone averageRating totalRatings"
-    ).populate("rider", "name phone averageRating totalRatings currentLocation");
+    const ride = await Ride.findById(rideId)
+      .select(RIDE_CODE_FIELDS)
+      .populate("customer", "name phone averageRating totalRatings")
+      .populate("rider", "name phone averageRating totalRatings currentLocation");
     if (!ride) {
       throw new NotFoundError("Ride not found");
     }
@@ -256,7 +256,13 @@ export const getRideById = async (req, res) => {
       }
     }
 
-    res.status(StatusCodes.OK).json({ ride });
+    // Only the customer may see their codes; the rider has to ask them for it.
+    const payload = ride.toJSON();
+    if (customerId === userId) {
+      payload.otp = ride.otp;
+      payload.deliveryOtp = ride.deliveryOtp;
+    }
+    res.status(StatusCodes.OK).json({ ride: payload });
   } catch (error) {
     if (error instanceof NotFoundError || error instanceof BadRequestError) throw error;
     if (error?.name === "CastError") {
@@ -350,7 +356,9 @@ export const updateRideStatus = async (req, res) => {
   }
 
   try {
+    // Codes are loaded only to check them here; serializing the ride strips them again.
     let ride = await Ride.findById(rideId)
+      .select(RIDE_CODE_FIELDS)
       .populate("customer", "name phone averageRating totalRatings")
       .populate("rider", "name phone averageRating totalRatings currentLocation");
 

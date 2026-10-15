@@ -1,7 +1,7 @@
 import { assertMomoEnabled } from "../utils/momoAvailability.js";
 import Restaurant from "../models/Restaurant.js";
 import MenuItem from "../models/MenuItem.js";
-import FoodOrder from "../models/FoodOrder.js";
+import FoodOrder, { FOOD_CODE_FIELDS } from "../models/FoodOrder.js";
 import User from "../models/User.js";
 import { BadRequestError, NotFoundError } from "../errors/index.js";
 import { StatusCodes } from "http-status-codes";
@@ -434,6 +434,7 @@ export const rateFoodOrder = async (req, res) => {
 /** GET /food/orders/:id */
 export const getFoodOrder = async (req, res) => {
   const order = await FoodOrder.findById(req.params.id)
+    .select(FOOD_CODE_FIELDS)
     .populate("restaurant", "name cuisine imageEmoji address latitude longitude vertical estimatedPrepMinutes")
     .populate("ride")
     .lean();
@@ -488,6 +489,7 @@ export const getActiveFoodOrder = async (req, res) => {
     customer: req.user.id,
     status: { $nin: terminal },
   })
+    .select(FOOD_CODE_FIELDS)
     .sort({ createdAt: -1 })
     .populate("restaurant", "name cuisine imageEmoji address latitude longitude vertical estimatedPrepMinutes")
     .populate("ride")

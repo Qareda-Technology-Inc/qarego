@@ -26,7 +26,6 @@ import {
   Banknote,
   Smartphone,
   Bike,
-  KeyRound,
   Wifi,
   WifiOff,
   Power,
@@ -467,17 +466,6 @@ export default function OrdersPage() {
                     >
                       <Bike className="h-4 w-4 mr-1 inline" /> Assign rider
                     </Button>
-                  )}
-                {(order.status === "READY_FOR_PICKUP" || order.status === "PICKED_UP") &&
-                  order.deliveryCode && (
-                    <div className="rounded-lg bg-purple-50 border border-purple-200 p-3 text-center">
-                      <p className="text-xs text-purple-600 flex items-center justify-center gap-1">
-                        <KeyRound className="h-3 w-3" /> Pickup code
-                      </p>
-                      <p className="text-xl font-bold tracking-widest text-purple-800">
-                        {order.deliveryCode}
-                      </p>
-                    </div>
                   )}
                 {order.status === "READY_FOR_PICKUP" && order.fulfillmentType === "PICKUP" && (
                   <>

@@ -106,7 +106,7 @@ const foodOrderSchema = new Schema(
     /** True after early courier broadcast has been sent (or ride created on ready). */
     courierBroadcastSent: { type: Boolean, default: false },
     /** 4-digit code — customer shares with courier at delivery (mirrors linked ride OTP) */
-    deliveryCode: { type: String, default: null },
+    deliveryCode: { type: String, default: null, select: false },
     cancelReason: { type: String, default: null },
     /** Cooking gas orders (vertical GAS) */
     gasMode: { type: String, enum: ["REFILL", "EXCHANGE", null], default: null },
@@ -137,6 +137,15 @@ const foodOrderSchema = new Schema(
   },
   { timestamps: true }
 );
+
+// Same rule as Ride codes: only the order's customer may see the delivery code.
+export const FOOD_CODE_FIELDS = "+deliveryCode";
+const stripCode = (_doc, ret) => {
+  delete ret.deliveryCode;
+  return ret;
+};
+foodOrderSchema.set("toJSON", { transform: stripCode });
+foodOrderSchema.set("toObject", { transform: stripCode });
 
 const FoodOrder = mongoose.model("FoodOrder", foodOrderSchema);
 export default FoodOrder;
