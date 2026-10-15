@@ -59,7 +59,12 @@ const SCHEDULE_OPTIONS = [
 const FoodCart = () => {
   const insets = useSafeAreaInsets();
   const { vertical: verticalParam } = useLocalSearchParams<{ vertical?: string }>();
-  const selectedVertical = useMemo(() => normalizeStoreVertical(verticalParam), [verticalParam]);
+  // Prefer the cart's store's own type (loaded below) over the link's; see the store page.
+  const [storeVertical, setStoreVertical] = useState<string | null>(null);
+  const selectedVertical = useMemo(
+    () => normalizeStoreVertical(storeVertical ?? verticalParam),
+    [storeVertical, verticalParam]
+  );
   const verticalConfig = STORE_VERTICAL_CONFIG[selectedVertical];
   const accent = verticalConfig.accent;
 
@@ -132,6 +137,7 @@ const FoodCart = () => {
       .then((data) => {
         if (cancelled) return;
         const r = data.restaurant;
+        setStoreVertical(r.vertical ?? null);
         setAllowsPickup(!!r.allowsPickup);
         setStoreAddress(r.address ?? null);
         setMenuItems(data.menuItems ?? []);

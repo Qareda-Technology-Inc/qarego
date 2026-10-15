@@ -63,9 +63,6 @@ const RestaurantMenu = () => {
   const { showMessage } = useMessage();
   const scrollY = useRef(new Animated.Value(0)).current;
   const wasCollapsed = useRef(false);
-  const selectedVertical = useMemo(() => normalizeStoreVertical(verticalParam), [verticalParam]);
-  const verticalConfig = STORE_VERTICAL_CONFIG[selectedVertical];
-  const accent = verticalConfig.accent;
 
   const stickyBlockH = STICKY_TABS_H;
   const navTop = insets.top + NAV_H;
@@ -77,6 +74,14 @@ const RestaurantMenu = () => {
   const heroUnderNavAt = (heroExpandedH - navTop) / (1 + heroExpandedH / COLLAPSE);
 
   const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
+  // The store's own type wins over the link's: some entry points (deep links, the bag icon,
+  // "FOOD" defaults) don't know it, and a pharmacy treated as food skips the prescription step.
+  const selectedVertical = useMemo(
+    () => normalizeStoreVertical(restaurant?.vertical ?? verticalParam),
+    [restaurant?.vertical, verticalParam]
+  );
+  const verticalConfig = STORE_VERTICAL_CONFIG[selectedVertical];
+  const accent = verticalConfig.accent;
   const [menu, setMenu] = useState<Record<string, MenuItem[]>>({});
   const [menuCategories, setMenuCategories] = useState<MenuCategoryMeta[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
