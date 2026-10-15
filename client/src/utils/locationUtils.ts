@@ -11,6 +11,8 @@ const DEFAULT_MESSAGE =
 
 const DEFAULT_TIMEOUT_MS = 12_000;
 const EMULATOR_ATTEMPT_TIMEOUT_MS = 12_000;
+const LAST_KNOWN_MAX_AGE_MS = 2 * 60_000;
+const LAST_KNOWN_MIN_ACCURACY_M = 200;
 
 function isAndroidEmulator(): boolean {
   return Platform.OS === "android" && !Device.isDevice;
@@ -156,8 +158,12 @@ export async function getCurrentLocationAsync(options?: {
       const location = await fetchFreshPosition(timeoutMs);
       return { ok: true, ...coordsFromPosition(location) };
     } catch (firstError) {
-      // No fresh fix in time: an older position beats an empty pickup.
-      const last = await Location.getLastKnownPositionAsync().catch(() => null);
+      // No fresh fix in time: a position from the last couple of minutes beats an empty
+      // pickup. Anything older may be somewhere else entirely, so it is not used.
+      const last = await Location.getLastKnownPositionAsync({
+        maxAge: LAST_KNOWN_MAX_AGE_MS,
+        requiredAccuracy: LAST_KNOWN_MIN_ACCURACY_M,
+      }).catch(() => null);
       if (hasValidCoords(last)) return { ok: true, ...coordsFromPosition(last!) };
       if (!emulator) throw firstError;
       await new Promise((resolve) => setTimeout(resolve, 1200));

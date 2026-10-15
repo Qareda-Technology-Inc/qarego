@@ -35,6 +35,7 @@ export const WSProvider: React.FC<{ children: React.ReactNode }> = ({
   );
   const [connectNonce, setConnectNonce] = useState(0);
   const socket = useRef<Socket>();
+  const refreshingRef = useRef(false);
 
   useEffect(() => {
     const token = tokenStorage.getString("access_token") as any;
@@ -50,22 +51,28 @@ export const WSProvider: React.FC<{ children: React.ReactNode }> = ({
       socket.current = io(getSocketUrl(), {
         transports: ["websocket", "polling"],
         withCredentials: true,
-        auth: {
-          access_token: socketAccessToken || "",
+        // Read the token on every (re)connect so a refreshed token is picked up without
+        // replacing the socket (screens' listeners live on this instance).
+        auth: (cb) => {
+          cb({ access_token: tokenStorage.getString("access_token") || socketAccessToken || "" });
         },
         extraHeaders: {
           access_token: socketAccessToken || "",
         },
       });
 
+      // The server rejects expired tokens with "Authentication invalid: ...", after which
+      // socket.io stops retrying. Refresh, then reconnect this same socket.
       socket.current.on("connect_error", (error) => {
-        if (error.message === "Authentication error") {
-          console.log("Auth connection error: ", error.message);
-          refresh_tokens().then(() => {
-            const token = tokenStorage.getString("access_token") as string | undefined;
-            if (token) setSocketAccessToken(token);
+        if (!/authentication/i.test(error?.message || "") || refreshingRef.current) return;
+        refreshingRef.current = true;
+        refresh_tokens()
+          .then(() => {
+            if (tokenStorage.getString("access_token")) socket.current?.connect();
+          })
+          .finally(() => {
+            refreshingRef.current = false;
           });
-        }
       });
 
       socket.current.on("connect", () => {
@@ -90,8 +97,11 @@ export const WSProvider: React.FC<{ children: React.ReactNode }> = ({
     const sub = AppState.addEventListener("change", (state) => {
       if (state !== "active") return;
       const token = tokenStorage.getString("access_token") as string | undefined;
-      if (token && token !== socketAccessToken) {
+      if (token && !socket.current) {
         setSocketAccessToken(token);
+      } else if (token && socket.current && !socket.current.connected) {
+        // Reuse the socket (auth reads the latest token) so screen listeners survive.
+        socket.current.connect();
       }
       const { onDuty, location } = useRiderStore.getState();
       if (onDuty && location && socket.current?.connected) {
