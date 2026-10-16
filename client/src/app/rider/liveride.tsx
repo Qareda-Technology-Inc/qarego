@@ -65,7 +65,7 @@ const LiveRide = () => {
   const online = useConnectivity((st) => st.online);
   const [panelHeight, setPanelHeight] = useState(320);
   const { location, setLocation, setOnDuty, user } = useRiderStore();
-  const { emit, on, off, connectNonce } = useWS();
+  const { emit, emitIfConnected, on, off, connectNonce } = useWS();
   const [rideData, setRideData] = useState<any>(null);
   const rideDataRef = useRef<any>(null);
   const route = useRoute() as any;
@@ -118,7 +118,8 @@ const LiveRide = () => {
         address: "Somewhere",
         heading: coords.heading,
       });
-      emit("updateLocation", coords);
+      // Live position: stale fixes queued while offline are worthless, so don't queue them.
+      emitIfConnected("updateLocation", coords);
     };
 
     const startLocationUpdates = async () => {
@@ -160,7 +161,7 @@ const LiveRide = () => {
         locationSubscription.remove();
       }
     };
-  }, [id, setLocation, setOnDuty, emit]);
+  }, [id, setLocation, setOnDuty, emit, emitIfConnected]);
 
   const handleDeliveryComplete = useCallback((ride: { status?: string } | null) => {
     if (!ride || ride.status !== "COMPLETED") return;
@@ -493,6 +494,7 @@ const LiveRide = () => {
           visible={showCostPopup}
           ride={rideData}
           onClose={handleCostPopupClose}
+          viewer="rider"
         />
       )}
       {canChat && (

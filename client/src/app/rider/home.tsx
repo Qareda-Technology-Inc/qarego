@@ -40,7 +40,7 @@ import { onRiderOfferAccepted } from "@/utils/riderOfferEvents";
 
 const RiderHome = () => {
   const isFocused = useIsFocused();
-  const { emit, on, off } = useWS();
+  const { emit, on, off, emitIfConnected } = useWS();
   const { user, onDuty, setLocation } = useRiderStore();
 
   const [rideOffers, setRideOffers] = useState<any[]>([]);
@@ -77,7 +77,8 @@ const RiderHome = () => {
               address: "Somewhere",
               heading: heading as number,
             });
-            emit("updateLocation", {
+            // Not queued while offline: only the latest position matters.
+            emitIfConnected("updateLocation", {
               latitude,
               longitude,
               heading,

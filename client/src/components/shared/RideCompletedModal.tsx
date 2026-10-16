@@ -11,8 +11,12 @@ interface RideCompletedModalProps {
     serviceType?: string;
     paymentMethod?: "CASH" | "MOBILE_MONEY";
     paymentStatus?: string;
+    /** Food/gas: what the courier collects and keeps (set by the server). */
+    cashCollection?: { collectFromCustomer?: number; riderKeeps?: number } | null;
   } | null;
   onClose: () => void;
+  /** Riders see what to collect in cash; customers see what the trip cost. */
+  viewer?: "customer" | "rider";
   /** When provided and payment is outstanding, shows a "Pay now" action. */
   onPay?: () => void;
   payBusy?: boolean;
@@ -24,8 +28,14 @@ const RideCompletedModal: FC<RideCompletedModalProps> = ({
   onClose,
   onPay,
   payBusy,
+  viewer = "customer",
 }) => {
-  const fare = ride?.fare != null ? Number(ride.fare) : 0;
+  const tripFare = ride?.fare != null ? Number(ride.fare) : 0;
+  const isRider = viewer === "rider";
+  const cashTotal = Number(ride?.cashCollection?.collectFromCustomer);
+  // A food/gas courier collects the whole order total, not just their delivery fee.
+  const collectAmount = Number.isFinite(cashTotal) && cashTotal > 0 ? cashTotal : tripFare;
+  const riderKeeps = Number(ride?.cashCollection?.riderKeeps);
   const isDelivery = ride?.serviceType === "DELIVERY";
   const isFood = ride?.serviceType === "FOOD";
   const isMomo = ride?.paymentMethod === "MOBILE_MONEY";
@@ -40,9 +50,14 @@ const RideCompletedModal: FC<RideCompletedModalProps> = ({
     : isDelivery
       ? "Delivery completed"
       : "Ride completed";
+  const fare = isRider && !isMomo ? collectAmount : tripFare;
   const subtitle = needsPayment
     ? "Amount to pay with mobile money"
-    : "Total cost for this trip";
+    : isRider
+      ? isMomo
+        ? "Paid by mobile money: nothing to collect"
+        : "Collect in cash from the customer"
+      : "Total cost for this trip";
 
   return (
     <Modal
@@ -69,6 +84,12 @@ const RideCompletedModal: FC<RideCompletedModalProps> = ({
               {formatCurrency(fare)}
             </CustomText>
           </View>
+
+          {isRider && !isMomo && Number.isFinite(riderKeeps) && riderKeeps > 0 && riderKeeps !== fare ? (
+            <CustomText fontSize={13} style={styles.subtitle}>
+              Includes your delivery fee of {formatCurrency(riderKeeps)}
+            </CustomText>
+          ) : null}
 
           {isMomo ? (
             <View style={styles.payRow}>

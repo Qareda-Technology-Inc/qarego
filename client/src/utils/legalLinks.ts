@@ -3,6 +3,7 @@ import * as WebBrowser from "expo-web-browser";
 
 /** Public privacy policy (also entered in Play Console / App Store Connect). */
 export const PRIVACY_POLICY_URL = "https://www.qarego.com/privacy";
+export const TERMS_URL = "https://www.qarego.com/terms";
 export const DELETE_ACCOUNT_INFO_URL = "https://www.qarego.com/delete-account";
 
 /** Open a legal page in an in-app browser, falling back to the system browser. */

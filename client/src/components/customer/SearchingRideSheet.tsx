@@ -15,6 +15,7 @@ import { parseRideParcelMode, parcelModeLabels } from "@/utils/parcelMode";
 import { getCustomerParcelPhase, getCustomerRouteLabels } from "@/utils/customerCourierUi";
 import { openMapsRoute, openMapsToPoint, type MapPoint } from "@/utils/openMapsNavigation";
 
+import { canActNowOrExplain } from "@/service/connectivity";
 interface RideItem {
   serviceType?: "RIDE" | "DELIVERY" | "FOOD";
   parcelMode?: "SEND" | "RECEIVE";
@@ -168,7 +169,7 @@ const SearchingRideSheet: FC<{ item: RideItem }> = ({ item }) => {
 
       <TouchableOpacity
         style={styles.cancelBtn}
-        onPress={() => emit("cancelRide", item?._id)}
+        onPress={() => canActNowOrExplain("cancel") && emit("cancelRide", item?._id)}
         activeOpacity={0.85}
       >
         <CustomText fontFamily="SemiBold" fontSize={15} style={styles.cancelText}>

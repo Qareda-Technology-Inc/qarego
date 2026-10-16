@@ -16,6 +16,7 @@ import CustomText from "./CustomText";
 import { Colors } from "@/utils/Constants";
 import { useWS } from "@/service/WSProvider";
 
+import { useConnectivity } from "@/service/connectivity";
 interface Message {
   _id?: string;
   senderId: string;
@@ -100,8 +101,11 @@ const ChatModal: FC<ChatModalProps> = ({
     }, 100);
   };
 
+  const online = useConnectivity((st) => st.online);
   const sendMessage = (text?: string, image?: string) => {
     if (!text && !image) return;
+    // Offline sends would sit in a queue looking delivered; keep the text until we're back.
+    if (!online) return;
 
     const message: Message = {
       senderId: currentUserId,
@@ -283,7 +287,7 @@ const ChatModal: FC<ChatModalProps> = ({
 
             <TextInput
               style={styles.input}
-              placeholder="Type a message..."
+              placeholder={online ? "Type a message..." : "Waiting for connection…"}
               value={inputText}
               onChangeText={setInputText}
               multiline
@@ -296,7 +300,7 @@ const ChatModal: FC<ChatModalProps> = ({
                 styles.sendButton,
                 !inputText.trim() && styles.sendButtonDisabled,
               ]}
-              disabled={!inputText.trim()}
+              disabled={!inputText.trim() || !online}
             >
               <Ionicons
                 name="send"

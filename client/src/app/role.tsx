@@ -22,7 +22,7 @@ import { DS } from "@/theme/designSystem";
 import { isReviewPhone } from "@/utils/reviewLogin";
 import { useWS } from "@/service/WSProvider";
 
-import { openLegalPage } from "@/utils/legalLinks";
+import { openLegalPage, TERMS_URL } from "@/utils/legalLinks";
 interface Country {
   name: string;
   code: string;
@@ -144,7 +144,15 @@ const Role = () => {
             </View>
 
             <CustomText fontSize={11} style={styles.termsText}>
-              By continuing, you agree to our Terms of Service and{" "}
+              By continuing, you agree to our{" "}
+              <Text
+                style={{ fontFamily: "SemiBold", color: Colors.primary, textDecorationLine: "underline" }}
+                onPress={() => openLegalPage(TERMS_URL)}
+                accessibilityRole="link"
+              >
+                Terms of Service
+              </Text>{" "}
+              and{" "}
               <Text
                 style={{ fontFamily: "SemiBold", color: Colors.primary, textDecorationLine: "underline" }}
                 onPress={() => openLegalPage()}

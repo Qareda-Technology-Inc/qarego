@@ -26,7 +26,7 @@ function resolveNotificationsModule(
   return null;
 }
 
-async function loadNotifications(): Promise<NotificationsModule | null> {
+export async function loadNotifications(): Promise<NotificationsModule | null> {
   if (!isNativePushModuleAvailable()) {
     return null;
   }

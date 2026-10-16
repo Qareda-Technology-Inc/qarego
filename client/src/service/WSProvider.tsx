@@ -17,6 +17,8 @@ import { useRiderStore } from "@/store/riderStore";
 interface WSService {
   initializeSocket: () => void;
   emit: (event: string, data?: any) => void;
+  /** Send only if connected; dropped while offline instead of queued (e.g. live location). */
+  emitIfConnected: (event: string, data?: any) => void;
   on: (event: string, cb: (data: any) => void) => void;
   off: (event: string, cb?: (data: any) => void) => void;
   removeListener: (listenerName: string) => void;
@@ -88,11 +90,14 @@ export const WSProvider: React.FC<{ children: React.ReactNode }> = ({
         setConnectNonce((n) => n + 1);
         const { onDuty, location } = useRiderStore.getState();
         if (onDuty && location) {
-          socket.current?.emit("goOnDuty", {
+          const latest = {
             latitude: location.latitude,
             longitude: location.longitude,
             heading: location.heading ?? 0,
-          });
+          };
+          socket.current?.emit("goOnDuty", latest);
+          // Positions taken while offline were dropped, so share where the rider is now.
+          socket.current?.emit("updateLocation", latest);
         }
       });
     }
@@ -128,6 +133,10 @@ export const WSProvider: React.FC<{ children: React.ReactNode }> = ({
     socket.current?.emit(event, data);
   }, []);
 
+  const emitIfConnected = useCallback((event: string, data: any = {}) => {
+    socket.current?.volatile.emit(event, data);
+  }, []);
+
   const on = useCallback((event: string, cb: (data: any) => void) => {
     socket.current?.on(event, cb);
   }, []);
@@ -156,6 +165,7 @@ export const WSProvider: React.FC<{ children: React.ReactNode }> = ({
   const socketService: WSService = {
     initializeSocket: () => {},
     emit,
+    emitIfConnected,
     off,
     on,
     disconnect,

@@ -1,4 +1,4 @@
-import { AppState } from "react-native";
+import { Alert, AppState } from "react-native";
 import { create } from "zustand";
 import { getApiBaseUrl } from "./config";
 
@@ -113,5 +113,16 @@ AppState.addEventListener("change", (state) => {
  */
 export function lostConnectionMessage(what: string): string {
   return `We lost the connection before your ${what} was confirmed. Your details are saved — try again and it won't be placed twice.`;
+}
+
+/**
+ * Some socket actions (cancel a trip) must happen now or not at all: socket.io would queue
+ * them while offline and send them on reconnect, possibly after the rider has arrived.
+ * Returns false (and tells the user) when offline.
+ */
+export function canActNowOrExplain(what: string): boolean {
+  if (useConnectivity.getState().online) return true;
+  Alert.alert("You're offline", `You can't ${what} without a connection. Try again when you're back online.`);
+  return false;
 }
 

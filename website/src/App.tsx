@@ -53,24 +53,24 @@ const services: { icon: IconName; title: string; body: string; tone: string }[] 
 const steps = [
   {
     n: "01",
-    title: "Pick what you need",
-    body: "A ride, a meal, groceries, medicine, a parcel or gas: it's all on one home screen.",
-    shot: "/screens/home.jpg",
-    alt: "QareGO home screen with Food, Ride, Parcel, Grocery, Pharmacy and Cooking gas",
-  },
-  {
-    n: "02",
     title: "See the price first",
-    body: "Your route and the fare for each option are shown before you confirm. Pay cash on delivery.",
+    body: "Choose where you're going and how. Your route and the fare for each option show before you confirm.",
     shot: "/screens/ride.jpg",
     alt: "Choose a ride screen showing the route and fares for motorcycle, pragya and car",
   },
   {
-    n: "03",
-    title: "Track it, then share your code",
+    n: "02",
+    title: "Track it, share your code",
     body: "Follow your rider live. Give them your 4-digit code only when they're with you.",
     shot: "/screens/track.jpg",
     alt: "Live trip screen: rider heading to you, with the pickup code to share",
+  },
+  {
+    n: "03",
+    title: "Pay when you arrive",
+    body: "Pay the amount you were quoted, in cash, when the trip ends or your order arrives.",
+    shot: "/screens/done.jpg",
+    alt: "Ride completed: total cost GH₵17.86",
   },
 ];
 
@@ -234,22 +234,26 @@ export default function App() {
 
             <div className="hero__visual" aria-hidden="false">
               <div className="hero__glow" aria-hidden="true" />
+              <div className="hero__device">
               <Phone
-                src="/screens/track.jpg"
-                alt="Live trip: your rider is on the way, with the pickup code to share"
-                className="phone--back"
-              />
-              <Phone
-                src="/screens/ride.jpg"
-                alt="Choose a ride: route on the map and fares for motorcycle, pragya and car"
+                src="/screens/home.jpg"
+                alt="QareGO home screen listing Food, Ride, Parcel, Grocery, Pharmacy and Cooking gas"
                 className="phone--front"
               />
-              <div className="floating-card" aria-hidden="true">
+              <div className="floating-card floating-card--top" aria-hidden="true">
+                <Icon name="ride" />
+                <div>
+                  <strong>Kwame is on the way</strong>
+                  <span>Motorcycle · 4 min away</span>
+                </div>
+              </div>
+              <div className="floating-card floating-card--bottom" aria-hidden="true">
                 <Icon name="code" />
                 <div>
                   <strong>Pickup code 7351</strong>
                   <span>Share it when your rider arrives</span>
                 </div>
+              </div>
               </div>
             </div>
           </div>
@@ -439,6 +443,7 @@ export default function App() {
               <a href="mailto:support@qaretech.com">support@qaretech.com</a>
               <a href="tel:+233501774210">+233 50 177 4210</a>
               <a href="/privacy">Privacy policy</a>
+              <a href="/terms">Terms of service</a>
               <a href="/delete-account">Delete your account</a>
             </div>
           </div>

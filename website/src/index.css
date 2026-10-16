@@ -368,24 +368,9 @@ ol {
 .phone--front {
   z-index: 2;
 }
-.phone--back {
-  position: absolute;
-  z-index: 1;
-  width: min(220px, 54vw);
-  right: 50%;
-  bottom: 40px;
-  transform: translateX(-12%) rotate(-7deg);
-  opacity: 0.96;
-}
-.hero__visual .phone--front {
-  transform: translateX(22%) rotate(3deg);
-}
 .floating-card {
   position: absolute;
   z-index: 3;
-  left: 50%;
-  bottom: 8px;
-  transform: translateX(-50%);
   display: flex;
   align-items: center;
   gap: 10px;
@@ -399,6 +384,9 @@ ol {
   color: var(--orange);
   flex: none;
 }
+.floating-card--top svg {
+  color: var(--navy);
+}
 .floating-card strong {
   display: block;
   font-size: 14px;
@@ -407,17 +395,23 @@ ol {
   font-size: 12.5px;
   color: var(--muted);
 }
+/* The cards hang off the phone's edges; the overhang shrinks on narrow screens so they
+   never leave the viewport or run into the hero text. */
+.hero__device {
+  position: relative;
+  z-index: 2;
+}
+.floating-card--top {
+  top: 16%;
+  left: clamp(-100px, -16vw, -40px);
+}
+.floating-card--bottom {
+  bottom: 13%;
+  right: clamp(-100px, -16vw, -40px);
+}
 @media (min-width: 1024px) {
   .phone {
     width: 290px;
-  }
-  .phone--back {
-    width: 250px;
-  }
-  .floating-card {
-    left: 2%;
-    bottom: 70px;
-    transform: none;
   }
 }
 
@@ -629,8 +623,12 @@ ol {
   gap: 0;
   padding: 0 8px;
 }
+.split > * {
+  /* Grid items default to their content's width; let them shrink to the screen. */
+  min-width: 0;
+}
 .split__visual--pair .phone {
-  width: min(210px, 46vw);
+  width: min(210px, 41vw);
 }
 .phone--tilt-left {
   transform: rotate(-4deg) translateX(8%);

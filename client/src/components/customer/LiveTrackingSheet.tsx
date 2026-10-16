@@ -27,6 +27,7 @@ import { getCommerceOrderCopy, resolveOrderVertical } from "@/utils/commerceOrde
 import { openMapsRoute, openMapsToPoint, type MapPoint } from "@/utils/openMapsNavigation";
 import { shouldShowFoodDeliveryCodeOnLiveRide } from "@/utils/foodOrderTracking";
 
+import { canActNowOrExplain } from "@/service/connectivity";
 interface RideItem {
   _id: string;
   serviceType?: "RIDE" | "DELIVERY" | "FOOD";
@@ -117,7 +118,8 @@ const LiveTrackingSheet: FC<{
     item?.rider && (item?.status === "START" || item?.status === "ARRIVED" || item?.status === "IN_PROGRESS");
   const isCompleted = item?.status === "COMPLETED";
   const isActive = !isCompleted;
-  const showRideOtp = isRide && item?.otp && (item.status === "START" || item.status === "ARRIVED");
+  // The pickup code is used when the rider arrives (START -> ARRIVED), so hide it after that.
+  const showRideOtp = isRide && item?.otp && item.status === "START";
   const showFoodDeliveryCode = isFood && shouldShowFoodDeliveryCodeOnLiveRide(item?.status, item?.otp);
   const showParcelDeliveryCode = isParcel && item?.status === "IN_PROGRESS" && item?.deliveryOtp;
   const riderName = item?.rider?.name ?? (isParcel ? "Your courier" : "Your rider");
@@ -343,7 +345,7 @@ const LiveTrackingSheet: FC<{
       {isActive ? (
         <BottomSheetTouchable
           style={styles.cancelBtn}
-          onPress={() => emit("cancelRide", item?._id)}
+          onPress={() => canActNowOrExplain("cancel") && emit("cancelRide", item?._id)}
           activeOpacity={0.85}
         >
           <CustomText fontFamily="SemiBold" fontSize={15} style={styles.cancelText}>

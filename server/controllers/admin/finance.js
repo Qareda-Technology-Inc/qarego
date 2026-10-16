@@ -317,10 +317,14 @@ export const getRiderDebtsAdmin = async (_req, res) => {
   });
 };
 
-/** GET /admin/store-debts — stores holding QareGO's share from cash pickup orders. */
-export const getStoreDebtsAdmin = async (_req, res) => {
-  const stores = await Restaurant.find({ commissionOwed: { $gt: 0.004 } })
-    .select("name address commissionOwed owner")
+/**
+ * GET /admin/store-debts — stores holding QareGO's share from cash pickup orders.
+ * ?all=1 lists every store, including ones at zero or in credit.
+ */
+export const getStoreDebtsAdmin = async (req, res) => {
+  const all = req.query?.all === "1" || req.query?.all === "true";
+  const stores = await Restaurant.find(all ? {} : { commissionOwed: { $gt: 0.004 } })
+    .select("name address commissionOwed owner vertical isActive")
     .populate("owner", "name phone")
     .sort({ commissionOwed: -1 })
     .limit(500)
@@ -331,8 +335,46 @@ export const getStoreDebtsAdmin = async (_req, res) => {
       name: s.name,
       address: s.address,
       owner: s.owner ? { name: s.owner.name, phone: s.owner.phone } : null,
-      owed: Math.round(Number(s.commissionOwed) * 100) / 100,
+      vertical: s.vertical,
+      isActive: s.isActive !== false,
+      owed: Math.round((Number(s.commissionOwed) || 0) * 100) / 100,
     })),
+  });
+};
+
+/**
+ * GET /admin/stores/:id/ledger — why a store's balance changed (same rows the merchant sees).
+ * Query: page, limit
+ */
+export const getStoreLedgerAdmin = async (req, res) => {
+  const store = await Restaurant.findById(req.params.id).select("name commissionOwed").lean();
+  if (!store) return res.status(StatusCodes.NOT_FOUND).json({ message: "Store not found" });
+  const money = (n) => Math.round((Number(n) || 0) * 100) / 100;
+  const perPage = Math.min(Math.max(parseInt(req.query.limit, 10) || 20, 1), 100);
+  const pageNum = Math.max(parseInt(req.query.page, 10) || 1, 1);
+  const query = { restaurant: store._id };
+  const [total, rows] = await Promise.all([
+    StoreLedgerEntry.countDocuments(query),
+    StoreLedgerEntry.find(query)
+      .sort({ createdAt: -1 })
+      .skip((pageNum - 1) * perPage)
+      .limit(perPage)
+      .lean(),
+  ]);
+  res.status(StatusCodes.OK).json({
+    store: { _id: store._id, name: store.name, owed: money(store.commissionOwed) },
+    entries: rows.map((e) => ({
+      _id: e._id,
+      createdAt: e.createdAt,
+      type: e.type,
+      amount: money(e.amount),
+      owedAfter: money(e.owedAfter),
+      note: e.note,
+      foodOrder: e.foodOrder ? String(e.foodOrder) : null,
+    })),
+    total,
+    page: pageNum,
+    pages: Math.max(Math.ceil(total / perPage), 1),
   });
 };
 
