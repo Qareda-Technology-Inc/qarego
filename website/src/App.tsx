@@ -1,424 +1,449 @@
 import { STORE_LINKS, STORES_LIVE } from "./config";
-import { RouteCanvas } from "./components/RouteCanvas";
 import { StoreButtons } from "./components/StoreButtons";
+import { Icon, type IconName } from "./components/Icons";
 
 const nav = [
   { href: "#services", label: "Services" },
   { href: "#how", label: "How it works" },
-  { href: "#riders", label: "Drive & earn" },
+  { href: "#safety", label: "Safety" },
+  { href: "#riders", label: "Riders" },
+  { href: "#stores", label: "Stores" },
   { href: "#faq", label: "FAQ" },
 ];
 
-const services = [
+const services: { icon: IconName; title: string; body: string; tone: string }[] = [
   {
-    index: "01",
-    title: "Ride",
-    tag: "City mobility",
-    body: "Request a trip in seconds. See your fare upfront, follow your rider on the map, and pay with cash or mobile money when you arrive.",
-    points: ["Live GPS tracking", "Clear fares before you book", "Cash or MoMo checkout"],
-    accent: "yellow",
+    icon: "ride",
+    title: "Rides",
+    body: "Motorcycle, pragya or car. See the fare before you book and follow your rider to your door.",
+    tone: "navy",
   },
   {
-    index: "02",
-    title: "Food & shops",
-    tag: "Local commerce",
-    body: "Order from restaurants, grocery stores, and pharmacies near you. Merchants prep your order while a courier brings it to your door.",
-    points: ["Food, grocery & pharmacy", "Kitchen-ready merchants", "Doorstep delivery tracking"],
-    accent: "brand",
+    icon: "food",
+    title: "Food",
+    body: "Order from kitchens near you. Track it from the stove to your gate.",
+    tone: "orange",
   },
   {
-    index: "03",
+    icon: "grocery",
+    title: "Groceries",
+    body: "Daily essentials from local shops, picked and delivered the same day.",
+    tone: "green",
+  },
+  {
+    icon: "pharmacy",
+    title: "Pharmacy",
+    body: "Medicines from nearby pharmacies. Upload a prescription when an item needs one.",
+    tone: "red",
+  },
+  {
+    icon: "parcel",
     title: "Parcels",
-    tag: "Send anything",
-    body: "Need something collected and dropped across town? Book a courier, share pickup and drop-off, and track the package until it lands.",
-    points: ["Same-day city sends", "Pickup & drop-off pins", "Trusted rider network"],
-    accent: "blue",
+    body: "Send a package across town, or have one collected and brought to you.",
+    tone: "violet",
+  },
+  {
+    icon: "gas",
+    title: "Cooking gas",
+    body: "We collect your empty cylinder, fill it and bring it back, or swap it for a full one.",
+    tone: "amber",
   },
 ];
 
 const steps = [
   {
-    n: "1",
-    title: "Download QareGO",
-    body: "Install from the App Store or Google Play. Sign in with your phone number — no long forms.",
+    n: "01",
+    title: "Pick what you need",
+    body: "A ride, a meal, groceries, medicine, a parcel or gas: it's all on one home screen.",
+    shot: "/screens/home.jpg",
+    alt: "QareGO home screen with Food, Ride, Parcel, Grocery, Pharmacy and Cooking gas",
   },
   {
-    n: "2",
-    title: "Choose what you need",
-    body: "Book a ride, order a meal, or send a parcel. One account covers every trip and delivery.",
+    n: "02",
+    title: "See the price first",
+    body: "Your route and the fare for each option are shown before you confirm. Pay cash on delivery.",
+    shot: "/screens/ride.jpg",
+    alt: "Choose a ride screen showing the route and fares for motorcycle, pragya and car",
   },
   {
-    n: "3",
-    title: "Track & pay",
-    body: "Follow progress live on the map. Pay cash on delivery or with mobile money — your choice.",
-  },
-];
-
-const riderPerks = [
-  {
-    title: "Flexible hours",
-    body: "Go online when you’re ready. Accept rides, food runs, and parcel jobs from one app.",
-  },
-  {
-    title: "Clear earnings",
-    body: "See what you make per trip. Track wallet balance, cash sales, and cash-out to MoMo.",
-  },
-  {
-    title: "Built-in navigation",
-    body: "Open turn-by-turn maps for every pickup and drop-off so you spend less time searching.",
+    n: "03",
+    title: "Track it, then share your code",
+    body: "Follow your rider live. Give them your 4-digit code only when they're with you.",
+    shot: "/screens/track.jpg",
+    alt: "Live trip screen: rider heading to you, with the pickup code to share",
   },
 ];
 
-const trust = [
+const safety: { icon: IconName; title: string; body: string }[] = [
   {
+    icon: "code",
+    title: "Codes only you hold",
+    body: "Every pickup and delivery is confirmed with a 4-digit code on your phone. Riders never receive it, so nothing is marked done without you.",
+  },
+  {
+    icon: "eye",
+    title: "Your number stays private",
+    body: "Riders who are offered your trip see your first name and the route. Only the rider who accepts gets your number.",
+  },
+  {
+    icon: "pharmacy",
+    title: "Prescriptions stay with the pharmacy",
+    body: "Your prescription goes only to the pharmacy filling it. The rider just sees how many items to carry.",
+  },
+  {
+    icon: "pin",
     title: "Live tracking",
-    body: "Customers and riders share the same map view from accept to complete.",
+    body: "You and your rider see the same map from pickup to drop-off.",
   },
   {
-    title: "Mobile money ready",
-    body: "Hubtel-powered MoMo for rides and orders — plus cash when you prefer it.",
+    icon: "cash",
+    title: "Pay on delivery",
+    body: "Pay in cash when your trip ends or your order arrives. Mobile money is coming soon.",
   },
   {
-    title: "Local merchants",
-    body: "Neighbourhood kitchens and stores manage menus and orders from the QareGO merchant portal.",
+    icon: "signal",
+    title: "Made for real networks",
+    body: "Lose signal mid-order and you won't be charged twice. You stay signed in, and the app reconnects by itself.",
+  },
+];
+
+const riderPerks: { icon: IconName; title: string; body: string }[] = [
+  {
+    icon: "wallet",
+    title: "See what you'll earn",
+    body: "Every offer shows your take-home pay, the distance to pickup and your rate per km before you accept.",
   },
   {
-    title: "Made for Ghana",
-    body: "Built around the roads, payments, and daily routines people actually use here.",
+    icon: "route",
+    title: "One app, every job",
+    body: "Rides, food runs, parcels and gas deliveries. Choose the work you want in Work mode.",
   },
+  {
+    icon: "clock",
+    title: "Paid if a store cancels",
+    body: "If a store cancels after you've set off, you're paid for the trip: half the fee, or all of it once you've arrived.",
+  },
+];
+
+const storePerks = [
+  "New orders arrive instantly, with an alert",
+  "Menus, categories, photos and opening hours",
+  "Prescriptions shown with pharmacy orders",
+  "Sales, earnings and your balance with QareGO",
+  "Run several stores from one login",
 ];
 
 const faqs = [
   {
-    q: "Is QareGO available now?",
-    a: "Yes — QareGO is launching for customers and riders on iOS and Android. Download the app to get started in supported areas.",
+    q: "Where is QareGO available?",
+    a: "QareGO is launching in Ghana. Open the app to see the services available where you are.",
   },
   {
-    q: "What can I do in the app?",
-    a: "Book rides, order food or groceries, send parcels, track everything live, and pay with cash or mobile money.",
+    q: "How do I pay?",
+    a: "Pay in cash: to your rider at the end of a trip, or when your order arrives. Mobile money is coming soon.",
+  },
+  {
+    q: "Why does the app give me a code?",
+    a: "The code proves your rider is actually with you. Share it only when they arrive to pick you up or hand over your order. Riders never receive it.",
+  },
+  {
+    q: "What if my signal drops while I'm ordering?",
+    a: "You stay signed in, and the app reconnects by itself. If an order didn't go through, try again: it won't be placed twice.",
   },
   {
     q: "How do I become a rider?",
-    a: "Download the app, switch to rider mode after onboarding, and complete the verification steps. Admins approve drivers before they go online.",
+    a: "Download QareGO, choose rider when you sign up and add your vehicle details. Our team approves riders before they can go on duty.",
   },
   {
-    q: "I’m a restaurant or shop owner — how do I join?",
-    a: "Merchants use the QareGO merchant portal to manage menus, accept orders, and settle earnings. Contact Qaretech to get your store onboarded.",
+    q: "I run a restaurant, shop, pharmacy or gas station. How do I join?",
+    a: "Contact us using the details below. We'll set up your store on the QareGO merchant portal, where you'll manage your menu and orders.",
   },
   {
-    q: "Which phones are supported?",
-    a: "Recent iPhones via the App Store and Android devices via Google Play (package com.qarego.client).",
+    q: "How do I delete my account?",
+    a: "In the app, go to Account → Delete Account. You can also follow the steps on our delete-account page.",
   },
 ];
 
-const ticker = [
-  "Rides",
-  "Food delivery",
-  "Grocery",
-  "Pharmacy",
-  "Parcels",
-  "Live maps",
-  "Mobile money",
-  "Cash pay",
-  "Rider earnings",
-  "Merchant kitchen",
-];
+function Phone({ src, alt, className = "" }: { src: string; alt: string; className?: string }) {
+  return (
+    <figure className={`phone ${className}`}>
+      <img src={src} alt={alt} loading="lazy" decoding="async" width={405} height={900} />
+    </figure>
+  );
+}
 
 export default function App() {
   return (
     <div className="site">
-      <header className="hero">
-        <div className="atmosphere" aria-hidden="true">
-          <div className="atmosphere__grid" />
-          <div className="atmosphere__orb atmosphere__orb--a" />
-          <div className="atmosphere__orb atmosphere__orb--b" />
-          <div className="atmosphere__orb atmosphere__orb--c" />
-        </div>
+      <a className="skip" href="#main">
+        Skip to content
+      </a>
 
-        <div className="topbar">
-          <a className="mark" href="#top" id="top">
-            <span className="mark__badge">Q</span>
-            QareGO
+      <header className="topbar">
+        <div className="topbar__inner">
+          <a className="brand" href="#top" aria-label="QareGO home">
+            <img src="/qarego-mark.png" alt="" width={36} height={36} />
+            <span>QareGO</span>
           </a>
           <nav className="topbar__nav" aria-label="Primary">
             {nav.map((item) => (
-              <a key={item.href} className="topbar__link" href={item.href}>
+              <a key={item.href} href={item.href}>
                 {item.label}
               </a>
             ))}
           </nav>
-          <a className="topbar__cta" href="#download">
+          <a className="btn btn--small" href="#download">
             Get the app
           </a>
         </div>
-
-        <div className="hero__layout">
-          <div className="hero__copy">
-            <p className="launch-pill">
-              <span className="launch-pill__dot" />
-              Now launching in Ghana
-            </p>
-            <p className="brand-word">
-              Qare<span>GO</span>
-            </p>
-            <h1 className="hero__headline">Move. Eat. Send.</h1>
-            <p className="hero__lede">
-              The all-in-one app for rides, food & shop deliveries, and parcels — with live tracking
-              and mobile money built in.
-            </p>
-            <StoreButtons
-              appStoreUrl={STORE_LINKS.appStore}
-              playStoreUrl={STORE_LINKS.playStore}
-            />
-            <p className="store-note">
-              {STORES_LIVE
-                ? "Free to download on iOS and Android."
-                : "App Store & Google Play listings going live with launch — tap through once published."}
-            </p>
-          </div>
-
-          <div className="hero__visual" aria-hidden="true">
-            <RouteCanvas />
-            <div className="city-glow" />
-            <div className="phone phone--primary">
-              <div className="phone__notch" />
-              <div className="phone__screen">
-                <div className="phone__top">
-                  <div className="phone__brand">QareGO</div>
-                  <div className="phone__chip">Live tracking</div>
-                </div>
-                <div className="phone__map">
-                  <svg className="phone__path" viewBox="0 0 100 100" preserveAspectRatio="none">
-                    <path d="M12 78 C28 60, 40 55, 52 42 S78 22, 88 18" />
-                  </svg>
-                  <span className="phone__pin phone__pin--a" />
-                  <span className="phone__pin phone__pin--b" />
-                  <div className="phone__eta">
-                    <strong>6 min</strong>
-                    <span>Rider arriving</span>
-                  </div>
-                </div>
-                <div className="phone__sheet">
-                  <div className="phone__row">
-                    <span>Airport · Kotoka</span>
-                    <strong>GH₵45</strong>
-                  </div>
-                  <div className="phone__row phone__row--muted">
-                    <span>MoMo · MTN</span>
-                    <span>Confirmed</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="phone phone--secondary">
-              <div className="phone__notch" />
-              <div className="phone__screen phone__screen--food">
-                <div className="phone__brand">Kitchen</div>
-                <div className="phone__order">
-                  <strong>2× Jollof special</strong>
-                  <span>Preparing · #4821</span>
-                </div>
-                <div className="phone__order">
-                  <strong>Courier assigned</strong>
-                  <span>ETA 18 min</span>
-                </div>
-                <div className="phone__chip">Food delivery</div>
-              </div>
-            </div>
-          </div>
-        </div>
       </header>
 
-      <div className="ticker" aria-hidden="true">
-        <div className="ticker__track">
-          {[...ticker, ...ticker].map((item, i) => (
-            <span key={`${item}-${i}`}>
-              {item}
-              <i />
-            </span>
-          ))}
-        </div>
-      </div>
-
-      <section className="section" id="services" aria-labelledby="what-title">
-        <p className="section__eyebrow">Services</p>
-        <h2 className="section__title" id="what-title">
-          Three ways QareGO moves with you
-        </h2>
-        <p className="section__lede">
-          Whether you’re crossing Accra, craving something from a favourite kitchen, or sending a
-          package across town — one app handles the trip.
-        </p>
-
-        <div className="service-panels">
-          {services.map((item) => (
-            <article className={`service-panel service-panel--${item.accent}`} key={item.index}>
-              <div className="service-panel__meta">
-                <span className="service-panel__index">{item.index}</span>
-                <span className="service-panel__tag">{item.tag}</span>
-              </div>
-              <h3>{item.title}</h3>
-              <p>{item.body}</p>
-              <ul>
-                {item.points.map((p) => (
-                  <li key={p}>{p}</li>
-                ))}
+      <main id="main">
+        <section className="hero" id="top">
+          <div className="hero__inner">
+            <div className="hero__copy">
+              <p className="pill">
+                <span className="pill__dot" /> Now launching in Ghana
+              </p>
+              <h1>
+                Rides, deliveries and parcels.
+                <span> One app.</span>
+              </h1>
+              <p className="hero__lede">
+                Book a ride, order food, groceries or medicine, send a parcel or refill your
+                cooking gas. Track every trip live and pay on delivery.
+              </p>
+              <StoreButtons appStoreUrl={STORE_LINKS.appStore} playStoreUrl={STORE_LINKS.playStore} />
+              <p className="hero__note">
+                {STORES_LIVE
+                  ? "Free on iPhone and Android."
+                  : "Free on iPhone and Android: listings go live at launch."}
+              </p>
+              <ul className="hero__points">
+                <li>
+                  <Icon name="check" /> Fares before you book
+                </li>
+                <li>
+                  <Icon name="check" /> Live tracking
+                </li>
+                <li>
+                  <Icon name="check" /> Cash on delivery
+                </li>
               </ul>
-            </article>
-          ))}
-        </div>
-      </section>
+            </div>
 
-      <section className="band band--ink" id="how" aria-labelledby="how-title">
-        <div className="band__inner">
-          <p className="section__eyebrow section__eyebrow--light">How it works</p>
-          <h2 className="section__title section__title--light" id="how-title">
-            From download to doorstep
-          </h2>
-          <p className="section__lede section__lede--light">
-            Designed to feel familiar on day one — short steps, clear status, and a map you can trust.
-          </p>
+            <div className="hero__visual" aria-hidden="false">
+              <div className="hero__glow" aria-hidden="true" />
+              <Phone
+                src="/screens/track.jpg"
+                alt="Live trip: your rider is on the way, with the pickup code to share"
+                className="phone--back"
+              />
+              <Phone
+                src="/screens/ride.jpg"
+                alt="Choose a ride: route on the map and fares for motorcycle, pragya and car"
+                className="phone--front"
+              />
+              <div className="floating-card" aria-hidden="true">
+                <Icon name="code" />
+                <div>
+                  <strong>Pickup code 7351</strong>
+                  <span>Share it when your rider arrives</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="section" id="services" aria-labelledby="services-title">
+          <div className="section__head">
+            <p className="eyebrow">Services</p>
+            <h2 id="services-title">Everything you need, delivered</h2>
+            <p className="section__lede">Six services in one app, one account and one way to track them.</p>
+          </div>
+          <div className="services">
+            {services.map((s) => (
+              <article className={`service service--${s.tone}`} key={s.title}>
+                <span className="service__icon">
+                  <Icon name={s.icon} />
+                </span>
+                <h3>{s.title}</h3>
+                <p>{s.body}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="section section--tint" id="how" aria-labelledby="how-title">
+          <div className="section__head">
+            <p className="eyebrow">How it works</p>
+            <h2 id="how-title">From tap to doorstep in three steps</h2>
+          </div>
           <ol className="steps">
             {steps.map((step) => (
-              <li key={step.n}>
-                <span className="steps__n">{step.n}</span>
-                <div>
+              <li className="step" key={step.n}>
+                <Phone src={step.shot} alt={step.alt} />
+                <div className="step__text">
+                  <span className="step__n">{step.n}</span>
                   <h3>{step.title}</h3>
                   <p>{step.body}</p>
                 </div>
               </li>
             ))}
           </ol>
-        </div>
-      </section>
+        </section>
 
-      <section className="section" id="riders" aria-labelledby="riders-title">
-        <div className="split">
-          <div>
-            <p className="section__eyebrow">For riders</p>
-            <h2 className="section__title" id="riders-title">
-              Drive when you want. Earn what you see.
-            </h2>
+        <section className="section section--dark" id="safety" aria-labelledby="safety-title">
+          <div className="section__head">
+            <p className="eyebrow eyebrow--light">Safe by design</p>
+            <h2 id="safety-title">Built so the right person gets the right thing</h2>
             <p className="section__lede">
-              Riders take ride jobs, food pickups, and parcel runs in one place. Go online, accept
-              offers, navigate with maps, and cash out earnings to mobile money.
+              Safety isn't a feature we bolted on. It's how every trip and order works.
             </p>
-            <a className="text-link" href="#download">
-              Download the rider app →
-            </a>
           </div>
-          <div className="perk-list">
-            {riderPerks.map((perk) => (
-              <div className="perk" key={perk.title}>
-                <h3>{perk.title}</h3>
-                <p>{perk.body}</p>
-              </div>
+          <div className="safety">
+            {safety.map((item) => (
+              <article className="safety__item" key={item.title}>
+                <span className="safety__icon">
+                  <Icon name={item.icon} />
+                </span>
+                <h3>{item.title}</h3>
+                <p>{item.body}</p>
+              </article>
             ))}
           </div>
-        </div>
-      </section>
+        </section>
 
-      <section className="section section--tight" aria-labelledby="trust-title">
-        <p className="section__eyebrow">Why QareGO</p>
-        <h2 className="section__title" id="trust-title">
-          Built for how Ghana actually moves
-        </h2>
-        <div className="trust-grid">
-          {trust.map((item) => (
-            <article className="trust-item" key={item.title}>
-              <h3>{item.title}</h3>
-              <p>{item.body}</p>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="merchant-strip" aria-labelledby="merchant-title">
-        <div className="merchant-strip__inner">
-          <div>
-            <p className="section__eyebrow">For stores</p>
-            <h2 id="merchant-title">Merchants run the kitchen. We handle the road.</h2>
-            <p>
-              Restaurants, groceries, and pharmacies manage menus, accept orders, pause intake, and
-              settle payouts through the QareGO merchant dashboard — while riders deliver.
-            </p>
+        <section className="section" id="riders" aria-labelledby="riders-title">
+          <div className="split">
+            <div className="split__copy">
+              <p className="eyebrow">For riders</p>
+              <h2 id="riders-title">Ride with QareGO. Know your pay before you go.</h2>
+              <p className="section__lede">
+                Go on duty when it suits you, accept the offers you want, and keep track of every
+                cedi you earn.
+              </p>
+              <ul className="perks">
+                {riderPerks.map((p) => (
+                  <li key={p.title}>
+                    <span className="perks__icon">
+                      <Icon name={p.icon} />
+                    </span>
+                    <div>
+                      <h3>{p.title}</h3>
+                      <p>{p.body}</p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+              <a className="btn btn--outline" href="#download">
+                Download and sign up as a rider <Icon name="arrow" />
+              </a>
+            </div>
+            <div className="split__visual split__visual--pair" aria-hidden="false">
+              <Phone
+                src="/screens/offer.jpg"
+                alt="Rider offer card: you receive GH₵26.26, pickup Oxford Street, Osu, drop-off Kotoka International"
+                className="phone--tilt-left"
+              />
+              <Phone
+                src="/screens/rider_trip.jpg"
+                alt="Rider trip screen: step 1 of 3, go to pickup"
+                className="phone--tilt-right"
+              />
+            </div>
           </div>
-          <ul className="merchant-strip__list">
-            <li>Live order alerts</li>
-            <li>Menu & category tools</li>
-            <li>Multi-store owners supported</li>
-            <li>MoMo settlement ready</li>
-          </ul>
-        </div>
-      </section>
+        </section>
 
-      <section className="section" id="faq" aria-labelledby="faq-title">
-        <p className="section__eyebrow">FAQ</p>
-        <h2 className="section__title" id="faq-title">
-          Answers before you download
-        </h2>
-        <div className="faq">
-          {faqs.map((item) => (
-            <details className="faq__item" key={item.q}>
-              <summary>{item.q}</summary>
-              <p>{item.a}</p>
-            </details>
-          ))}
-        </div>
-      </section>
+        <section className="section section--tint" id="stores" aria-labelledby="stores-title">
+          <div className="split split--reverse">
+            <div className="split__visual">
+              <Phone src="/screens/gas.jpg" alt="Cooking gas: refill or swap, choose a cylinder size" />
+            </div>
+            <div className="split__copy">
+              <p className="eyebrow">For stores</p>
+              <h2 id="stores-title">You run the counter. We handle the road.</h2>
+              <p className="section__lede">
+                Restaurants, grocery shops, pharmacies and gas stations reach nearby customers, and
+                QareGO riders deliver. Everything runs from the QareGO merchant portal.
+              </p>
+              <ul className="checks">
+                {storePerks.map((p) => (
+                  <li key={p}>
+                    <Icon name="check" /> {p}
+                  </li>
+                ))}
+              </ul>
+              <a className="btn btn--outline" href="mailto:support@qaretech.com?subject=Join%20QareGO%20as%20a%20store">
+                List your store <Icon name="arrow" />
+              </a>
+            </div>
+          </div>
+        </section>
 
-      <section className="download" id="download" aria-labelledby="download-title">
-        <div>
-          <p className="download__eyebrow">Launching now</p>
-          <h2 id="download-title">Get QareGO on your phone today</h2>
-          <p>
-            One free download for customers and riders. Book trips, order from local stores, send
-            parcels, and pay your way — cash or MoMo.
-          </p>
-          <ul className="download__checks">
-            <li>iOS App Store</li>
-            <li>Google Play (Android)</li>
-            <li>Same login across services</li>
-          </ul>
-        </div>
-        <StoreButtons
-          appStoreUrl={STORE_LINKS.appStore}
-          playStoreUrl={STORE_LINKS.playStore}
-          variant="onDark"
-        />
-      </section>
+        <section className="section" id="faq" aria-labelledby="faq-title">
+          <div className="section__head">
+            <p className="eyebrow">FAQ</p>
+            <h2 id="faq-title">Questions, answered</h2>
+          </div>
+          <div className="faq">
+            {faqs.map((item) => (
+              <details key={item.q}>
+                <summary>{item.q}</summary>
+                <p>{item.a}</p>
+              </details>
+            ))}
+          </div>
+        </section>
+
+        <section className="download" id="download" aria-labelledby="download-title">
+          <div className="download__inner">
+            <div>
+              <h2 id="download-title">Get QareGO</h2>
+              <p>One free app for customers and riders, on iPhone and Android.</p>
+              <StoreButtons
+                appStoreUrl={STORE_LINKS.appStore}
+                playStoreUrl={STORE_LINKS.playStore}
+                variant="onDark"
+              />
+            </div>
+            <Phone src="/screens/role.jpg" alt="QareGO sign-in screen" className="phone--small" />
+          </div>
+        </section>
+      </main>
 
       <footer className="footer">
-        <div className="footer__brand">
-          <div className="mark">
-            <span className="mark__badge">Q</span>
-            QareGO
+        <div className="footer__inner">
+          <div className="footer__brand">
+            <a className="brand" href="#top">
+              <img src="/qarego-mark.png" alt="" width={36} height={36} />
+              <span>QareGO</span>
+            </a>
+            <p>Rides, food & parcels across Ghana. Operated by Qaretech.</p>
           </div>
-          <p>Move. Eat. Send. — sponsored by Qaretech.</p>
+          <div className="footer__cols">
+            <div>
+              <strong>QareGO</strong>
+              <a href="#services">Services</a>
+              <a href="#how">How it works</a>
+              <a href="#safety">Safety</a>
+              <a href="#download">Download</a>
+            </div>
+            <div>
+              <strong>Work with us</strong>
+              <a href="#riders">Ride with QareGO</a>
+              <a href="#stores">List your store</a>
+            </div>
+            <div>
+              <strong>Help & legal</strong>
+              <a href="mailto:support@qaretech.com">support@qaretech.com</a>
+              <a href="tel:+233501774210">+233 50 177 4210</a>
+              <a href="/privacy">Privacy policy</a>
+              <a href="/delete-account">Delete your account</a>
+            </div>
+          </div>
         </div>
-        <div className="footer__cols">
-          <div>
-            <strong>Product</strong>
-            <a href="#services">Services</a>
-            <a href="#how">How it works</a>
-            <a href="#riders">Drive & earn</a>
-            <a href="#download">Download</a>
-          </div>
-          <div>
-            <strong>Company</strong>
-            <span>Qaretech</span>
-            <span>Ghana</span>
-            <span>com.qarego.client</span>
-          </div>
-          <div>
-            <strong>Help & legal</strong>
-            <a href="mailto:support@qaretech.com">support@qaretech.com</a>
-            <a href="tel:+233501774210">+233 50 177 4210</a>
-            <a href="/privacy/">Privacy policy</a>
-            <a href="/delete-account/">Delete your account</a>
-          </div>
-        </div>
-        <p className="footer__copy">© {new Date().getFullYear()} QareGO. All rights reserved.</p>
+        <p className="footer__copy">© {new Date().getFullYear()} QareGO · Qaretech, Ghana</p>
       </footer>
     </div>
   );

@@ -65,7 +65,7 @@ const LiveRide = () => {
   const online = useConnectivity((st) => st.online);
   const [panelHeight, setPanelHeight] = useState(320);
   const { location, setLocation, setOnDuty, user } = useRiderStore();
-  const { emit, on, off } = useWS();
+  const { emit, on, off, connectNonce } = useWS();
   const [rideData, setRideData] = useState<any>(null);
   const rideDataRef = useRef<any>(null);
   const route = useRoute() as any;
@@ -224,9 +224,12 @@ const LiveRide = () => {
       }
     };
 
-    const onSocketError = () => {
+    // Only "this ride is gone" ends the screen; other socket errors (chat, duty status)
+    // must not throw the rider out of an active trip.
+    const onSocketError = (error?: { message?: string }) => {
+      if (!/ride not found|invalid ride id/i.test(error?.message || "")) return;
       resetAndNavigate("/rider/home");
-      Alert.alert("Oh Dang! There was an error");
+      Alert.alert("Trip ended", "This trip was cancelled or is no longer available.");
     };
 
     on("rideData", onRideData);
@@ -241,6 +244,14 @@ const LiveRide = () => {
       off("error", onSocketError);
     };
   }, [id, emit, on, off, handleDeliveryComplete]);
+
+  // Rejoin the ride's live updates after every (re)connect: the first subscribe can be lost
+  // if the socket wasn't up yet, and the room is dropped on disconnect. Without this the
+  // rider missed cancellations. The server replies with the current ride, or "not found".
+  useEffect(() => {
+    if (!id || !connectNonce) return;
+    emit("subscribeRide", id);
+  }, [id, connectNonce, emit]);
 
   const handleCostPopupClose = () => {
     setShowCostPopup(false);
