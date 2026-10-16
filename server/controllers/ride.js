@@ -52,6 +52,7 @@ import { resolveRiderAlertSoundUrl } from "../utils/platformAlertSound.js";
 import { riderHasActiveRide } from "../utils/riderActiveRide.js";
 import { cleanupStaleFoodCourierRide } from "../utils/releaseCourierRide.js";
 
+import { isDuplicateKeyError, readClientRequestId } from "../utils/idempotency.js";
 const VALID_VEHICLES = ["motorcycle", "pragya", "comfort"];
 const VALID_SERVICE_TYPES = ["RIDE", "DELIVERY"];
 
@@ -62,6 +63,14 @@ export const getFareRates = async (req, res) => {
 };
 
 export const createRide = async (req, res) => {
+  // Retried booking (lost reply on a weak signal): return the ride it already created.
+  const clientRequestId = readClientRequestId(req.body);
+  if (clientRequestId) {
+    const replay = await Ride.findOne({ customer: req.user.id, clientRequestId });
+    if (replay) {
+      return res.status(StatusCodes.OK).json({ message: "Ride already requested", ride: replay });
+    }
+  }
   const {
     vehicle,
     pickup,
@@ -162,9 +171,19 @@ export const createRide = async (req, res) => {
       }
     }
 
-    const ride = new Ride(ridePayload);
+    const ride = new Ride({ ...ridePayload, clientRequestId });
 
-    await ride.save();
+    try {
+      await ride.save();
+    } catch (err) {
+      if (clientRequestId && isDuplicateKeyError(err)) {
+        const replay = await Ride.findOne({ customer: req.user.id, clientRequestId });
+        if (replay) {
+          return res.status(StatusCodes.OK).json({ message: "Ride already requested", ride: replay });
+        }
+      }
+      throw err;
+    }
 
     res.status(StatusCodes.CREATED).json({
       message: "Ride created successfully",
@@ -288,6 +307,17 @@ export const acceptRide = async (req, res) => {
       throw new NotFoundError("Ride not found");
     }
 
+    // Retried accept (the first one went through but its reply was lost): this rider
+    // already has the ride, so confirm instead of reporting it as taken.
+    if (
+      ride.rider &&
+      String(ride.rider) === String(riderId) &&
+      ["START", "ARRIVED", "IN_PROGRESS"].includes(ride.status)
+    ) {
+      ride = await ride.populate("rider", "name phone averageRating totalRatings currentLocation");
+      return res.status(StatusCodes.OK).json({ message: "Ride already accepted", ride });
+    }
+
     if (ride.status !== "SEARCHING_FOR_RIDER") {
       throw new BadRequestError("Ride is no longer available for assignment");
     }
@@ -391,29 +421,27 @@ export const updateRideStatus = async (req, res) => {
       });
     }
 
+    // Every trip moves one step at a time (START is set by accepting). Without this a rider
+    // could jump past the step that checks the customer's code, e.g. START -> COMPLETED.
+    const NEXT_STATUS = { START: "ARRIVED", ARRIVED: "IN_PROGRESS", IN_PROGRESS: "COMPLETED" };
+    if (NEXT_STATUS[current] !== status) {
+      throw invalidTransition();
+    }
+
     if (isFood) {
-      if (status === "ARRIVED" && current !== "START") {
-        throw invalidTransition();
-      }
-      if (status === "IN_PROGRESS" && current !== "ARRIVED") {
-        throw invalidTransition();
-      }
-      if (status === "COMPLETED" && current !== "IN_PROGRESS") {
-        throw invalidTransition();
-      }
       if (status === "COMPLETED" && !isGasCollect) {
         if (!otp || String(otp) !== String(ride.otp)) {
           throw new BadRequestError("Invalid delivery code. Ask the customer for their 4-digit code.");
         }
       }
-    } else if (isParcel && status === "COMPLETED" && current === "IN_PROGRESS") {
-      if (!otp || String(otp) !== String(ride.deliveryOtp)) {
+    } else if (isParcel) {
+      if (status === "COMPLETED" && (!otp || String(otp) !== String(ride.deliveryOtp))) {
         throw new BadRequestError(
           "Invalid delivery code. Ask the recipient for their 4-digit code."
         );
       }
-    } else if (status === "ARRIVED" && current === "START" && !isParcel) {
-      // Parcel pickup is in-person handoff — only rides require OTP at pickup.
+    } else if (status === "ARRIVED") {
+      // Parcel pickup is an in-person handoff — only rides require the code at pickup.
       if (!otp || String(otp) !== String(ride.otp)) {
         throw new BadRequestError("Invalid OTP");
       }
