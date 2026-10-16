@@ -11,6 +11,7 @@ import { AppState } from "react-native";
 import { io, Socket } from "socket.io-client";
 import { getSocketUrl } from "./config";
 import { refresh_tokens } from "./apiInterceptors";
+import { markOffline, markOnline } from "./connectivity";
 import { useRiderStore } from "@/store/riderStore";
 
 interface WSService {
@@ -64,11 +65,18 @@ export const WSProvider: React.FC<{ children: React.ReactNode }> = ({
       // The server rejects expired tokens with "Authentication invalid: ...", after which
       // socket.io stops retrying. Refresh, then reconnect this same socket.
       socket.current.on("connect_error", (error) => {
-        if (!/authentication/i.test(error?.message || "") || refreshingRef.current) return;
+        if (!/authentication/i.test(error?.message || "")) {
+          markOffline();
+          return;
+        }
+        if (refreshingRef.current) return;
         refreshingRef.current = true;
         refresh_tokens()
           .then(() => {
             if (tokenStorage.getString("access_token")) socket.current?.connect();
+          })
+          .catch(() => {
+            /* offline: socket.io keeps retrying; the session is kept */
           })
           .finally(() => {
             refreshingRef.current = false;
@@ -76,6 +84,7 @@ export const WSProvider: React.FC<{ children: React.ReactNode }> = ({
       });
 
       socket.current.on("connect", () => {
+        markOnline();
         setConnectNonce((n) => n + 1);
         const { onDuty, location } = useRiderStore.getState();
         if (onDuty && location) {

@@ -31,6 +31,7 @@ import { tokenStorage } from "@/store/storage";
 import { jwtDecode } from "jwt-decode";
 import { resetAndNavigate } from "@/utils/Helpers";
 import { refresh_tokens } from "@/service/apiInterceptors";
+import { isNoResponseError } from "@/service/connectivity";
 import { logout } from "@/service/authService";
 import { resumeCustomerSession } from "@/service/rideService";
 
@@ -142,10 +143,15 @@ const Main = () => {
             return;
           }
         } catch (err) {
-          console.log(err);
-          logout();
-          goToLogin();
-          return;
+          // Offline or the server didn't answer in time: keep the session and go in with the
+          // saved role; requests refresh the token once the connection is back. Only a real
+          // refusal (handled inside refresh_tokens) signs the user out.
+          if (!isNoResponseError(err)) {
+            console.log(err);
+            logout();
+            goToLogin();
+            return;
+          }
         }
       }
 

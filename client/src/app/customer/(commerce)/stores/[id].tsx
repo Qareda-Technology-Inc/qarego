@@ -42,6 +42,7 @@ import {
   storeHeroBackground,
 } from "@/utils/storeVertical";
 import { calculateDistance, calculateFoodDeliveryFee } from "@/utils/mapUtils";
+import { useRefetchOnReconnect } from "@/utils/useRefetchOnReconnect";
 import {
   ensureUserDeliveryLocation,
   hasValidDeliveryCoords,
@@ -197,6 +198,7 @@ const RestaurantMenu = () => {
       setLoading(false);
     }
   }, [id]);
+  useRefetchOnReconnect(load);
 
   useEffect(() => {
     load();

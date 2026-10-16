@@ -12,6 +12,7 @@ import { PushNotificationBootstrap } from "@/components/shared/PushNotificationB
 import { DevApiLogger } from "@/components/shared/DevApiLogger";
 import { DevToolsBar } from "@/components/shared/DevToolsBar";
 import { ApiBootstrap } from "@/components/shared/ApiBootstrap";
+import { OfflineBanner } from "@/components/shared/OfflineBanner";
 
 installAlertOverride();
 
@@ -41,6 +42,7 @@ export default function RootLayout() {
               <Stack.Screen name="rider" />
               <Stack.Screen name="momo-coming-soon" options={{ presentation: "modal" }} />
             </Stack>
+            <OfflineBanner />
           </WSProvider>
         </ApiBootstrap>
       </MessageProvider>

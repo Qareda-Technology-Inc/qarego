@@ -43,6 +43,9 @@ import {
   storeMatchesBrowseTag,
 } from "@/utils/commerceVerticalTags";
 import { calculateDistance, calculateFoodDeliveryFee } from "@/utils/mapUtils";
+import { useRefetchOnReconnect } from "@/utils/useRefetchOnReconnect";
+import { useConnectivity } from "@/service/connectivity";
+import EmptyStateCard from "@/components/shared/EmptyStateCard";
 import {
   ensureUserDeliveryLocation,
   hasValidDeliveryCoords,
@@ -76,6 +79,8 @@ const CommerceHome = () => {
       setRefreshing(false);
     }
   }, []);
+  useRefetchOnReconnect(load);
+  const online = useConnectivity((s) => s.online);
 
   useEffect(() => {
     load();
@@ -277,10 +282,22 @@ const CommerceHome = () => {
             deliveryAmount={deliveryAmount}
           />
 
+          {!online && exploreAllStores.length === 0 ? (
+            <View style={styles.exploreSection}>
+              <EmptyStateCard
+                icon="📶"
+                title="Can't load stores"
+                description="You're offline. Stores near you will appear here once you're back online."
+              />
+            </View>
+          ) : null}
+
           <View style={styles.exploreSection}>
-            <CustomText fontFamily="Bold" fontSize={15} style={styles.exploreTitle}>
-              Explore All
-            </CustomText>
+            {exploreAllStores.length > 0 ? (
+              <CustomText fontFamily="Bold" fontSize={15} style={styles.exploreTitle}>
+                Explore All
+              </CustomText>
+            ) : null}
             {exploreAllStores.map((store) => (
               <View key={store._id} style={styles.exploreCardWrap}>
                 <RestaurantCard

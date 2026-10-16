@@ -22,6 +22,7 @@ import { appAxios } from "@/service/apiInterceptors";
 import EarningsBreakdownStrip from "@/components/rider/EarningsBreakdownStrip";
 import { useRiderStore } from "@/store/riderStore";
 
+import { useRefetchOnReconnect } from "@/utils/useRefetchOnReconnect";
 interface SalesBucket {
   gross: number;
   commission: number;
@@ -171,6 +172,7 @@ export default function RiderEarnings() {
       setRefreshing(false);
     }
   }, []);
+  useRefetchOnReconnect(load);
 
   useEffect(() => {
     load();

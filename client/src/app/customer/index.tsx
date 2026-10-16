@@ -12,6 +12,7 @@ import { getCurrentLocationAsync } from "@/utils/locationUtils";
 import { checkServiceCoverage } from "@/service/serviceZoneService";
 import { isReviewPhone } from "@/utils/reviewLogin";
 
+import { useRefetchOnReconnect } from "@/utils/useRefetchOnReconnect";
 /**
  * First customer screen: module greeting ("What do you need?").
  * Gates the home on active service zones when the admin has defined any.
@@ -66,6 +67,7 @@ const CustomerServiceSelect = () => {
       setChecking(false);
     }
   }, [setServiceCoverage]);
+  useRefetchOnReconnect(refreshCoverage);
 
   useEffect(() => {
     const t = setTimeout(() => getMyRides(), 100);

@@ -16,6 +16,7 @@ import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Colors } from "@/utils/Constants";
 
+import { useRefetchOnReconnect } from "@/utils/useRefetchOnReconnect";
 const ACTIVE_STATUSES = ["SEARCHING_FOR_RIDER", "START", "ARRIVED", "IN_PROGRESS"];
 type FilterType = "all" | "COMPLETED" | "in_progress";
 
@@ -34,6 +35,7 @@ const RiderRides = () => {
       setRefreshing(false);
     }
   }, []);
+  useRefetchOnReconnect(loadRides);
 
   useEffect(() => {
     loadRides();

@@ -47,6 +47,7 @@ import {
   storeMatchesBrowseTag,
 } from "@/utils/commerceVerticalTags";
 import { calculateDistance, calculateFoodDeliveryFee } from "@/utils/mapUtils";
+import { useRefetchOnReconnect } from "@/utils/useRefetchOnReconnect";
 import {
   ensureUserDeliveryLocation,
   hasValidDeliveryCoords,
@@ -101,6 +102,7 @@ const AllStoresBrowse = () => {
       setRefreshing(false);
     }
   }, []);
+  useRefetchOnReconnect(load);
 
   useEffect(() => {
     load();

@@ -1,6 +1,12 @@
 import { Alert, AlertButton } from "react-native";
 import { bridgeShowMessage } from "./alertBridge";
 import { MessageButton, MessageType } from "@/components/shared/MessagePopup";
+import { useConnectivity } from "@/service/connectivity";
+
+const NETWORK_ERROR_RE = /^(network error|network request failed|timeout of \d+ms exceeded|request timed out)$/i;
+function isNetworkErrorText(text?: string): boolean {
+  return !!text && NETWORK_ERROR_RE.test(text.trim());
+}
 
 let installed = false;
 let originalAlert: typeof Alert.alert | null = null;
@@ -30,6 +36,19 @@ export function installAlertOverride(): void {
   originalAlert = Alert.alert.bind(Alert);
 
   Alert.alert = (title?: string, message?: string, buttons?: AlertButton[]) => {
+    // Raw "Network Error" popups: the offline banner already says so, and when it isn't up
+    // yet a plain explanation beats axios' wording.
+    if (isNetworkErrorText(message) || isNetworkErrorText(title)) {
+      if (!useConnectivity.getState().online) return;
+      bridgeShowMessage({
+        title: "Connection problem",
+        message: "We couldn't reach QareGO. Check your internet and try again.",
+        type: "warning",
+        buttons: mapButtons(buttons),
+        dismissOnBackdrop: !buttons || buttons.length <= 1,
+      });
+      return;
+    }
     bridgeShowMessage({
       title: title || "Notice",
       message,

@@ -23,6 +23,8 @@ import EmptyStateCard from "@/components/shared/EmptyStateCard";
 import { isFoodCourierRide } from "@/utils/riderRideUtils";
 import { getCommerceOrderCopy, resolveOrderVertical } from "@/utils/commerceOrderCopy";
 
+import { useRefetchOnReconnect } from "@/utils/useRefetchOnReconnect";
+import { useConnectivity } from "@/service/connectivity";
 type TabKey = "all" | "stores" | "rides";
 
 const ACTIVE_FOOD_STATUSES = ["PLACED", "CONFIRMED", "PREPARING", "READY_FOR_PICKUP", "PICKED_UP"];
@@ -53,6 +55,8 @@ const CustomerOrders = () => {
       setRefreshing(false);
     }
   }, []);
+  useRefetchOnReconnect(load);
+  const online = useConnectivity((s) => s.online);
 
   useEffect(() => {
     load();
@@ -185,10 +189,12 @@ const CustomerOrders = () => {
       ) : isEmpty ? (
         <View style={styles.center}>
           <EmptyStateCard
-            icon="📋"
-            title="No orders yet"
+            icon={online ? "📋" : "📶"}
+            title={online ? "No orders yet" : "Can't load your orders"}
             description={
-              tab === "stores"
+              !online
+                ? "You're offline. Your orders will appear here once you're back online."
+                : tab === "stores"
                 ? "Your food, grocery and pharmacy orders will show up here."
                 : tab === "rides"
                 ? "Your rides and parcel deliveries will appear here."
