@@ -106,3 +106,12 @@ export function isNoResponseError(error: unknown): boolean {
 AppState.addEventListener("change", (state) => {
   if (state === "active" && !useConnectivity.getState().online) void probe();
 });
+
+/**
+ * Message for a create/submit that never got an answer. The request may or may not have
+ * reached us; retrying is safe because the same request id is sent again.
+ */
+export function lostConnectionMessage(what: string): string {
+  return `We lost the connection before your ${what} was confirmed. Your details are saved — try again and it won't be placed twice.`;
+}
+

@@ -16,6 +16,7 @@ import {
   getGasConfig,
 } from "../utils/gasOrders.js";
 
+import { isDuplicateKeyError, readClientRequestId } from "../utils/idempotency.js";
 const NO_STATION = "No gas station is open near you right now. Please try again later.";
 
 function readLocation(src) {
@@ -67,7 +68,22 @@ export const getGasQuote = async (req, res) => {
 };
 
 /** POST /food/gas/orders — place a refill or exchange with the nearest open station. */
+async function findReplayedGasOrder(customerId, clientRequestId) {
+  const existing = await FoodOrder.findOne({ customer: customerId, clientRequestId }).select("_id").lean();
+  if (!existing) return null;
+  return FoodOrder.findById(existing._id)
+    .populate("restaurant", "name cuisine imageEmoji address latitude longitude vertical estimatedPrepMinutes")
+    .populate("customer", "name phone")
+    .lean();
+}
+
 export const createGasOrder = async (req, res) => {
+  // Retried request (lost reply on a weak signal): return the order it already created.
+  const clientRequestId = readClientRequestId(req.body);
+  if (clientRequestId) {
+    const replay = await findReplayedGasOrder(req.user.id, clientRequestId);
+    if (replay) return res.status(StatusCodes.OK).json({ order: replay });
+  }
   const { mode: rawMode, sizeKg, quantity, delivery, paymentMethod, notes } = req.body || {};
   const settings = await getSettings();
   const config = getGasConfig(settings);
@@ -102,7 +118,10 @@ export const createGasOrder = async (req, res) => {
     { stationCommissionRate: config.stationCommissionRate }
   );
 
-  const order = await FoodOrder.create({
+  let order;
+  try {
+    order = await FoodOrder.create({
+    clientRequestId,
     customer: req.user.id,
     restaurant: station._id,
     restaurantName: station.name,
@@ -123,6 +142,13 @@ export const createGasOrder = async (req, res) => {
     gasMode: mode,
     gasSizeKg: quote.cylinder.sizeKg,
   });
+  } catch (err) {
+    if (clientRequestId && isDuplicateKeyError(err)) {
+      const replay = await findReplayedGasOrder(req.user.id, clientRequestId);
+      if (replay) return res.status(StatusCodes.OK).json({ order: replay });
+    }
+    throw err;
+  }
 
   const populated = await FoodOrder.findById(order._id)
     .populate("restaurant", "name cuisine imageEmoji address latitude longitude vertical estimatedPrepMinutes")

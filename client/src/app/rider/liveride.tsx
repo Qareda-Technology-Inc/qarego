@@ -34,12 +34,25 @@ import {
 import { riderDeliveryStyles as deliveryStyles } from "@/styles/riderDeliveryStyles";
 import { ACTIVE_RIDER_RIDE_STATUSES } from "@/utils/riderRideUtils";
 
+import { useConnectivity } from "@/service/connectivity";
 type OtpPurpose = "pickup" | "delivery";
 
 function hasMapCoords(loc?: { latitude?: unknown; longitude?: unknown } | null) {
   const lat = Number(loc?.latitude);
   const lng = Number(loc?.longitude);
   return Number.isFinite(lat) && Number.isFinite(lng);
+}
+
+/** A trip step failed: offline → "tap again" (repeating a step is safe); else the reason. */
+function alertStepFailed(result: { ok: false; message: string; offline?: boolean }) {
+  if (result.offline) {
+    Alert.alert(
+      "Connection lost",
+      "We couldn't confirm that step. Tap again when you're back online — it won't be done twice."
+    );
+  } else {
+    Alert.alert("There was an error", result.message);
+  }
 }
 
 const LiveRide = () => {
@@ -49,6 +62,7 @@ const LiveRide = () => {
   const [showCostPopup, setShowCostPopup] = useState(false);
   const [showChat, setShowChat] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+  const online = useConnectivity((st) => st.online);
   const [panelHeight, setPanelHeight] = useState(320);
   const { location, setLocation, setOnDuty, user } = useRiderStore();
   const { emit, on, off } = useWS();
@@ -250,7 +264,7 @@ const LiveRide = () => {
           current.status === "START" ? "ARRIVED" : current.status === "ARRIVED" ? "IN_PROGRESS" : "COMPLETED";
         const result = await updateRideStatus(current._id, next);
         if (!result.ok) {
-          Alert.alert("There was an error");
+          alertStepFailed(result);
           return;
         }
         if (result.ride) setRideData(result.ride);
@@ -297,7 +311,7 @@ const LiveRide = () => {
             );
           }
         } else {
-          Alert.alert("There was an error");
+          alertStepFailed(result);
         }
         return;
       }
@@ -310,7 +324,7 @@ const LiveRide = () => {
           if (result.ok) {
             handleDeliveryComplete(result.ride ?? current);
           } else {
-            Alert.alert("There was an error");
+            alertStepFailed(result);
           }
         }
       }
@@ -328,6 +342,10 @@ const LiveRide = () => {
 
       if (otpPurpose === "delivery") {
         const result = await updateRideStatus(current._id, "COMPLETED", otp);
+        if (!result.ok && result.offline) {
+          alertStepFailed(result);
+          return;
+        }
         if (result.ok) {
           handleDeliveryComplete(result.ride ?? { ...current, status: "COMPLETED" });
         } else {
@@ -344,6 +362,10 @@ const LiveRide = () => {
 
       // The server checks the code; the rider app is not sent it.
       const result = await updateRideStatus(current._id, "ARRIVED", otp);
+      if (!result.ok && result.offline) {
+        alertStepFailed(result);
+        return;
+      }
       if (result.ok) {
         setOtpModalVisible(false);
         if (result.ride) setRideData(result.ride);
@@ -427,6 +449,7 @@ const LiveRide = () => {
         pickupLabel={courierUi.pickupLabel}
         dropLabel={courierUi.dropLabel}
         actionLoading={actionLoading}
+        offline={!online}
         banner={
           rideData && (isFood || isParcel) ? (
             <RiderDeliveryBanner ride={rideData} variant="inline" />

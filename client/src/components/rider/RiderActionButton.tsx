@@ -20,6 +20,8 @@ type Props = {
   actionColor?: string;
   banner?: ReactNode;
   actionLoading?: boolean;
+  /** No connection: the step can't be confirmed, so don't let it be tapped. */
+  offline?: boolean;
   onPanelLayout?: (height: number) => void;
 };
 
@@ -35,6 +37,7 @@ const RiderActionButton: FC<Props> = ({
   actionColor,
   banner,
   actionLoading = false,
+  offline = false,
   onPanelLayout,
 }) => {
   const insets = useSafeAreaInsets();
@@ -143,13 +146,17 @@ const RiderActionButton: FC<Props> = ({
       </View>
 
       <TouchableOpacity
-        style={[s.actionBtn, { backgroundColor: accent }, actionLoading && { opacity: 0.7 }]}
+        style={[
+          s.actionBtn,
+          { backgroundColor: accent },
+          (actionLoading || offline) && { opacity: 0.6 },
+        ]}
         activeOpacity={0.9}
         onPress={onAction}
-        disabled={actionLoading}
+        disabled={actionLoading || offline}
       >
         <CustomText fontSize={15} fontFamily="Bold" style={s.actionBtnText}>
-          {actionLoading ? "Please wait…" : actionLabel}
+          {offline ? "Waiting for connection…" : actionLoading ? "Please wait…" : actionLabel}
         </CustomText>
       </TouchableOpacity>
     </View>

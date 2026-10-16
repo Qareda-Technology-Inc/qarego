@@ -19,6 +19,7 @@ import {
   shouldSkipActiveRideResume,
 } from "@/utils/devRideResume";
 
+import { isNoResponseError, lostConnectionMessage } from "./connectivity";
 const ACTIVE_RIDER_STATUSES = [...ACTIVE_RIDER_RIDE_STATUSES];
 
 function currentRiderId(): string {
@@ -101,6 +102,8 @@ export const createRide = async (payload: {
   deliveryNote?: string;
   parcelDescription?: string;
   parcelPhotoUrl?: string;
+  /** Same id on a retry → the server returns the first ride instead of a duplicate. */
+  clientRequestId?: string;
 }) => {
   try {
     const res = await appAxios.post(`/ride/create`, payload);
@@ -111,6 +114,13 @@ export const createRide = async (payload: {
       },
     });
   } catch (error: any) {
+    if (isNoResponseError(error)) {
+      Alert.alert(
+        "Connection lost",
+        lostConnectionMessage(payload.serviceType === "DELIVERY" ? "parcel booking" : "ride booking")
+      );
+      return;
+    }
     const message = error?.response?.data?.msg || error?.message || "Could not create ride. Please try again.";
     Alert.alert("Error", message);
     console.log("Error:Create Ride ", error);
@@ -337,20 +347,31 @@ export const fetchRiderDispatchAnalytics = async (days = 30) => {
   return res.data;
 };
 
-export const acceptRideOffer = async (rideId: string) => {
+/** Accept an offer; resolves true once the trip is ours (the screen then moves on). */
+export const acceptRideOffer = async (rideId: string): Promise<boolean> => {
   try {
     clearSkipActiveRideResume();
     await stopRiderOfferRing();
     emitRiderOfferAccepted();
-    const res = await appAxios.patch(`/ride/accept/${rideId}`);
+    await appAxios.patch(`/ride/accept/${rideId}`);
     resetAndNavigate({
       pathname: "/rider/liveride",
       params: { id: rideId },
     });
+    return true;
   } catch (error: any) {
+    if (isNoResponseError(error)) {
+      // Retrying is safe: if the first accept went through, the server confirms it.
+      Alert.alert(
+        "Connection lost",
+        "We couldn't confirm you accepted. Tap Accept again — if it already went through you'll go straight to the trip."
+      );
+      return false;
+    }
     const message = error?.response?.data?.msg || error?.message || "Could not accept ride. Please try again.";
     Alert.alert("Error", message);
     console.log(error);
+    return false;
   }
 };
 
@@ -358,7 +379,7 @@ export const updateRideStatus = async (
   rideId: string,
   status: string,
   otp?: string
-): Promise<{ ok: true; ride: any } | { ok: false; message: string }> => {
+): Promise<{ ok: true; ride: any } | { ok: false; message: string; offline?: boolean }> => {
   try {
     const res = await appAxios.patch(`/ride/update/${rideId}`, {
       status,
@@ -366,6 +387,11 @@ export const updateRideStatus = async (
     });
     return { ok: true, ride: res.data?.ride ?? null };
   } catch (error: any) {
+    // No reply: the step may or may not have reached us. Repeating it is safe (the server
+    // treats the same status as already done), so the screen just asks to tap again.
+    if (isNoResponseError(error)) {
+      return { ok: false, message: "No connection", offline: true };
+    }
     const message =
       error?.response?.data?.msg ||
       error?.response?.data?.message ||

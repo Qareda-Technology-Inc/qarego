@@ -50,6 +50,8 @@ export const createGasOrder = async (payload: {
   delivery: Point;
   paymentMethod: "CASH" | "MOBILE_MONEY";
   notes?: string;
+  /** Same id on a retry → the server returns the first order instead of a duplicate. */
+  clientRequestId?: string;
 }): Promise<FoodOrder> => {
   const res = await appAxios.post("/food/gas/orders", payload);
   return res.data.order;

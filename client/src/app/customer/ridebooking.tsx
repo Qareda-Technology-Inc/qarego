@@ -33,6 +33,8 @@ import { openMapsRoute } from "@/utils/openMapsNavigation";
 import { parseParcelMode, parcelModeLabels, type ParcelMode } from "@/utils/parcelMode";
 import BottomSheet, { BottomSheetScrollView } from "@gorhom/bottom-sheet";
 
+import { useConnectivity } from "@/service/connectivity";
+import { useRequestId } from "@/utils/useRequestId";
 const RideBooking = () => {
   const { height: windowHeight } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -322,8 +324,28 @@ const RideBooking = () => {
     openMapsRoute(pickup, drop);
   }, [pickup, drop]);
 
+  const online = useConnectivity((st) => st.online);
+  // Same booking retried → same id (no duplicate ride); any change → a new id.
+  const clientRequestId = useRequestId(
+    JSON.stringify([
+      serviceType,
+      selectedOption,
+      paymentMethod,
+      pickup?.latitude,
+      pickup?.longitude,
+      drop?.latitude,
+      drop?.longitude,
+      parcelMode,
+      recipientName.trim(),
+      recipientPhone.trim(),
+      parcelDescription.trim(),
+      deliveryNote.trim(),
+      parcelPhotoUrl,
+    ])
+  );
+
   const handleRideBooking = async () => {
-    if (!pickup || !drop) {
+    if (!pickup || !drop || !online) {
       return;
     }
     if (serviceType === "RIDE" && !selectedOption) {
@@ -361,6 +383,7 @@ const RideBooking = () => {
       if (deliveryNote.trim()) payload.deliveryNote = deliveryNote.trim();
       if (parcelPhotoUrl) payload.parcelPhotoUrl = parcelPhotoUrl;
     }
+    payload.clientRequestId = clientRequestId;
     await createRide(payload);
     setLoading(false);
   };
@@ -730,13 +753,16 @@ const RideBooking = () => {
               ) : null}
               <CustomButton
                 title={
-                  serviceType === "DELIVERY"
+                  !online
+                    ? "Waiting for connection…"
+                    : serviceType === "DELIVERY"
                     ? parcelLabels.confirmCta
                     : selectedOption
                       ? `Confirm ${selectedOption}`
                       : "Select a ride"
                 }
                 disabled={
+                  !online ||
                   loading ||
                   uploadingPhoto ||
                   !pickup ||

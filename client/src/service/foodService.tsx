@@ -3,6 +3,7 @@ import { appAxios } from "./apiInterceptors";
 import { Alert } from "react-native";
 import { FoodOrderStatus } from "@/utils/foodOrderTracking";
 
+import { isNoResponseError } from "./connectivity";
 export type Restaurant = {
   _id: string;
   name: string;
@@ -153,11 +154,15 @@ export const createFoodOrder = async (payload: {
   scheduledFor?: string;
   promoCode?: string;
   prescriptionUrls?: string[];
+  /** Same id on a retry → the server returns the first order instead of a duplicate. */
+  clientRequestId?: string;
 }) => {
   try {
     const res = await appAxios.post("/food/orders", payload);
     return res.data;
   } catch (error: any) {
+    // Lost connection: the screen explains it (and keeps the cart); don't double-alert.
+    if (isNoResponseError(error)) throw error;
     const message =
       error?.response?.data?.msg ||
       error?.message ||

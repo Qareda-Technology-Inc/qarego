@@ -1,5 +1,5 @@
 import { View, Image, TouchableOpacity, StyleSheet } from "react-native";
-import React, { FC, memo } from "react";
+import React, { FC, memo, useState } from "react";
 import { useRiderStore } from "@/store/riderStore";
 import { acceptRideOffer, declineRideOffer } from "@/service/rideService";
 import Animated, { FadeInLeft } from "react-native-reanimated";
@@ -22,6 +22,7 @@ import CounterButton from "./CounterButton";
 import CashCollectionNote, { type RideCashCollection } from "./CashCollectionNote";
 import { resolveMediaUrl } from "@/service/mediaUpload";
 
+import { useConnectivity } from "@/service/connectivity";
 interface RideItem {
   _id: string;
   vehicle?: string;
@@ -100,9 +101,15 @@ const RiderRidesItem: FC<{ item: RideItem; removeIt: () => void; isBestOffer?: b
     removeIt();
   };
 
+  const online = useConnectivity((st) => st.online);
+  const [accepting, setAccepting] = useState(false);
+  // Keep the card until the accept is confirmed, so a dropped connection doesn't lose the offer.
   const acceptRide = async () => {
-    removeIt();
-    acceptRideOffer(item?._id);
+    if (!online || accepting || !item?._id) return;
+    setAccepting(true);
+    const ok = await acceptRideOffer(item._id);
+    if (ok) removeIt();
+    else setAccepting(false);
   };
 
   return (
@@ -289,7 +296,16 @@ const RiderRidesItem: FC<{ item: RideItem; removeIt: () => void; isBestOffer?: b
           onCountdownEnd={dismissOffer}
           initialCount={OFFER_SECONDS}
           onPress={acceptRide}
-          title={food ? "Accept delivery" : "Accept"}
+          title={
+            !online
+              ? "Waiting for connection…"
+              : accepting
+                ? "Accepting…"
+                : food
+                  ? "Accept delivery"
+                  : "Accept"
+          }
+          disabled={!online || accepting}
           fullWidth
         />
       </View>

@@ -11,6 +11,7 @@ interface CounterButtonProps {
   onCountdownEnd: () => void;
   /** Stretch across the card with a larger tap target (offer cards). */
   fullWidth?: boolean;
+  disabled?: boolean;
 }
 
 const CounterButton: FC<CounterButtonProps> = ({
@@ -19,6 +20,7 @@ const CounterButton: FC<CounterButtonProps> = ({
   initialCount,
   onCountdownEnd,
   fullWidth = false,
+  disabled = false,
 }) => {
   const [playing, setPlaying] = useState(true);
 
@@ -30,7 +32,8 @@ const CounterButton: FC<CounterButtonProps> = ({
   return (
     <TouchableOpacity
       onPress={onPress}
-      style={[styles.container, fullWidth && styles.fullWidth]}
+      disabled={disabled}
+      style={[styles.container, fullWidth && styles.fullWidth, disabled && { opacity: 0.55 }]}
       activeOpacity={0.85}
       accessibilityRole="button"
       accessibilityLabel={title}

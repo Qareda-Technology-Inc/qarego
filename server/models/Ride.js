@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 
+import { clientRequestIdIndex } from "../utils/idempotency.js";
 const { Schema } = mongoose;
 
 /** Ride types: motorcycle, pragya (tricycle), comfort (car). Service: RIDE, DELIVERY (parcel), FOOD. */
@@ -40,6 +41,8 @@ const rideSchema = new Schema(
     deliveryNote: { type: String, default: null },
     parcelDescription: { type: String, default: null },
     parcelPhotoUrl: { type: String, default: null },
+    /** App-generated id for this booking attempt; makes retries duplicate-safe. */
+    clientRequestId: { type: String, default: null },
     /** Parcel only: recipient handoff code (pickup uses `otp`). Secret: see RIDE_CODE_FIELDS. */
     deliveryOtp: { type: String, default: null, select: false },
     foodOrder: { type: Schema.Types.ObjectId, ref: "FoodOrder", default: null },
@@ -132,6 +135,8 @@ const rideSchema = new Schema(
     timestamps: true,
   }
 );
+
+rideSchema.index(...clientRequestIdIndex);
 
 /**
  * The customer's pickup/delivery codes prove the rider met the customer, so they must never

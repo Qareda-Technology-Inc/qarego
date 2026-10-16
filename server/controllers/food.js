@@ -29,6 +29,7 @@ import {
 } from "../utils/prescription.js";
 
 
+import { isDuplicateKeyError, readClientRequestId } from "../utils/idempotency.js";
 /** Attach computed open/closed metadata to a plain restaurant object. */
 const withOpenState = (restaurant, now = new Date()) => {
   const state = computeOpenState(restaurant, now);
@@ -92,7 +93,27 @@ export const getRestaurantMenu = async (req, res) => {
 };
 
 /** POST /food/orders */
+/** The order a retried checkout already created (same customer + clientRequestId). */
+async function findReplayedFoodOrder(customerId, clientRequestId) {
+  const existing = await FoodOrder.findOne({ customer: customerId, clientRequestId }).select("_id").lean();
+  if (!existing) return null;
+  return FoodOrder.findById(existing._id)
+    .populate(
+      "restaurant",
+      "name cuisine imageEmoji address latitude longitude vertical estimatedPrepMinutes"
+    )
+    .populate("customer", "name phone")
+    .lean();
+}
+
 export const createFoodOrder = async (req, res) => {
+  const clientRequestId = readClientRequestId(req.body);
+  if (clientRequestId) {
+    const replay = await findReplayedFoodOrder(req.user.id, clientRequestId);
+    if (replay) {
+      return res.status(StatusCodes.OK).json({ message: "Order already placed", order: replay });
+    }
+  }
   const {
     restaurantId,
     items,
@@ -271,7 +292,10 @@ export const createFoodOrder = async (req, res) => {
     .map((i) => `${i.quantity}x ${i.name}`)
     .join(", ");
 
-  const foodOrder = await FoodOrder.create({
+  let foodOrder;
+  try {
+    foodOrder = await FoodOrder.create({
+    clientRequestId,
     customer: customer.id,
     restaurant: restaurant._id,
     restaurantName: restaurant.name,
@@ -297,6 +321,16 @@ export const createFoodOrder = async (req, res) => {
     scheduledFor: scheduledForDate,
     status: "PLACED",
   });
+  } catch (err) {
+    // Two copies of the same checkout arrived together: answer with the first.
+    if (clientRequestId && isDuplicateKeyError(err)) {
+      const replay = await findReplayedFoodOrder(req.user.id, clientRequestId);
+      if (replay) {
+        return res.status(StatusCodes.OK).json({ message: "Order already placed", order: replay });
+      }
+    }
+    throw err;
+  }
 
   const populated = await FoodOrder.findById(foodOrder._id)
     .populate(

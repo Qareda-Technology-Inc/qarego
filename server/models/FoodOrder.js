@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 
+import { clientRequestIdIndex } from "../utils/idempotency.js";
 const { Schema } = mongoose;
 
 const foodOrderModifierSchema = new Schema(
@@ -107,6 +108,8 @@ const foodOrderSchema = new Schema(
     courierBroadcastSent: { type: Boolean, default: false },
     /** 4-digit code — customer shares with courier at delivery (mirrors linked ride OTP) */
     deliveryCode: { type: String, default: null, select: false },
+    /** App-generated id for this checkout attempt; makes retries duplicate-safe. */
+    clientRequestId: { type: String, default: null },
     cancelReason: { type: String, default: null },
     /** Cooking gas orders (vertical GAS) */
     gasMode: { type: String, enum: ["REFILL", "EXCHANGE", null], default: null },
@@ -137,6 +140,8 @@ const foodOrderSchema = new Schema(
   },
   { timestamps: true }
 );
+
+foodOrderSchema.index(...clientRequestIdIndex);
 
 // Same rule as Ride codes: only the order's customer may see the delivery code.
 export const FOOD_CODE_FIELDS = "+deliveryCode";

@@ -45,6 +45,8 @@ import { isPomMenuItem, MAX_PRESCRIPTION_PHOTOS } from "@/utils/prescription";
 import { pickPrescriptionImage } from "@/utils/pickPrescriptionImage";
 import { uploadMediaUri } from "@/service/mediaUpload";
 
+import { isNoResponseError, lostConnectionMessage, useConnectivity } from "@/service/connectivity";
+import { useRequestId } from "@/utils/useRequestId";
 type FulfillmentMode = "DELIVERY" | "PICKUP" | "SCHEDULED";
 
 /** Promo entry stays hidden until codes are validated server-side. */
@@ -330,8 +332,25 @@ const FoodCart = () => {
     (fulfillmentMode !== "SCHEDULED" || scheduledFor != null) &&
     prescriptionReady;
 
+  const online = useConnectivity((st) => st.online);
+  // Same checkout retried → same id (no duplicate order); a changed cart → a new id.
+  const clientRequestId = useRequestId(
+    JSON.stringify([
+      restaurantId,
+      items.map((i) => [i.menuItemId, i.quantity, toOrderModifierPayload(i.modifiers)]),
+      fulfillmentMode,
+      scheduledFor?.toISOString() ?? null,
+      paymentMethod,
+      location?.latitude,
+      location?.longitude,
+      notes.trim(),
+      promoCode.trim(),
+      prescriptionUrls,
+    ])
+  );
+
   const placeOrder = async () => {
-    if (!restaurantId || items.length === 0 || !readyToOrder) return;
+    if (!restaurantId || items.length === 0 || !readyToOrder || !online) return;
     if (isPharmacy && requiresPrescription && prescriptionUrls.length === 0) {
       Alert.alert(
         "Prescription needed",
@@ -369,6 +388,7 @@ const FoodCart = () => {
         scheduledFor: scheduledFor?.toISOString(),
         promoCode: promoCode.trim() || undefined,
         prescriptionUrls: isPharmacy ? prescriptionUrls : undefined,
+        clientRequestId,
       });
       const orderId = response?.order?._id as string | undefined;
       if (!orderId) {
@@ -391,6 +411,8 @@ const FoodCart = () => {
         );
         router.replace(`/customer/stores/order/${createdOrderId}` as const);
         clearCart();
+      } else if (isNoResponseError(err)) {
+        Alert.alert("Connection lost", lostConnectionMessage("order"));
       } else {
         Alert.alert("Order failed", msg);
       }
@@ -902,8 +924,8 @@ const FoodCart = () => {
           <ActivityIndicator color={accent} style={{ marginVertical: 12 }} />
         ) : (
           <SlideToPlaceOrder
-            label={`Slide to place order · ${totalLabel}`}
-            disabled={!readyToOrder}
+            label={online ? `Slide to place order · ${totalLabel}` : "Waiting for connection…"}
+            disabled={!readyToOrder || !online}
             accent={accent}
             onConfirm={placeOrder}
           />

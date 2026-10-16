@@ -27,6 +27,8 @@ import {
   type GasQuote,
 } from "@/service/gasService";
 
+import { isNoResponseError, lostConnectionMessage, useConnectivity } from "@/service/connectivity";
+import { useRequestId } from "@/utils/useRequestId";
 const GAS = { accent: "#c2410c", soft: "#fff7ed", border: "#fed7aa" };
 
 const MODES: { key: GasMode; title: string; detail: string; icon: keyof typeof Ionicons.glyphMap }[] = [
@@ -102,8 +104,14 @@ export default function GasRequestScreen() {
     [quote]
   );
 
+  const online = useConnectivity((st) => st.online);
+  // Same request retried → same id (no duplicate order); any change → a new id.
+  const clientRequestId = useRequestId(
+    JSON.stringify([mode, sizeKg, quantity, point?.latitude, point?.longitude, notes.trim()])
+  );
+
   const place = async () => {
-    if (!canPlace || !point || sizeKg == null) return;
+    if (!canPlace || !point || sizeKg == null || !online) return;
     setPlacing(true);
     try {
       const order = await createGasOrder({
@@ -113,14 +121,19 @@ export default function GasRequestScreen() {
         delivery: point,
         paymentMethod: "CASH",
         notes: notes.trim() || undefined,
+        clientRequestId,
       });
       router.replace({ pathname: "/customer/stores/order/[id]", params: { id: order._id } } as any);
     } catch (err: any) {
-      showToast({
-        title: "Couldn't place request",
-        message: err?.response?.data?.msg || "Please try again.",
-        type: "error",
-      });
+      showToast(
+        isNoResponseError(err)
+          ? { title: "Connection lost", message: lostConnectionMessage("gas request"), type: "warning" }
+          : {
+              title: "Couldn't place request",
+              message: err?.response?.data?.msg || "Please try again.",
+              type: "error",
+            }
+      );
     } finally {
       setPlacing(false);
     }
@@ -280,7 +293,12 @@ export default function GasRequestScreen() {
         </ScrollView>
 
         <View style={styles.footer}>
-          <CustomButton title={ctaTitle} onPress={place} disabled={!canPlace} loading={placing} />
+          <CustomButton
+            title={online ? ctaTitle : "Waiting for connection…"}
+            onPress={place}
+            disabled={!canPlace || !online}
+            loading={placing}
+          />
         </View>
       </SafeAreaView>
 
