@@ -26,6 +26,8 @@ const LiveTrackingMap: FC<{
   storeVertical?: string;
   courierRevision?: number;
   vehicle?: string;
+  /** Height (px) of a card drawn over the bottom of the map; kept clear when centring. */
+  overlayBottom?: number;
 }> = ({
   drop,
   status,
@@ -37,6 +39,7 @@ const LiveTrackingMap: FC<{
   storeVertical,
   courierRevision = 0,
   vehicle = "motorcycle",
+  overlayBottom = 0,
 }) => {
   const isParcel = serviceType === "DELIVERY";
   const riderMapStatus = getCustomerRiderMapStatus(
@@ -135,15 +138,19 @@ const LiveTrackingMap: FC<{
 
     try {
       mapRef.current?.fitToCoordinates(coordinates, {
-        // Top clears the status bar / notch so the far pin is never hidden under it.
-        edgePadding: { top: 120, right: 56, bottom: 120, left: 56 },
+        // Top clears the status bar / notch so the far pin is never hidden under it. With a card
+        // over the map, mapPadding already reserves its space (Android adds the two), so keep
+        // the extra bottom margin small or the map zooms far out.
+        edgePadding: overlayBottom > 0
+          ? { top: 96, right: 48, bottom: 24, left: 48 }
+          : { top: 120, right: 56, bottom: 120, left: 56 },
         animated: true,
       });
       hasFittedRef.current = true;
     } catch {
       /* native not ready / torn down */
     }
-  }, [dropCoord, pickupCoord, riderCoord, showRiderMarker, isCompleted]);
+  }, [dropCoord, pickupCoord, riderCoord, showRiderMarker, isCompleted, overlayBottom]);
 
   const scheduleFit = useCallback(() => {
     if (isCompleted) return;
@@ -254,6 +261,9 @@ const LiveTrackingMap: FC<{
     <View style={{ height, width: "100%", backgroundColor: "#E8EEF5" }} pointerEvents={isCompleted ? "box-none" : "auto"}>
       <MapView
         ref={mapRef}
+        // Google Maps centres, follows and fits within the padded area, so the courier and
+        // pins stay above any card covering the map.
+        mapPadding={{ top: 0, right: 0, bottom: overlayBottom, left: 0 }}
         // Never flip follows/showsUserLocation when the ride ends — that native
         // toggle during overlay teardown is a common iOS process kill.
         followsUserLocation={false}

@@ -18,6 +18,7 @@ type LiveRideProps = {
   storeVertical?: string;
   courierRevision?: number;
   vehicle?: string;
+  overlayBottom?: number;
 };
 
 type EdgePadding = { top: number; right: number; bottom: number; left: number };
@@ -136,6 +137,7 @@ const FoodOrderTrackingMap: FC<Props> = (props) => {
         rider={props.rider}
         courierRevision={props.courierRevision}
         vehicle={props.vehicle}
+        overlayBottom={props.overlayBottom}
       />
     );
   }

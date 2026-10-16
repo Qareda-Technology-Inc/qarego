@@ -594,6 +594,7 @@ const FoodOrderTracking = () => {
               storeVertical={vertical}
               courierRevision={courierRevision}
               vehicle={courierVehicle}
+              overlayBottom={statusCardH ? statusCardH + 12 : 0}
             />
           ) : (
             <FoodOrderTrackingMap
