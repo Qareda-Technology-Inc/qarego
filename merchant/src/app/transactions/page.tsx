@@ -6,6 +6,7 @@ import { fetcher } from "@/lib/api";
 import { formatCurrency } from "@/lib/currency";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/Button";
+import { StoreLedgerSection } from "@/components/StoreLedgerSection";
 import {
   Wallet,
   RefreshCw,
@@ -323,6 +324,8 @@ export default function TransactionsPage() {
           </div>
         </div>
       ) : null}
+
+      <StoreLedgerSection key={storeFilter} storeFilter={storeFilter} />
 
       <h2 className="text-lg font-semibold text-foreground mb-3">Order transactions</h2>
 

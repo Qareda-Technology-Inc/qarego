@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import Restaurant from "../../models/Restaurant.js";
 import FoodOrder from "../../models/FoodOrder.js";
+import StoreLedgerEntry from "../../models/StoreLedgerEntry.js";
 import { StatusCodes } from "http-status-codes";
 import { BadRequestError } from "../../errors/index.js";
 
@@ -299,3 +300,66 @@ function emptyFinanceSummary() {
 function round2(n) {
   return Math.round((Number(n) || 0) * 100) / 100;
 }
+
+/**
+ * GET /merchant/ledger — what each owned store owes QareGO and why it changed.
+ * Query: restaurantId=all|<id>, page, limit
+ */
+export const getMyLedger = async (req, res) => {
+  const { restaurantId: restaurantIdParam = "all", page = 1, limit = 25 } = req.query;
+
+  const restaurants = await Restaurant.find({ owner: req.user.id })
+    .select("name imageEmoji commissionOwed")
+    .sort({ createdAt: 1 })
+    .lean();
+  const ownedKey = new Set(restaurants.map((r) => String(r._id)));
+
+  let scope = restaurants;
+  if (restaurantIdParam && String(restaurantIdParam) !== "all") {
+    const id = String(restaurantIdParam);
+    if (!ownedKey.has(id)) throw new BadRequestError("Store not found or not owned by you");
+    scope = restaurants.filter((r) => String(r._id) === id);
+  }
+
+  const money = (n) => Math.round((Number(n) || 0) * 100) / 100;
+  const balances = scope.map((r) => ({
+    restaurantId: String(r._id),
+    name: r.name,
+    imageEmoji: r.imageEmoji,
+    owed: money(r.commissionOwed),
+  }));
+
+  const perPage = Math.min(Math.max(parseInt(limit, 10) || 25, 1), 100);
+  const pageNum = Math.max(parseInt(page, 10) || 1, 1);
+  const query = { restaurant: { $in: scope.map((r) => r._id) } };
+  const [total, rows] = await Promise.all([
+    StoreLedgerEntry.countDocuments(query),
+    StoreLedgerEntry.find(query)
+      .sort({ createdAt: -1 })
+      .skip((pageNum - 1) * perPage)
+      .limit(perPage)
+      .lean(),
+  ]);
+  const byId = new Map(restaurants.map((r) => [String(r._id), r]));
+
+  res.status(StatusCodes.OK).json({
+    balances,
+    totalOwed: money(balances.reduce((sum, b) => sum + b.owed, 0)),
+    entries: rows.map((e) => {
+      const store = byId.get(String(e.restaurant));
+      return {
+        _id: e._id,
+        createdAt: e.createdAt,
+        type: e.type,
+        amount: money(e.amount),
+        owedAfter: money(e.owedAfter),
+        note: e.note,
+        foodOrder: e.foodOrder ? String(e.foodOrder) : null,
+        restaurant: store ? { _id: String(store._id), name: store.name, imageEmoji: store.imageEmoji } : null,
+      };
+    }),
+    total,
+    page: pageNum,
+    pages: Math.max(Math.ceil(total / perPage), 1),
+  });
+};
