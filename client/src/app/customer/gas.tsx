@@ -257,7 +257,7 @@ export default function GasRequestScreen() {
             ) : quote ? (
               <>
                 <CustomText fontSize={12} color={T.inkMuted} style={{ marginBottom: 8 }}>
-                  Filled by {quote.station.name}
+                  {mode === "REFILL" ? "Filled by" : "Full cylinder from"} {quote.station.name}
                 </CustomText>
                 <Line label={`Gas (${quote.quantity}×)`} value={quote.subtotal} />
                 <Line label="Delivery (both ways)" value={quote.deliveryFee} />

@@ -1,10 +1,16 @@
 import MenuItem from "../../models/MenuItem.js";
 import MenuCategory from "../../models/MenuCategory.js";
+import Restaurant from "../../models/Restaurant.js";
 import { sanitizeImageUrl } from "../../utils/mediaStorage.js";
 import { StatusCodes } from "http-status-codes";
 import { BadRequestError, NotFoundError } from "../../errors/index.js";
 import { getSettings } from "../../utils/tripSettlement.js";
-import { layoutFromAdminDefaults, normalizeMenuTags, MENU_ITEM_TAGS } from "../../utils/menuDisplay.js";
+import {
+  defaultMenuCategory,
+  layoutFromAdminDefaults,
+  normalizeMenuTags,
+  MENU_ITEM_TAGS,
+} from "../../utils/menuDisplay.js";
 import { applyMenuDiscount, enrichMenuItemForDisplay } from "../../utils/menuDiscount.js";
 import { buildMenuPayload } from "../../utils/menuResponse.js";
 import { formatModifiersForMenuItem, normalizeModifierGroups } from "../../utils/menuModifiers.js";
@@ -100,7 +106,11 @@ async function resolveMenuCategoryForItem(restaurantId, { menuCategoryId, catego
     if (!cat) throw new BadRequestError("Invalid menu category");
     return { menuCategory: cat._id, category: cat.name };
   }
-  const name = String(category || "Mains").trim() || "Mains";
+  let name = String(category || "").trim();
+  if (!name) {
+    const store = await Restaurant.findById(restaurantId).select("vertical").lean();
+    name = defaultMenuCategory(store?.vertical);
+  }
   let cat = await MenuCategory.findOne({
     restaurant: restaurantId,
     name: new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i"),

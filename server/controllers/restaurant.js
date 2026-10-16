@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import Restaurant from "../models/Restaurant.js";
+import { defaultMenuCategory } from "../utils/menuDisplay.js";
 import MenuItem from "../models/MenuItem.js";
 import StoreCategory from "../models/StoreCategory.js";
 import { applyStoreTypeToRestaurantFields } from "./commerceStoreType.js";
@@ -443,7 +444,7 @@ export const adminCreateMenuItem = async (req, res) => {
     name: name.trim(),
     description: description?.trim() || "",
     price: Number(price),
-    category: category?.trim() || "Mains",
+    category: category?.trim() || defaultMenuCategory(restaurant.vertical),
     isAvailable: isAvailable !== false,
     imageUrl: sanitizeImageUrl(imageUrl),
   });
@@ -468,7 +469,10 @@ export const adminUpdateMenuItem = async (req, res) => {
     if (Number(price) < 0) throw new BadRequestError("Price cannot be negative");
     item.price = Number(price);
   }
-  if (category !== undefined) item.category = category.trim() || "Mains";
+  if (category !== undefined) {
+    const store = category.trim() ? null : await Restaurant.findById(req.params.id).select("vertical").lean();
+    item.category = category.trim() || defaultMenuCategory(store?.vertical);
+  }
   if (isAvailable !== undefined) item.isAvailable = !!isAvailable;
   if (imageUrl !== undefined) item.imageUrl = sanitizeImageUrl(imageUrl);
 

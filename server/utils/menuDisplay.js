@@ -10,6 +10,11 @@ export const DEFAULT_MENU_CATEGORY_LAYOUTS = [
   { name: "Starters", displayLayout: "column" },
 ];
 
+/** Section for items saved without a category: "Mains" only makes sense for food. */
+export function defaultMenuCategory(vertical) {
+  return !vertical || String(vertical).toUpperCase() === "FOOD" ? "Mains" : "Products";
+}
+
 /**
  * Admin default layout for a category name (case-insensitive), else column.
  */

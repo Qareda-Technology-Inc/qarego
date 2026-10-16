@@ -7,6 +7,7 @@ import { resolveMediaUrl } from "@/utils/mediaUrl";
 import { getDiscountBadgeLabel, getMenuItemPricing } from "@/utils/menuItemPricing";
 import { itemHasModifiers } from "@/utils/menuModifiers";
 import { getMenuItemTags, MENU_ITEM_TAG_CONFIG } from "@/utils/menuItemTags";
+import { isPomMenuItem } from "@/utils/prescription";
 import {
   FOOD_THEME,
   MENU_LIST_IMAGE_RATIO,
@@ -21,7 +22,20 @@ type Props = {
   isClosed: boolean;
   layout: "row" | "column";
   onAdd: () => void;
+  /** Pharmacy stores: flag prescription-only items before checkout asks for a photo. */
+  showRxBadge?: boolean;
 };
+
+function RxBadge({ compact }: { compact?: boolean }) {
+  return (
+    <View style={styles.rxBadge}>
+      <Ionicons name="document-text-outline" size={compact ? 10 : 11} color="#b91c1c" />
+      <CustomText fontFamily="SemiBold" fontSize={compact ? 9.5 : 10.5} style={{ color: "#b91c1c" }}>
+        Prescription required
+      </CustomText>
+    </View>
+  );
+}
 
 function PriceLine({
   item,
@@ -151,19 +165,20 @@ function MenuItemImage({
 }
 
 /** Bolt-style row tile: square image, price then name */
-function RowTileBody({ item, accent }: { item: MenuItem; accent: string }) {
+function RowTileBody({ item, accent, rx }: { item: MenuItem; accent: string; rx?: boolean }) {
   return (
     <View style={tileStyles.body}>
       <PriceLine item={item} accent={accent} saleSize={13} wasSize={11} />
       <CustomText fontSize={12} numberOfLines={2} style={tileStyles.name}>
         {item.name}
       </CustomText>
+      {rx ? <RxBadge compact /> : null}
     </View>
   );
 }
 
 /** Bolt-style list row: text left, image right */
-function ListRowBody({ item, accent }: { item: MenuItem; accent: string }) {
+function ListRowBody({ item, accent, rx }: { item: MenuItem; accent: string; rx?: boolean }) {
   const description = item.description?.trim();
 
   return (
@@ -172,6 +187,7 @@ function ListRowBody({ item, accent }: { item: MenuItem; accent: string }) {
       <CustomText fontFamily="SemiBold" fontSize={14} numberOfLines={2} style={listStyles.name}>
         {item.name}
       </CustomText>
+      {rx ? <RxBadge /> : null}
       {description ? (
         <CustomText fontSize={12} color={FOOD_THEME.textMuted} numberOfLines={3} style={listStyles.description}>
           {description}
@@ -192,11 +208,12 @@ function ListRowBody({ item, accent }: { item: MenuItem; accent: string }) {
   );
 }
 
-export default function MenuItemCard({ item, accent, isClosed, layout, onAdd }: Props) {
+export default function MenuItemCard({ item, accent, isClosed, layout, onAdd, showRxBadge }: Props) {
+  const rx = !!showRxBadge && isPomMenuItem(item);
   if (layout === "column") {
     return (
       <View style={listStyles.card}>
-        <ListRowBody item={item} accent={accent} />
+        <ListRowBody item={item} accent={accent} rx={rx} />
         <MenuItemImage
           item={item}
           frameStyle={listStyles.imageFrame}
@@ -219,12 +236,23 @@ export default function MenuItemCard({ item, accent, isClosed, layout, onAdd }: 
         isClosed={isClosed}
         showBadges
       />
-      <RowTileBody item={item} accent={accent} />
+      <RowTileBody item={item} accent={accent} rx={rx} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  rxBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: 3,
+    marginTop: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    backgroundColor: "#fef2f2",
+  },
   imageFrame: {
     position: "relative",
     overflow: "hidden",

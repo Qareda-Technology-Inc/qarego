@@ -57,6 +57,19 @@ const COLLAPSE = HERO_BODY;
 /** Extra scroll before category row appears (after image hidden) */
 const TABS_REVEAL = 36;
 
+function isLightHex(color: string): boolean {
+  const m = /^#?([0-9a-f]{6})$/i.exec(color.trim());
+  if (!m) return false;
+  const n = parseInt(m[1], 16);
+  const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  return 0.299 * r + 0.587 * g + 0.114 * b > 160;
+}
+
+/** Items saved without a category land in "Mains", which only fits food stores. */
+function sectionTitle(name: string, vertical: string): string {
+  return vertical !== "FOOD" && name === "Mains" ? "Products" : name;
+}
+
 const RestaurantMenu = () => {
   const { id, vertical: verticalParam } = useLocalSearchParams<{ id: string; vertical?: string }>();
   const insets = useSafeAreaInsets();
@@ -275,6 +288,9 @@ const RestaurantMenu = () => {
     ? "#1f2937"
     : storeHeroBackground(selectedVertical, restaurant?.cuisine);
   const displayEmoji = restaurant?.imageEmoji || verticalConfig.defaultEmoji;
+  // The dark band behind the store name doesn't reach the status bar, so on a light hero
+  // colour (no cover photo) white status icons would disappear.
+  const heroTopIsLight = !storeCover && isLightHex(heroBg);
 
   const deliveryEstimate = useMemo(() => {
     if (
@@ -382,7 +398,7 @@ const RestaurantMenu = () => {
       return (
         <View key={`${selectedCategory}-${cat.name}`} style={styles.section}>
           <CustomText fontFamily="Bold" fontSize={18} style={styles.categoryTitle}>
-            {cat.name}
+            {sectionTitle(cat.name, selectedVertical)}
           </CustomText>
           {layout === "row" ? (
             <MenuItemsHorizontalRow
@@ -390,6 +406,7 @@ const RestaurantMenu = () => {
               accent={accent}
               isClosed={!!isClosed}
               onAdd={handleAdd}
+              showRxBadge={selectedVertical === "PHARMACY"}
             />
           ) : (
             <View style={styles.columnList}>
@@ -401,6 +418,7 @@ const RestaurantMenu = () => {
                   isClosed={!!isClosed}
                   layout="column"
                   onAdd={() => handleAdd(item)}
+                  showRxBadge={selectedVertical === "PHARMACY"}
                 />
               ))}
             </View>
@@ -423,7 +441,7 @@ const RestaurantMenu = () => {
 
   return (
     <View style={styles.container}>
-      <StatusBar style={heroLight ? "light" : "dark"} translucent />
+      <StatusBar style={heroLight && !heroTopIsLight ? "light" : "dark"} translucent />
 
       {/* White chrome (status bar + nav + sticky) once scrolled */}
       <Animated.View

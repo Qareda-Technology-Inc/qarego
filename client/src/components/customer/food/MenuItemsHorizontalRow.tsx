@@ -9,10 +9,11 @@ type Props = {
   accent: string;
   isClosed: boolean;
   onAdd: (item: MenuItem) => void;
+  showRxBadge?: boolean;
 };
 
 /** Horizontal drinks/items row — uses gesture-handler so it scrolls inside the menu. */
-export default function MenuItemsHorizontalRow({ items, accent, isClosed, onAdd }: Props) {
+export default function MenuItemsHorizontalRow({ items, accent, isClosed, onAdd, showRxBadge }: Props) {
   return (
     <View style={styles.wrap}>
       <ScrollView
@@ -33,6 +34,7 @@ export default function MenuItemsHorizontalRow({ items, accent, isClosed, onAdd 
             isClosed={isClosed}
             layout="row"
             onAdd={() => onAdd(item)}
+            showRxBadge={showRxBadge}
           />
         ))}
       </ScrollView>
