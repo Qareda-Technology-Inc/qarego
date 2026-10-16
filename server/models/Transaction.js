@@ -5,7 +5,8 @@ const { Schema } = mongoose;
 /**
  * Ledger: every balance-changing event is recorded.
  * Types: COMMISSION_DEBIT (driver owes platform), DIGITAL_EARNING (driver share from wallet/card),
- * TOP_UP (driver paid debt), PAYOUT (weekly payout), MANUAL_CREDIT (admin adjustment).
+ * TOP_UP (driver paid debt), PAYOUT (weekly payout), MANUAL_CREDIT (admin adjustment),
+ * CANCELLATION_CREDIT (trip pay when a store/admin cancels after the courier started).
  */
 const TRANSACTION_TYPES = [
   'COMMISSION_DEBIT',
@@ -14,6 +15,7 @@ const TRANSACTION_TYPES = [
   'PAYOUT',
   'MANUAL_CREDIT',
   'MANUAL_DEBIT',
+  'CANCELLATION_CREDIT',
 ];
 
 const transactionSchema = new Schema(

@@ -188,9 +188,9 @@ const LiveRide = () => {
       }
     };
 
-    const onRideCanceled = () => {
+    const onRideCanceled = (data?: { message?: string }) => {
       resetAndNavigate("/rider/home");
-      Alert.alert("Ride Canceled");
+      Alert.alert("Ride Canceled", data?.message);
     };
 
     const onRideUpdate = (data: any) => {

@@ -11,6 +11,7 @@ import {
   notifyRiderAssignedFoodDelivery,
 } from "./pushNotifications.js";
 import { cancelCourierRideForOrder } from "./releaseCourierRide.js";
+import { compensateCourierForCancel } from "./courierCancelPay.js";
 import {
   buildCourierCashCollection,
   settleFoodOrderOnDelivery,
@@ -114,6 +115,15 @@ export async function notifyAssignedRider(io, ride, driverId) {
  *   - broadcast true (default): offer to all on-duty riders
  *   - driverId: assign directly to one rider (no broadcast)
  */
+/** What the courier is told they're carrying. Medicines are health data: give a count only. */
+export function courierItemSummary(foodOrder, restaurant) {
+  if (restaurant?.vertical === "PHARMACY") {
+    const count = foodOrder.items.reduce((n, i) => n + (Number(i.quantity) || 0), 0);
+    return `Pharmacy order · ${count} item${count === 1 ? "" : "s"}`;
+  }
+  return foodOrder.items.map((i) => `${i.quantity}x ${i.name}`).join(", ");
+}
+
 export async function createCourierRideForOrder(foodOrder, restaurant, io, options = {}) {
   const { broadcast = true, driverId = null } = options;
   // Gas: EXCHANGE delivers a full cylinder; REFILL's second leg returns the filled one.
@@ -173,7 +183,7 @@ export async function createCourierRideForOrder(foodOrder, restaurant, io, optio
     foodOrder.driverFee = driverFee;
   }
 
-  const itemSummary = foodOrder.items.map((i) => `${i.quantity}x ${i.name}`).join(", ");
+  const itemSummary = courierItemSummary(foodOrder, restaurant);
   const deliveryCode = generateOTP();
 
   const ride = await Ride.create({
@@ -311,12 +321,27 @@ export async function applyRestaurantAction(orderId, action, io, options = {}) {
       if (["processing", "settled"].includes(foodOrder.settlementStatus)) {
         return { error: "already_settled" };
       }
-      // Any assigned courier is released with no charge or strike.
-      await cancelCourierRideForOrder(foodOrder, io);
+      // A courier who already started is paid for the wasted trip (charged to the store, or
+      // absorbed by QareGO when an admin cancels), then released with no strike.
+      const cancelledBy =
+        action === "customer_cancel" ? "CUSTOMER" : options.cancelledBy || "RESTAURANT";
+      const credited =
+        action === "reject"
+          ? await compensateCourierForCancel(foodOrder.ride, {
+              restaurantId: foodOrder.restaurant,
+              chargeStore: cancelledBy === "RESTAURANT",
+            })
+          : 0;
+      await cancelCourierRideForOrder(
+        foodOrder,
+        io,
+        credited > 0
+          ? `Order cancelled. GH₵${credited.toFixed(2)} was credited to your balance for this trip.`
+          : "Order cancelled"
+      );
       foodOrder.status = "CANCELLED";
       foodOrder.cancelledAt = new Date();
-      foodOrder.cancelledBy =
-        action === "customer_cancel" ? "CUSTOMER" : options.cancelledBy || "RESTAURANT";
+      foodOrder.cancelledBy = cancelledBy;
       if (options.cancelReason) foodOrder.cancelReason = options.cancelReason;
       if (foodOrder.paymentStatus === "PAID") foodOrder.refundStatus = "DUE";
       foodOrder.settlementStatus = "not_required";
@@ -400,7 +425,8 @@ export async function applyRestaurantAction(orderId, action, io, options = {}) {
       if (foodOrder.gasMode !== "EXCHANGE" || !["PICKED_UP", "DELIVERED"].includes(foodOrder.status)) {
         return { error: "invalid_transition" };
       }
-      foodOrder.gasEmptyReturnedAt = new Date();
+      // Keep the first confirmation; repeat taps shouldn't move the time.
+      if (!foodOrder.gasEmptyReturnedAt) foodOrder.gasEmptyReturnedAt = new Date();
       break;
     default:
       return { error: "unknown_action" };

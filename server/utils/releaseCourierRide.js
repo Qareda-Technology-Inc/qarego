@@ -58,13 +58,13 @@ export async function cleanupStaleFoodCourierRide(ride, io) {
 }
 
 /** Cancel/delete courier ride when merchant rejects or order is cancelled. */
-export async function cancelCourierRideForOrder(foodOrder, io) {
+export async function cancelCourierRideForOrder(foodOrder, io, message = "Order cancelled") {
   if (!foodOrder?.ride) return;
   const ride = await Ride.findById(foodOrder.ride);
   if (!ride) {
     foodOrder.ride = null;
     return;
   }
-  await releaseCourierRide(ride, io, "Order cancelled");
+  await releaseCourierRide(ride, io, message);
   foodOrder.ride = null;
 }

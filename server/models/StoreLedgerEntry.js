@@ -11,7 +11,7 @@ const storeLedgerEntrySchema = new Schema(
   {
     restaurant: { type: Schema.Types.ObjectId, ref: "Restaurant", required: true, index: true },
     foodOrder: { type: Schema.Types.ObjectId, ref: "FoodOrder", default: null },
-    type: { type: String, enum: ["PICKUP_COMMISSION", "CASH_PAYMENT"], required: true },
+    type: { type: String, enum: ["PICKUP_COMMISSION", "CASH_PAYMENT", "CANCELLATION_FEE"], required: true },
     amount: { type: Number, required: true },
     owedAfter: { type: Number, required: true },
     note: { type: String, default: null },

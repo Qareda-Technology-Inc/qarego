@@ -90,6 +90,7 @@ function getTxLabel(type: string, note?: string): string {
     MANUAL_CREDIT: "Credit",
     PAYOUT: note?.toLowerCase().includes("cash out") ? "Cash out" : "Payout",
     MANUAL_DEBIT: "Debit",
+    CANCELLATION_CREDIT: "Cancellation pay",
   };
   return labels[type] ?? type;
 }
@@ -98,7 +99,12 @@ function getTxIcon(type: string): keyof typeof Ionicons.glyphMap {
   if (type === "COMMISSION_DEBIT" || type === "MANUAL_DEBIT" || type === "PAYOUT") {
     return "remove-circle-outline";
   }
-  if (type === "DIGITAL_EARNING" || type === "TOP_UP" || type === "MANUAL_CREDIT") {
+  if (
+    type === "DIGITAL_EARNING" ||
+    type === "TOP_UP" ||
+    type === "MANUAL_CREDIT" ||
+    type === "CANCELLATION_CREDIT"
+  ) {
     return "add-circle-outline";
   }
   return "wallet-outline";
