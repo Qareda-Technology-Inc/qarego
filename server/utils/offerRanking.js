@@ -111,7 +111,8 @@ export function toRiderOfferPayload(ride) {
   const customer = base.customer && typeof base.customer === "object"
     ? {
         _id: base.customer._id,
-        name: base.customer.name,
+        // First name only until the rider accepts.
+        name: String(base.customer.name || "").trim().split(/\s+/)[0] || undefined,
         averageRating: base.customer.averageRating,
         totalRatings: base.customer.totalRatings,
       }

@@ -23,6 +23,7 @@ import {
   isDriverPendingApproval,
 } from "@/utils/driverProfileAccess";
 
+import { openLegalPage } from "@/utils/legalLinks";
 const RiderAccount = () => {
   const { user } = useRiderStore();
   const { disconnect } = useWS();
@@ -65,6 +66,7 @@ const RiderAccount = () => {
     { icon: "options-outline", label: "Work mode", library: Ionicons, onPress: () => router.push('/rider/services') },
     { icon: "shield-outline", label: "Reliability", library: Ionicons, onPress: () => router.push('/rider/reliability') },
     { icon: "stats-chart-outline", label: "Performance", library: Ionicons, onPress: () => router.push('/rider/analytics') },
+    { icon: "shield-checkmark-outline", label: "Privacy Policy", library: Ionicons, onPress: () => openLegalPage() },
     // Developer check only; riders don't need it in store builds.
     ...(__DEV__
       ? [

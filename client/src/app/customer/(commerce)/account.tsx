@@ -12,6 +12,7 @@ import { useWS } from "@/service/WSProvider";
 import { router } from "expo-router";
 import { resolveMediaUrl } from "@/service/mediaUpload";
 
+import { openLegalPage } from "@/utils/legalLinks";
 const CustomerAccount = () => {
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
@@ -28,7 +29,7 @@ const CustomerAccount = () => {
 
   const menuItems = [
     { icon: "person-outline", label: "Personal Info", library: Ionicons, onPress: () => router.push('/customer/profile') },
-    // Safety and Privacy stay hidden until there are pages for them.
+    { icon: "shield-checkmark-outline", label: "Privacy Policy", library: Ionicons, onPress: () => openLegalPage() },
     { icon: "trash-outline", label: "Delete Account", library: Ionicons, color: "red", onPress: () => confirmDeleteAccount(disconnect) },
   ];
 

@@ -6,6 +6,7 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  Text,
 } from "react-native";
 import React, { useState } from "react";
 import { router } from "expo-router";
@@ -21,6 +22,7 @@ import { DS } from "@/theme/designSystem";
 import { isReviewPhone } from "@/utils/reviewLogin";
 import { useWS } from "@/service/WSProvider";
 
+import { openLegalPage } from "@/utils/legalLinks";
 interface Country {
   name: string;
   code: string;
@@ -142,7 +144,14 @@ const Role = () => {
             </View>
 
             <CustomText fontSize={11} style={styles.termsText}>
-              By continuing, you agree to our Terms of Service and Privacy Policy
+              By continuing, you agree to our Terms of Service and{" "}
+              <Text
+                style={{ fontFamily: "SemiBold", color: Colors.primary, textDecorationLine: "underline" }}
+                onPress={() => openLegalPage()}
+                accessibilityRole="link"
+              >
+                Privacy Policy
+              </Text>
             </CustomText>
           </Animated.View>
 

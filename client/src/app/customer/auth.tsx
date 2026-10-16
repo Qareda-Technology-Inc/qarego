@@ -5,6 +5,7 @@ import {
   Alert,
   StyleSheet,
   Image,
+  Text,
 } from "react-native";
 import React, { useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
@@ -18,6 +19,7 @@ import { Colors } from "@/utils/Constants";
 import { isReviewPhone } from "@/utils/reviewLogin";
 import { useWS } from "@/service/WSProvider";
 
+import { openLegalPage } from "@/utils/legalLinks";
 interface Country {
   name: string;
   code: string;
@@ -63,7 +65,14 @@ const Auth = () => {
   const footer = (
     <View style={styles.footer}>
       <CustomText fontSize={11} color="#999" style={styles.termsText}>
-        By continuing, you agree to our Terms of Service and Privacy Policy
+        By continuing, you agree to our Terms of Service and{" "}
+        <Text
+          style={{ fontFamily: "SemiBold", color: Colors.primary, textDecorationLine: "underline" }}
+          onPress={() => openLegalPage()}
+          accessibilityRole="link"
+        >
+          Privacy Policy
+        </Text>
       </CustomText>
       <CustomButton
         title="Continue"
