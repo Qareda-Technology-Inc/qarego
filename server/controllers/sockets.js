@@ -159,6 +159,7 @@ const handleSocketConnection = (io) => {
         }).catch((err) => console.error("Failed to update rider location in DB", err));
 
         io.to(`rider_${user.id}`).emit("riderLocationUpdate", payload);
+        io.to(`rider_loc_${user.id}`).emit("riderLocationUpdate", payload);
 
         try {
           const activeRide = await Ride.findOne({
@@ -285,9 +286,17 @@ const handleSocketConnection = (io) => {
     }
 
     socket.on("subscribeToriderLocation", async (riderId) => {
-      if (!riderId) return;
+      if (!riderId || !isValidId(String(riderId))) return;
       const id = String(riderId);
-      socket.join(`rider_${id}`);
+      // Only a customer currently on a trip with this rider may follow them, and only via a
+      // location-only room: rider_<id> is the rider's private channel (it carries offers).
+      const onTripTogether = await Ride.exists({
+        rider: id,
+        customer: user.id,
+        status: { $in: ["START", "ARRIVED", "IN_PROGRESS"] },
+      });
+      if (!onTripTogether) return;
+      socket.join(`rider_loc_${id}`);
 
       const onDuty = getOnDutyRider(id);
       if (onDuty?.coords) {
@@ -317,11 +326,18 @@ const handleSocketConnection = (io) => {
         socket.emit("error", { message: "Invalid ride id" });
         return;
       }
-      socket.join(`ride_${rideId}`);
       try {
         const rideData = await Ride.findById(rideId)
           .populate("customer", "name phone averageRating totalRatings")
           .populate("rider", "name phone averageRating totalRatings currentLocation");
+        // The room carries both parties' names and phone numbers: members only.
+        const customerId = String(rideData?.customer?._id ?? rideData?.customer ?? "");
+        const riderId = String(rideData?.rider?._id ?? rideData?.rider ?? "");
+        if (!rideData || (user.id !== customerId && user.id !== riderId)) {
+          socket.emit("error", { message: "Ride not found" });
+          return;
+        }
+        socket.join(`ride_${rideId}`);
         socket.emit("rideData", rideData);
       } catch (error) {
         console.error("subscribeRide error:", error);

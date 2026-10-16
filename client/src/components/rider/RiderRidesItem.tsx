@@ -260,7 +260,8 @@ const RiderRidesItem: FC<{ item: RideItem; removeIt: () => void; isBestOffer?: b
             {item.parcelMode === "RECEIVE" ? "Customer" : "Recipient"}
           </CustomText>
           <CustomText fontSize={10} fontFamily="Medium" numberOfLines={1}>
-            {item.recipientName || "—"} · {item.recipientPhone || "—"}
+            {/* Offers carry no phone numbers; the rider gets them after accepting. */}
+            {[item.recipientName, item.recipientPhone].filter(Boolean).join(" · ") || "—"}
           </CustomText>
           {item.parcelDescription ? (
             <CustomText fontSize={9.5} fontFamily="Medium" style={orderStyles.label} numberOfLines={2}>

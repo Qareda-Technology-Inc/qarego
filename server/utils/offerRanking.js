@@ -101,9 +101,27 @@ export function scoreOfferForRider(ride, rider, riderCoords, settings = {}) {
   };
 }
 
-export function attachDispatchMeta(ride, dispatchMeta) {
+/**
+ * Offers go to every eligible rider, most of whom won't take the job, so they carry only
+ * what's needed to decide: no customer or recipient phone numbers. The rider who accepts
+ * gets those from the ride itself.
+ */
+export function toRiderOfferPayload(ride) {
   const base = ride?.toObject ? ride.toObject() : { ...ride };
-  return { ...base, dispatchMeta };
+  const customer = base.customer && typeof base.customer === "object"
+    ? {
+        _id: base.customer._id,
+        name: base.customer.name,
+        averageRating: base.customer.averageRating,
+        totalRatings: base.customer.totalRatings,
+      }
+    : base.customer;
+  const { recipientPhone: _recipientPhone, ...rest } = base;
+  return { ...rest, customer };
+}
+
+export function attachDispatchMeta(ride, dispatchMeta) {
+  return { ...toRiderOfferPayload(ride), dispatchMeta };
 }
 
 export function sortRidesByScoreForRider(rides, rider, riderCoords, settings) {
