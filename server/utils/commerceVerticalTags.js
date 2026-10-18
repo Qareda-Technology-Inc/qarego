@@ -3,7 +3,7 @@
  * Seeded into CommerceStoreType for merchant store creation.
  */
 
-/** @typedef {{ name: string; emoji: string; vertical: 'FOOD'|'GROCERY'|'PHARMACY'; sortOrder: number; description?: string }} CommerceTag */
+/** @typedef {{ name: string; emoji: string; vertical: 'FOOD'|'GROCERY'|'PHARMACY'|'GAS'; sortOrder: number; description?: string }} CommerceTag */
 
 /** @type {CommerceTag[]} */
 export const FOOD_RESTAURANT_TAGS = [
@@ -42,8 +42,15 @@ export const PHARMACY_HEALTH_TAGS = [
   { name: "Sexual Wellness", emoji: "❤️", vertical: "PHARMACY", sortOrder: 7, description: "Lubricants, supplements, family planning" },
 ];
 
+/** @type {CommerceTag[]} */
+export const GAS_STATION_TAGS = [
+  { name: "LPG Refill", emoji: "🔥", vertical: "GAS", sortOrder: 1, description: "Refill the customer's empty cylinder" },
+  { name: "Cylinder Exchange", emoji: "🔄", vertical: "GAS", sortOrder: 2, description: "Swap an empty cylinder for a full one" },
+];
+
 export const ALL_COMMERCE_VERTICAL_TAGS = [
   ...FOOD_RESTAURANT_TAGS,
   ...GROCERY_SUPERMARKET_TAGS,
   ...PHARMACY_HEALTH_TAGS,
+  ...GAS_STATION_TAGS,
 ];

@@ -50,6 +50,9 @@
       "android": {
         "serviceAccountKeyPath": "./ServiceAccountQareGo.json",
         "track": "internal"
+      },
+      "ios": {
+        "ascAppId": "6777809976"
       }
     }
   }

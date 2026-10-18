@@ -30,9 +30,8 @@
           "googlechromes",
           "googlegmail"
         ],
-        "NSPhoneNumberUsageDescription": "We need access to your phone number to pre-fill the login form for faster authentication.",
-        "NSPhotoLibraryUsageDescription": "We need access to your photo library to upload your profile picture and documents.",
-        "NSCameraUsageDescription": "We need access to your camera to take pictures of your documents."
+        "NSPhotoLibraryUsageDescription": "QareGO uses your photo library only when you choose a photo to upload, such as your profile picture, a parcel photo, a prescription or rider documents.",
+        "NSCameraUsageDescription": "QareGO uses your camera only when you choose to take a photo, such as your profile picture, a parcel photo, a prescription or rider documents."
       }
     },
     "android": {
@@ -81,8 +80,8 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "We need access to your photo library to upload your profile picture and documents.",
-          "cameraPermission": "We need access to your camera to take pictures of your documents.",
+          "photosPermission": "QareGO uses your photo library only when you choose a photo to upload, such as your profile picture, a parcel photo, a prescription or rider documents.",
+          "cameraPermission": "QareGO uses your camera only when you choose to take a photo, such as your profile picture, a parcel photo, a prescription or rider documents.",
           "microphonePermission": false
         }
       ],
@@ -104,7 +103,10 @@
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "Allow $(PRODUCT_NAME) to use your location."
+          "locationWhenInUsePermission": "QareGO uses your location while you use the app to set your pickup point, find stores and riders near you and calculate prices. For riders on duty, it shares your live location with the customer during a trip.",
+          "locationAlwaysAndWhenInUsePermission": "QareGO uses your location while you use the app to set your pickup point, find stores and riders near you and calculate prices. For riders on duty, it shares your live location with the customer during a trip.",
+          "locationAlwaysPermission": "QareGO uses your location while you use the app to set your pickup point, find stores and riders near you and calculate prices. For riders on duty, it shares your live location with the customer during a trip.",
+          "isIosBackgroundLocationEnabled": false
         }
       ],
       "expo-localization",

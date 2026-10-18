@@ -40,11 +40,16 @@ export const PHARMACY_HEALTH_TAGS: VerticalTag[] = [
   { name: "Sexual Wellness", emoji: "❤️", description: "Lubricants, family planning" },
 ];
 
+export const GAS_STATION_TAGS: VerticalTag[] = [
+  { name: "LPG Refill", emoji: "🔥", description: "Refill the customer's empty cylinder" },
+  { name: "Cylinder Exchange", emoji: "🔄", description: "Swap an empty cylinder for a full one" },
+];
+
 export const COMMERCE_VERTICAL_TAGS: Record<StoreVertical, VerticalTag[]> = {
   FOOD: FOOD_RESTAURANT_TAGS,
   GROCERY: GROCERY_SUPERMARKET_TAGS,
   PHARMACY: PHARMACY_HEALTH_TAGS,
-  GAS: [],
+  GAS: GAS_STATION_TAGS,
 };
 
 const emojiByName = new Map<string, string>();

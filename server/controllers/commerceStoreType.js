@@ -10,7 +10,7 @@ export const adminListStoreTypes = async (req, res) => {
   await ensureDefaultStoreTypes();
   const { vertical } = req.query;
   const query = {};
-  if (vertical && ["FOOD", "GROCERY", "PHARMACY"].includes(String(vertical).toUpperCase())) {
+  if (vertical && ["FOOD", "GROCERY", "PHARMACY", "GAS"].includes(String(vertical).toUpperCase())) {
     query.vertical = String(vertical).toUpperCase();
   }
   const storeTypes = await CommerceStoreType.find(query).sort({ vertical: 1, sortOrder: 1, name: 1 }).lean();
@@ -22,8 +22,8 @@ export const adminCreateStoreType = async (req, res) => {
   const name = req.body.name?.trim();
   const vertical = String(req.body.vertical || "").toUpperCase();
   if (!name) throw new BadRequestError("Name is required");
-  if (!["FOOD", "GROCERY", "PHARMACY"].includes(vertical)) {
-    throw new BadRequestError("Vertical must be FOOD, GROCERY, or PHARMACY");
+  if (!["FOOD", "GROCERY", "PHARMACY", "GAS"].includes(vertical)) {
+    throw new BadRequestError("Vertical must be FOOD, GROCERY, PHARMACY or GAS");
   }
   const existing = await CommerceStoreType.findOne({ name, vertical });
   if (existing) throw new BadRequestError("This store type already exists for that module");
@@ -49,8 +49,8 @@ export const adminUpdateStoreType = async (req, res) => {
   }
   if (req.body.vertical !== undefined) {
     const vertical = String(req.body.vertical).toUpperCase();
-    if (!["FOOD", "GROCERY", "PHARMACY"].includes(vertical)) {
-      throw new BadRequestError("Vertical must be FOOD, GROCERY, or PHARMACY");
+    if (!["FOOD", "GROCERY", "PHARMACY", "GAS"].includes(vertical)) {
+      throw new BadRequestError("Vertical must be FOOD, GROCERY, PHARMACY or GAS");
     }
     storeType.vertical = vertical;
   }
@@ -125,7 +125,7 @@ export async function applyStoreTypeToRestaurantFields(body, fields) {
   const verticals = [...new Set(storeTypes.map((t) => t.vertical))];
   if (verticals.length > 1) {
     throw new BadRequestError(
-      "All category tags must be from the same module (Food, Grocery, or Pharmacy)"
+      "All category tags must be from the same module (Food, Grocery, Pharmacy or Gas)"
     );
   }
 

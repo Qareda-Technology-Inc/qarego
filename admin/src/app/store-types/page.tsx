@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 
-type Vertical = "FOOD" | "GROCERY" | "PHARMACY";
+type Vertical = "FOOD" | "GROCERY" | "PHARMACY" | "GAS";
 
 interface StoreType {
   _id: string;
@@ -24,6 +24,7 @@ const VERTICALS: { key: Vertical; label: string; hint: string }[] = [
   { key: "FOOD", label: "Food & Restaurants", hint: "Cuisines & food tags — Ghanaian, Pizza, Shawarma, etc." },
   { key: "GROCERY", label: "Groceries & Supermarket", hint: "Store departments — Produce, Butchery, Pantry, etc." },
   { key: "PHARMACY", label: "Pharmacy", hint: "Medical categories — OTC, POM, Vitamins, First Aid, etc." },
+  { key: "GAS", label: "Cooking gas", hint: "Gas station services — LPG Refill, Cylinder Exchange, etc." },
 ];
 
 const EMPTY = { name: "", vertical: "FOOD" as Vertical, emoji: "🍽️", sortOrder: "0" };
@@ -53,7 +54,7 @@ export default function StoreTypesPage() {
   }, []);
 
   const grouped = useMemo(() => {
-    const map: Record<Vertical, StoreType[]> = { FOOD: [], GROCERY: [], PHARMACY: [] };
+    const map: Record<Vertical, StoreType[]> = { FOOD: [], GROCERY: [], PHARMACY: [], GAS: [] };
     storeTypes.forEach((t) => map[t.vertical]?.push(t));
     return map;
   }, [storeTypes]);
@@ -63,7 +64,8 @@ export default function StoreTypesPage() {
     setForm({
       ...EMPTY,
       vertical,
-      emoji: vertical === "GROCERY" ? "🛒" : vertical === "PHARMACY" ? "💊" : "🍽️",
+      emoji:
+        vertical === "GROCERY" ? "🛒" : vertical === "PHARMACY" ? "💊" : vertical === "GAS" ? "🔥" : "🍽️",
     });
     setModalOpen(true);
   };
@@ -189,6 +191,7 @@ export default function StoreTypesPage() {
               <option value="FOOD">Food (includes Drinks, Bar)</option>
               <option value="GROCERY">Grocery</option>
               <option value="PHARMACY">Pharmacy</option>
+              <option value="GAS">Cooking gas</option>
             </select>
           </div>
           <div>
