@@ -5,6 +5,10 @@ Bundle ID `com.qarego.client`, version 1.0.5. Upload the screenshots in this fol
 ride, 03 live tracking, 04 food, 05 cooking gas, 06 rider offer, 07 rider trip. Upload
 `header_3840x1646.png` as the header asset.
 
+The app also runs on iPad, so upload `ipad_01_home.png`, `ipad_02_ride.png` and
+`ipad_03_gas.png` to **iPad 13" display** (2064 × 2752). Select build **25** or later: it
+fixes text that was clipped on iPad.
+
 ## App Review Information
 
 **Sign-in required:** Yes.

@@ -26,6 +26,21 @@ type CustomTextProps = {
   color?: string;
 };
 
+/**
+ * RFValue scales fonts with screen height (about 2x on a 13" iPad), but callers often pass a
+ * fixed lineHeight tuned on a phone, which then clips the scaled glyphs. Never let a line be
+ * shorter than the font needs; phones already meet this, so only large screens change.
+ */
+const MIN_LINE_HEIGHT_RATIO = 1.15;
+
+function fitLineHeight(style: StyleProp<TextStyle>, fallbackSize: number): TextStyle | null {
+  const flat = StyleSheet.flatten(style);
+  if (!flat || typeof flat.lineHeight !== "number") return null;
+  const size = typeof flat.fontSize === "number" ? flat.fontSize : fallbackSize;
+  const min = Math.ceil(size * MIN_LINE_HEIGHT_RATIO);
+  return flat.lineHeight < min ? { lineHeight: min } : null;
+}
+
 const CustomText: FC<CustomTextProps> = ({
   variant = "h6",
   style,
@@ -36,16 +51,18 @@ const CustomText: FC<CustomTextProps> = ({
   color,
   ellipsizeMode,
 }) => {
+  const scaledSize = RFValue(fontSize ? fontSize : fontSizes[variant]);
   return (
     <Text
       style={[
         styles.text,
         {
-          fontSize: RFValue(fontSize ? fontSize : fontSizes[variant]),
+          fontSize: scaledSize,
           fontFamily,
         },
         color ? { color } : null,
         style,
+        fitLineHeight(style, scaledSize),
       ]}
       numberOfLines={numberOfLines ? numberOfLines : undefined}
       ellipsizeMode={ellipsizeMode}
