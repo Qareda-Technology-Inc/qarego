@@ -30,7 +30,7 @@ const CustomerServiceSelect = () => {
         setServiceCoverage({
           inServiceArea: true,
           openMode: true,
-          allowedServices: ["RIDE", "PARCEL", "FOOD", "GROCERY", "PHARMACY"],
+          allowedServices: ["RIDE", "PARCEL", "FOOD", "GROCERY", "PHARMACY", "GAS"],
           matchedZones: [],
           message: null,
         });
@@ -59,7 +59,7 @@ const CustomerServiceSelect = () => {
       setServiceCoverage({
         inServiceArea: true,
         openMode: true,
-        allowedServices: ["RIDE", "PARCEL", "FOOD", "GROCERY", "PHARMACY"],
+        allowedServices: ["RIDE", "PARCEL", "FOOD", "GROCERY", "PHARMACY", "GAS"],
         matchedZones: [],
         message: null,
       });

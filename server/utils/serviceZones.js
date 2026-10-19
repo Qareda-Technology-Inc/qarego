@@ -1,5 +1,6 @@
 import { calculateDistance } from "./mapUtils.js";
 import ServiceZone, { SERVICE_ZONE_TYPES } from "../models/ServiceZone.js";
+import Settings from "../models/Settings.js";
 import { BadRequestError } from "../errors/index.js";
 
 /**
@@ -116,3 +117,21 @@ export async function assertServiceAvailableAt(latitude, longitude, serviceType)
 }
 
 export { SERVICE_ZONE_TYPES };
+
+const GAS_ZONE_MIGRATION = "gas-service-zones";
+
+/**
+ * Gas joined the service-area options after some areas were saved with an explicit list.
+ * Gas used to be allowed anywhere inside an area, so add it to those areas once; after
+ * that, switching gas off for an area sticks.
+ */
+export async function ensureGasInExistingZones() {
+  const settings = await Settings.findOne({ key: "global" }).select("appliedMigrations");
+  if (!settings || settings.appliedMigrations?.includes(GAS_ZONE_MIGRATION)) return;
+  const result = await ServiceZone.updateMany(
+    { "serviceTypes.0": { $exists: true }, serviceTypes: { $ne: "GAS" } },
+    { $addToSet: { serviceTypes: "GAS" } }
+  );
+  await Settings.updateOne({ key: "global" }, { $addToSet: { appliedMigrations: GAS_ZONE_MIGRATION } });
+  console.log(`[service-zones] added gas to ${result.modifiedCount} existing area(s)`);
+}

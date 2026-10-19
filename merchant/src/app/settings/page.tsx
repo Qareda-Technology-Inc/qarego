@@ -14,6 +14,7 @@ import StoreLocationPicker, { type StoreLocation } from "@/components/StoreLocat
 import PageLoader from "@/components/ui/PageLoader";
 import { notify } from "@/lib/notify";
 import { Settings, Loader2, Save, Power, MapPin, Clock, Wallet } from "lucide-react";
+import { useFeatures } from "@/lib/features";
 
 type DayHours = { closed: boolean; open: string; close: string };
 
@@ -66,6 +67,7 @@ const DEFAULT_HOURS: DayHours[] = Array.from({ length: 7 }, () => ({
 }));
 
 export default function SettingsPage() {
+  const { momoEnabled } = useFeatures();
   const { isOwner, activeRestaurant } = useAuth();
   const router = useRouter();
   const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
@@ -416,6 +418,8 @@ export default function SettingsPage() {
         </div>
       </div>
 
+      {/* Instant payouts go out by mobile money, which is paused until the new provider is live. */}
+      {momoEnabled ? (
       <form onSubmit={savePayout} className="bg-white rounded-2xl border border-border p-5 mb-6 space-y-4">
         <div className="flex items-center gap-2 mb-1">
           <Wallet className="h-4 w-4 text-brand" />
@@ -477,6 +481,7 @@ export default function SettingsPage() {
           </Button>
         </div>
       </form>
+      ) : null}
 
       <form onSubmit={save} className="bg-white rounded-2xl border border-border p-5 space-y-4">
         <h2 className="font-semibold text-foreground">Store profile</h2>

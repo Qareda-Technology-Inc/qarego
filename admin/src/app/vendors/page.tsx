@@ -45,7 +45,15 @@ interface Restaurant {
   address: string;
   owner?: OwnerRef | null;
   menuItemCount?: number;
+  vertical?: "FOOD" | "GROCERY" | "PHARMACY" | "GAS";
 }
+
+const VERTICAL_BADGE: Record<string, string> = {
+  FOOD: "Restaurant",
+  GROCERY: "Grocery",
+  PHARMACY: "Pharmacy",
+  GAS: "Gas station",
+};
 
 const EMPTY_VENDOR = { username: "", password: "", name: "", phone: "" };
 
@@ -328,14 +336,20 @@ export default function VendorsPage() {
                           <div className="flex-1 min-w-0">
                             <div className="text-sm font-medium text-gray-900 truncate flex items-center gap-2">
                               {r.name}
-                              {r.category ? (
+                              <span className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-700 text-[10px] font-medium">
+                                {VERTICAL_BADGE[r.vertical ?? "FOOD"]}
+                              </span>
+                              {r.category && r.category !== VERTICAL_BADGE[r.vertical ?? "FOOD"] ? (
                                 <span className="px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 text-[10px] font-medium">
                                   {r.category}
                                 </span>
                               ) : null}
                             </div>
                             <div className="text-xs text-gray-400 flex items-center gap-1">
-                              <MapPin className="h-3 w-3" /> {r.address} · {r.menuItemCount ?? 0} items
+                              <MapPin className="h-3 w-3" /> {r.address} ·{" "}
+                              {r.vertical === "GAS"
+                                ? "cylinder prices are set in Settings › Cooking gas"
+                                : `${r.menuItemCount ?? 0} items`}
                             </div>
                           </div>
                           <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
@@ -358,7 +372,8 @@ export default function VendorsPage() {
                             href={`/restaurants/${r._id}`}
                             className="inline-flex items-center text-indigo-600 hover:text-indigo-900 text-sm"
                           >
-                            <Settings2 className="h-4 w-4 mr-1" /> Manage menu
+                            <Settings2 className="h-4 w-4 mr-1" />{" "}
+                            {r.vertical === "GAS" ? "Store details" : "Manage menu"}
                           </Link>
                           <button
                             type="button"

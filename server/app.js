@@ -47,6 +47,8 @@ if (!fs.existsSync(publicSoundsDir)) fs.mkdirSync(publicSoundsDir, { recursive: 
 
 // Import socket handler
 import handleSocketConnection from './controllers/sockets.js';
+import { isMomoEnabled } from "./utils/momoAvailability.js";
+import { ensureGasInExistingZones } from "./utils/serviceZones.js";
 
 dotenv.config();
 
@@ -174,6 +176,11 @@ app.get("/health", (_req, res) => {
   res.status(200).json({ ok: true, service: "qarego-api" });
 });
 
+/** Feature switches the web portals read, so a paused feature hides everywhere at once. */
+app.get("/features", (_req, res) => {
+  res.status(200).json({ momoEnabled: isMomoEnabled() });
+});
+
 // Routes
 app.use("/auth", authRouter);
 app.use("/ride", authMiddleware, rideRouter);
@@ -204,6 +211,7 @@ const start = async () => {
     }
     await clearDemoFoodSeed();
     await ensureDefaultStoreTypes();
+    await ensureGasInExistingZones();
     const port = process.env.PORT || 3000;
     server.listen(port, "0.0.0.0", () => {
       startFoodCourierBroadcastScheduler(io);

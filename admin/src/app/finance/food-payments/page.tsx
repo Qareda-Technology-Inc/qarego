@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { formatCurrency } from "@/lib/currency";
 import { AlertCircle, CheckCircle2, Loader2, RotateCw } from "lucide-react";
+import { useFeatures } from "@/lib/features";
 
 type FoodPaymentRow = {
   _id: string;
@@ -23,6 +24,7 @@ type FoodPaymentRow = {
 };
 
 export default function FoodPaymentsPage() {
+  const { momoEnabled } = useFeatures();
   const [rows, setRows] = useState<FoodPaymentRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
@@ -78,9 +80,15 @@ export default function FoodPaymentsPage() {
 
   return (
     <div className="space-y-6">
+      {!momoEnabled ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          Mobile money is paused, so customers pay cash and no new payments appear here. Older
+          records are kept for reference; payout retries are switched off.
+        </div>
+      ) : null}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Food Payments</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Mobile money payments</h1>
           <p className="text-sm text-gray-500 mt-1">
             Monitor checkout success and merchant instant payouts.
           </p>
@@ -205,7 +213,7 @@ export default function FoodPaymentsPage() {
                           <Button
                             size="sm"
                             variant="outline"
-                            disabled={!retryable || retryingId === row._id}
+                            disabled={!momoEnabled || !retryable || retryingId === row._id}
                             onClick={() => handleRetry(row)}
                           >
                             {retryingId === row._id ? (

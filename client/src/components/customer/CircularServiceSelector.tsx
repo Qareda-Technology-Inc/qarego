@@ -97,13 +97,7 @@ type Props = {
  * Services not allowed in the current zone are greyed out with a lock.
  */
 const CircularServiceSelector = ({ goToHomeOnSelect = false }: Props) => {
-  const isZoneServiceAllowed = useUserStore((s) => s.isServiceAllowed);
-  const coverage = useUserStore((s) => s.serviceCoverage);
-  // Gas isn't a zone service type: available anywhere inside the service area.
-  const isServiceAllowed = (type: ServiceType) =>
-    type === "GAS"
-      ? !coverage || coverage.openMode || coverage.inServiceArea
-      : isZoneServiceAllowed(type);
+  const isServiceAllowed = useUserStore((s) => s.isServiceAllowed);
 
   const handleSelect = (type: ServiceType) => {
     if (!isServiceAllowed(type)) return;

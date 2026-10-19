@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/context/AuthContext';
+import { useFeatures } from '@/lib/features';
 import { LogOut } from 'lucide-react';
 
 const navigation = [
@@ -31,10 +32,11 @@ const navigation = [
   { name: 'Trips', href: '/trips', icon: MapPin },
   { name: 'Vendors', href: '/vendors', icon: Store },
   { name: 'Store types', href: '/store-types', icon: Tags },
-  { name: 'Food orders', href: '/food-orders', icon: UtensilsCrossed },
+  { name: 'Store orders', href: '/food-orders', icon: UtensilsCrossed },
   { name: 'Service areas', href: '/service-zones', icon: MapPinned },
   { name: 'Finance', href: '/finance', icon: FileText },
-  { name: 'Food payments', href: '/finance/food-payments', icon: Banknote },
+  // Mobile money checkouts; hidden while MoMo is paused.
+  { name: 'Food payments', href: '/finance/food-payments', icon: Banknote, momoOnly: true },
   { name: 'Push notifications', href: '/notifications', icon: Bell },
   { name: 'Settings', href: '/settings', icon: Settings },
 ];
@@ -42,6 +44,7 @@ const navigation = [
 export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const { user, logout } = useAuth();
+  const { momoEnabled } = useFeatures();
 
   const handleLogout = () => {
     onNavigate?.();
@@ -57,7 +60,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
       </div>
       <div className="flex-1 overflow-y-auto py-4">
         <nav className="px-2 space-y-1">
-          {navigation.map((item) => {
+          {navigation.filter((item) => !item.momoOnly || momoEnabled).map((item) => {
             const isActive = pathname === item.href;
             return (
               <Link

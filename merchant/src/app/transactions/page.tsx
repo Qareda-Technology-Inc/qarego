@@ -7,6 +7,7 @@ import { formatCurrency } from "@/lib/currency";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/Button";
 import { StoreLedgerSection } from "@/components/StoreLedgerSection";
+import { useFeatures } from "@/lib/features";
 import {
   Wallet,
   RefreshCw,
@@ -75,6 +76,7 @@ function defaultRange() {
 }
 
 export default function TransactionsPage() {
+  const { momoEnabled } = useFeatures();
   const router = useRouter();
   const { user, isOwner, restaurants } = useAuth();
   const defaults = useMemo(() => defaultRange(), []);
@@ -85,6 +87,8 @@ export default function TransactionsPage() {
   const [page, setPage] = useState(1);
 
   const [summary, setSummary] = useState<FinanceSummary | null>(null);
+  // Mobile money is paused: show its card only if switched on or this range has MoMo sales.
+  const showMomo = momoEnabled || (summary?.byPaymentMethod.MOBILE_MONEY?.orderCount ?? 0) > 0;
   const [byStore, setByStore] = useState<StoreRow[]>([]);
   const [transactions, setTransactions] = useState<TxRow[]>([]);
   const [total, setTotal] = useState(0);
@@ -257,17 +261,19 @@ export default function TransactionsPage() {
         />
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8">
+      <div className={`grid grid-cols-1 gap-3 mb-8 ${showMomo ? "sm:grid-cols-2" : ""}`}>
         <PayMethodCard
           icon={Banknote}
           label="Cash orders"
           bucket={summary?.byPaymentMethod.CASH}
         />
-        <PayMethodCard
-          icon={Smartphone}
-          label="Mobile money"
-          bucket={summary?.byPaymentMethod.MOBILE_MONEY}
-        />
+        {showMomo ? (
+          <PayMethodCard
+            icon={Smartphone}
+            label="Mobile money"
+            bucket={summary?.byPaymentMethod.MOBILE_MONEY}
+          />
+        ) : null}
       </div>
 
       {storeFilter === "all" && byStore.length > 0 ? (

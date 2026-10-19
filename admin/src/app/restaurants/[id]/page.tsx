@@ -83,7 +83,7 @@ export default function RestaurantDetailPage({ params }: { params: Promise<{ id:
     } catch (e) {
       console.error("Failed to load restaurant", e);
       alert("Failed to load restaurant");
-      router.push("/restaurants");
+      router.push("/vendors");
     } finally {
       setLoading(false);
     }
@@ -244,7 +244,7 @@ export default function RestaurantDetailPage({ params }: { params: Promise<{ id:
   return (
     <div className="space-y-6">
       <div className="flex items-start gap-3 min-w-0">
-        <Link href="/restaurants" className="shrink-0 text-gray-500 hover:text-gray-700 p-1 -ml-1">
+        <Link href="/vendors" className="shrink-0 text-gray-500 hover:text-gray-700 p-1 -ml-1">
           <ArrowLeft className="h-6 w-6" />
         </Link>
         <div className="min-w-0">

@@ -99,9 +99,9 @@ export default function FoodOrdersPage() {
       <div className="flex items-start gap-3">
         <UtensilsCrossed className="h-7 w-7 sm:h-8 sm:w-8 text-orange-500 shrink-0 mt-0.5" />
         <div className="min-w-0">
-        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Food orders</h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Store orders</h1>
       <p className="text-sm sm:text-base text-gray-600 mt-1">
-        Restaurant console — accept orders, mark ready, then couriers are dispatched (Bolt-style flow).
+        Food, grocery, pharmacy and gas orders across all stores. Stores accept and prepare them in the merchant portal; step in here to help.
       </p>
         </div>
       </div>
@@ -120,7 +120,7 @@ export default function FoodOrdersPage() {
             {f === 'pending'
               ? 'Awaiting accept'
               : f === 'active'
-                ? 'In kitchen'
+                ? 'In progress'
                 : f === 'refunds'
                   ? 'Refunds due'
                   : 'All'}

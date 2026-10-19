@@ -133,6 +133,11 @@ const settingsSchema = new Schema(
       type: Schema.Types.Mixed,
       default: () => [],
     },
+    /** One-time data fixes already applied at startup (see utils/serviceZones.js). */
+    appliedMigrations: {
+      type: [String],
+      default: () => [],
+    },
   },
   { timestamps: true }
 );

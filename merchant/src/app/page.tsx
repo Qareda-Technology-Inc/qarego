@@ -184,9 +184,12 @@ export default function HomePage() {
                 <span className="inline-flex items-center gap-1">
                   <ChefHat className="h-3.5 w-3.5" /> {s.active} {storeCopy.dashboardInKitchen}
                 </span>
-                <span className="inline-flex items-center gap-1">
-                  <UtensilsCrossed className="h-3.5 w-3.5" /> {s.menuItemCount} {storeCopy.productCountLabel}
-                </span>
+                {/* Gas stations sell cylinders at admin-set prices, not a menu. */}
+                {s.vertical !== "GAS" ? (
+                  <span className="inline-flex items-center gap-1">
+                    <UtensilsCrossed className="h-3.5 w-3.5" /> {s.menuItemCount} {storeCopy.productCountLabel}
+                  </span>
+                ) : null}
                 <span className="inline-flex items-center gap-1">
                   <Users className="h-3.5 w-3.5" /> {s.cookCount} staff
                 </span>

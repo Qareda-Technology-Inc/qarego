@@ -15,6 +15,7 @@ import { SettingsAudioUpload } from '@/components/SettingsAudioUpload';
 import { MenuCategoryLayoutsCard } from '@/components/MenuCategoryLayoutsCard';
 import { FoodPromoBannersCard } from '@/components/FoodPromoBannersCard';
 import { GasPricesCard } from '@/components/GasPricesCard';
+import { useFeatures } from "@/lib/features";
 
 /** Parse a number field; allow 0. Returns null when empty/invalid. */
 function parseOptionalNumber(raw: string): number | null {
@@ -22,10 +23,16 @@ function parseOptionalNumber(raw: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-function parseRate(raw: string, fallback: number): number {
+/** Rates are typed as percentages ("15") and saved as fractions (0.15). */
+function parsePercent(raw: string, fallback: number): number {
   const n = parseOptionalNumber(raw);
   if (n == null) return fallback;
-  return Math.min(1, Math.max(0, n));
+  return Math.min(1, Math.max(0, n / 100));
+}
+
+/** 0.15 → "15" (rounded so 0.07 doesn't show as 7.000000000000001). */
+function toPercentText(fraction: number): string {
+  return String(Math.round(fraction * 100 * 100) / 100);
 }
 
 function parseMoney(raw: string, fallback: number): number {
@@ -35,6 +42,7 @@ function parseMoney(raw: string, fallback: number): number {
 }
 
 export default function SettingsPage() {
+  const { momoEnabled } = useFeatures();
   const [loading, setLoading] = useState(false);
   const [loadingGlobal, setLoadingGlobal] = useState(true);
   const [globalSettings, setGlobalSettings] = useState<{
@@ -80,13 +88,13 @@ export default function SettingsPage() {
   const [uploadingSound, setUploadingSound] = useState(false);
   const [uploadingRiderSound, setUploadingRiderSound] = useState(false);
   const [settings, setSettings] = useState({
-    commissionRate: '0.15',
-    commissionRide: '0.15',
-    commissionDelivery: '0.15',
-    commissionFood: '0.15',
+    commissionRate: '15',
+    commissionRide: '15',
+    commissionDelivery: '15',
+    commissionFood: '15',
     debtLimit: '-100',
     minCashoutAmount: '1',
-    foodServiceFeeRate: '0.08',
+    foodServiceFeeRate: '8',
     foodServiceFeeMin: '2',
     foodServiceFeeMax: '12',
     foodDeliveryCommissionRate: '0',
@@ -108,16 +116,16 @@ export default function SettingsPage() {
         setRiderSoundUrl(data.riderAlertSoundUrl || '/sounds/rider.mp3');
         setSettings(prev => ({
           ...prev,
-          commissionRate: String(data.commissionRate ?? 0.15),
-          commissionRide: String(data.commissionByService?.RIDE ?? data.commissionRate ?? 0.15),
-          commissionDelivery: String(data.commissionByService?.DELIVERY ?? data.commissionRate ?? 0.15),
-          commissionFood: String(data.commissionByService?.FOOD ?? data.commissionRate ?? 0.15),
+          commissionRate: toPercentText(data.commissionRate ?? 0.15),
+          commissionRide: toPercentText(data.commissionByService?.RIDE ?? data.commissionRate ?? 0.15),
+          commissionDelivery: toPercentText(data.commissionByService?.DELIVERY ?? data.commissionRate ?? 0.15),
+          commissionFood: toPercentText(data.commissionByService?.FOOD ?? data.commissionRate ?? 0.15),
           debtLimit: String(data.debtLimit ?? -100),
           minCashoutAmount: String(data.minCashoutAmount ?? 1),
-          foodServiceFeeRate: String(data.foodServiceFeeRate ?? 0.08),
+          foodServiceFeeRate: toPercentText(data.foodServiceFeeRate ?? 0.08),
           foodServiceFeeMin: String(data.foodServiceFeeMin ?? 2),
           foodServiceFeeMax: String(data.foodServiceFeeMax ?? 12),
-          foodDeliveryCommissionRate: String(data.foodDeliveryCommissionRate ?? 0),
+          foodDeliveryCommissionRate: toPercentText(data.foodDeliveryCommissionRate ?? 0),
         }));
         if (data.fareRates && typeof data.fareRates === 'object') {
           const next: Record<string, { baseFare: string; perKmRate: string; minimumFare: string }> = {};
@@ -312,7 +320,7 @@ export default function SettingsPage() {
 
   const handleSubmitGlobal = async (e: React.FormEvent) => {
     e.preventDefault();
-    const commissionRate = parseRate(settings.commissionRate, 0.15);
+    const commissionRate = parsePercent(settings.commissionRate, 0.15);
     const debtLimitRaw = parseOptionalNumber(settings.debtLimit);
     const debtLimit = debtLimitRaw == null ? -100 : debtLimitRaw;
     const minCashoutAmount = parseMoney(settings.minCashoutAmount, 1);
@@ -334,9 +342,9 @@ export default function SettingsPage() {
     await patchSettings(
       {
         commissionByService: {
-          RIDE: parseRate(settings.commissionRide, 0.15),
-          DELIVERY: parseRate(settings.commissionDelivery, 0.15),
-          FOOD: parseRate(settings.commissionFood, 0.15),
+          RIDE: parsePercent(settings.commissionRide, 0.15),
+          DELIVERY: parsePercent(settings.commissionDelivery, 0.15),
+          FOOD: parsePercent(settings.commissionFood, 0.15),
         },
       },
       'Service commission saved.'
@@ -387,10 +395,10 @@ export default function SettingsPage() {
   };
 
   const handleSaveFoodServiceFee = async () => {
-    const foodServiceFeeRate = parseRate(settings.foodServiceFeeRate, 0.08);
+    const foodServiceFeeRate = parsePercent(settings.foodServiceFeeRate, 0.08);
     const foodServiceFeeMin = parseMoney(settings.foodServiceFeeMin, 2);
     const foodServiceFeeMax = parseMoney(settings.foodServiceFeeMax, 12);
-    const foodDeliveryCommissionRate = parseRate(settings.foodDeliveryCommissionRate, 0);
+    const foodDeliveryCommissionRate = parsePercent(settings.foodDeliveryCommissionRate, 0);
     if (foodServiceFeeMin > foodServiceFeeMax) {
       alert('Food service fee minimum cannot be greater than maximum.');
       return;
@@ -430,20 +438,23 @@ export default function SettingsPage() {
               <>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="commissionRate">Commission Rate (0–1)</Label>
-                    <Input id="commissionRate" name="commissionRate" type="number" step="0.01" min="0" max="1" value={settings.commissionRate} onChange={handleChange} />
-                    <p className="text-xs text-gray-500">e.g. 0.15 = 15%</p>
+                    <Label htmlFor="commissionRate">Commission (%)</Label>
+                    <Input id="commissionRate" name="commissionRate" type="number" step="0.5" min="0" max="100" value={settings.commissionRate} onChange={handleChange} />
+                    <p className="text-xs text-gray-500">Used for any service without its own rate below</p>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="debtLimit">Debt Limit ({CURRENCY_SYMBOL})</Label>
                     <Input id="debtLimit" name="debtLimit" type="number" value={settings.debtLimit} onChange={handleChange} />
                     <p className="text-xs text-gray-500">Driver suspended when balance &lt; this (e.g. -100)</p>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="minCashoutAmount">Min Cash Out ({CURRENCY_SYMBOL})</Label>
-                    <Input id="minCashoutAmount" name="minCashoutAmount" type="number" min="0" step="0.01" value={settings.minCashoutAmount} onChange={handleChange} />
-                    <p className="text-xs text-gray-500">Minimum rider wallet withdrawal per request</p>
-                  </div>
+                  {/* Riders cash out by mobile money, which is paused. */}
+                  {momoEnabled ? (
+                    <div className="space-y-2">
+                      <Label htmlFor="minCashoutAmount">Min Cash Out ({CURRENCY_SYMBOL})</Label>
+                      <Input id="minCashoutAmount" name="minCashoutAmount" type="number" min="0" step="0.01" value={settings.minCashoutAmount} onChange={handleChange} />
+                      <p className="text-xs text-gray-500">Minimum rider wallet withdrawal per request</p>
+                    </div>
+                  ) : null}
                   <div>
                     <Button type="button" onClick={handleSubmitGlobal} disabled={loading}>
                       {loading ? 'Saving...' : <><Save className="w-4 h-4 mr-2" /> Save Commission & Debt</>}
@@ -465,40 +476,40 @@ export default function SettingsPage() {
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="commissionRide">Ride (RIDE)</Label>
+                <Label htmlFor="commissionRide">Rides (%)</Label>
                 <Input
                   id="commissionRide"
                   name="commissionRide"
                   type="number"
-                  step="0.01"
+                  step="0.5"
                   min="0"
-                  max="1"
+                  max="100"
                   value={settings.commissionRide}
                   onChange={handleChange}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="commissionDelivery">Parcel (DELIVERY)</Label>
+                <Label htmlFor="commissionDelivery">Parcels (%)</Label>
                 <Input
                   id="commissionDelivery"
                   name="commissionDelivery"
                   type="number"
-                  step="0.01"
+                  step="0.5"
                   min="0"
-                  max="1"
+                  max="100"
                   value={settings.commissionDelivery}
                   onChange={handleChange}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="commissionFood">Food restaurant (subtotal)</Label>
+                <Label htmlFor="commissionFood">Store orders (%)</Label>
                 <Input
                   id="commissionFood"
                   name="commissionFood"
                   type="number"
-                  step="0.01"
+                  step="0.5"
                   min="0"
-                  max="1"
+                  max="100"
                   value={settings.commissionFood}
                   onChange={handleChange}
                 />
@@ -713,18 +724,18 @@ export default function SettingsPage() {
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="foodServiceFeeRate">Rate (0-1)</Label>
+                <Label htmlFor="foodServiceFeeRate">Service fee (%)</Label>
                 <Input
                   id="foodServiceFeeRate"
                   name="foodServiceFeeRate"
                   type="number"
-                  step="0.01"
+                  step="0.5"
                   min="0"
-                  max="1"
+                  max="100"
                   value={settings.foodServiceFeeRate}
                   onChange={handleChange}
                 />
-                <p className="text-xs text-gray-500">8% = 0.08</p>
+                <p className="text-xs text-gray-500">Of the order subtotal</p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="foodServiceFeeMin">Minimum ({CURRENCY_SYMBOL})</Label>
@@ -751,18 +762,18 @@ export default function SettingsPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="foodDeliveryCommissionRate">Rider delivery commission (0-1)</Label>
+                <Label htmlFor="foodDeliveryCommissionRate">Rider delivery commission (%)</Label>
                 <Input
                   id="foodDeliveryCommissionRate"
                   name="foodDeliveryCommissionRate"
                   type="number"
-                  step="0.01"
+                  step="0.5"
                   min="0"
-                  max="1"
+                  max="100"
                   value={settings.foodDeliveryCommissionRate}
                   onChange={handleChange}
                 />
-                <p className="text-xs text-gray-500">0 = rider keeps full delivery fee via Hubtel on delivery.</p>
+                <p className="text-xs text-gray-500">0 = rider keeps the full delivery fee.</p>
               </div>
             </div>
             <Button type="button" onClick={handleSaveFoodServiceFee} disabled={loading}>

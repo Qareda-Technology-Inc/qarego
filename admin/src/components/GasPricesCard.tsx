@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/Label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { CURRENCY_SYMBOL } from "@/lib/currency";
 import { Flame, Loader2, Plus, Save, Trash2 } from "lucide-react";
+import { useFeatures } from "@/lib/features";
 
 type Cylinder = {
   sizeKg: string;
@@ -27,6 +28,8 @@ type GasConfig = {
 
 /** Cooking gas: cylinder sizes and prices are set here for every station. */
 export function GasPricesCard() {
+  // Hidden while mobile money is paused platform-wide; the saved choice is kept.
+  const { momoEnabled: platformMomo } = useFeatures();
   const [rows, setRows] = useState<Cylinder[]>([]);
   const [enabled, setEnabled] = useState(true);
   const [momoEnabled, setMomoEnabled] = useState(false);
@@ -123,14 +126,16 @@ export function GasPricesCard() {
                 <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
                 Gas delivery on
               </label>
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={momoEnabled}
-                  onChange={(e) => setMomoEnabled(e.target.checked)}
-                />
-                Allow MoMo payment (cash is always allowed)
-              </label>
+              {platformMomo ? (
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={momoEnabled}
+                    onChange={(e) => setMomoEnabled(e.target.checked)}
+                  />
+                  Allow MoMo payment (cash is always allowed)
+                </label>
+              ) : null}
             </div>
             <div className="max-w-xs">
               <Label htmlFor="gas-commission">Station commission (%)</Label>

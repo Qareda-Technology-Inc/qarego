@@ -5,6 +5,7 @@ import User from "../../models/User.js";
 import Ride from "../../models/Ride.js";
 import Transaction from "../../models/Transaction.js";
 import { StatusCodes } from "http-status-codes";
+import { assertMomoEnabled } from "../../utils/momoAvailability.js";
 import { getSettings } from "../../utils/tripSettlement.js";
 import { appendWebhookToken } from "../../middleware/hubtelWebhookAuth.js";
 import FoodPayment from "../../models/FoodPayment.js";
@@ -12,31 +13,104 @@ import FoodOrder from "../../models/FoodOrder.js";
 import { settleFoodOrderOnDelivery } from "../../utils/foodOrderSettlement.js";
 import { sendPayment } from "../../utils/hubtelService.js";
 
+const money = (n) => Math.round((Number(n) || 0) * 100) / 100;
+
+/**
+ * GET /admin/finance — money across every service, from what was actually recorded:
+ * trips (rides and parcels) use their commission entries; store orders (food, grocery,
+ * pharmacy, gas) use the split frozen on each delivered order. Food courier trips are
+ * part of their order, so they are not counted again as trips.
+ */
 export const getFinanceStats = async (req, res) => {
   try {
-    const settings = await getSettings();
-    const commissionRate = settings.commissionRate ?? 0.15;
-
-    const totalRevenue = await Ride.aggregate([
-      { $match: { status: 'COMPLETED' } },
-      { $group: { _id: null, total: { $sum: "$fare" } } }
-    ]);
-
-    const monthlyRevenue = await Ride.aggregate([
-      { $match: { status: 'COMPLETED' } },
+    // Commission comes from each completed trip's own entries, so entries left behind by
+    // deleted or test rides never count.
+    const [tripTotals] = await Ride.aggregate([
+      { $match: { status: 'COMPLETED', foodOrder: null } },
+      {
+        $lookup: {
+          from: 'transactions',
+          let: { rideId: '$_id' },
+          pipeline: [
+            { $match: { $expr: { $eq: ['$ride', '$$rideId'] }, type: 'COMMISSION_DEBIT' } },
+            { $group: { _id: null, total: { $sum: '$amount' } } },
+          ],
+          as: 'commission',
+        },
+      },
       {
         $group: {
-          _id: { $month: "$createdAt" },
-          total: { $sum: "$fare" },
-          count: { $sum: 1 }
-        }
+          _id: null,
+          gross: { $sum: '$fare' },
+          count: { $sum: 1 },
+          commission: { $sum: { $ifNull: [{ $arrayElemAt: ['$commission.total', 0] }, 0] } },
+        },
       },
-      { $sort: { "_id": 1 } }
     ]);
 
-    const total = totalRevenue[0]?.total || 0;
-    const platformIncome = total * commissionRate;
-    const driverEarnings = total - platformIncome;
+    const orderByVertical = await FoodOrder.aggregate([
+      { $match: { status: 'DELIVERED' } },
+      { $lookup: { from: 'restaurants', localField: 'restaurant', foreignField: '_id', as: 'store' } },
+      {
+        $group: {
+          _id: { $ifNull: [{ $arrayElemAt: ['$store.vertical', 0] }, 'FOOD'] },
+          count: { $sum: 1 },
+          gross: { $sum: '$total' },
+          platform: { $sum: { $ifNull: ['$platformNet', 0] } },
+          riders: { $sum: { $ifNull: ['$riderNet', 0] } },
+        },
+      },
+      { $sort: { gross: -1 } },
+    ]);
+
+    const trips = {
+      count: tripTotals?.count || 0,
+      gross: money(tripTotals?.gross),
+      platform: money(-(tripTotals?.commission || 0)),
+    };
+    const storeOrders = orderByVertical.reduce(
+      (acc, v) => ({
+        count: acc.count + v.count,
+        gross: money(acc.gross + v.gross),
+        platform: money(acc.platform + v.platform),
+        riders: money(acc.riders + v.riders),
+      }),
+      { count: 0, gross: 0, platform: 0, riders: 0 }
+    );
+
+    // Per calendar month (year included, so two Octobers never merge).
+    const monthKey = { $dateToString: { format: '%Y-%m', date: '$createdAt' } };
+    const [tripMonths, orderMonths] = await Promise.all([
+      Ride.aggregate([
+        { $match: { status: 'COMPLETED', foodOrder: null } },
+        { $group: { _id: monthKey, count: { $sum: 1 }, gross: { $sum: '$fare' } } },
+      ]),
+      FoodOrder.aggregate([
+        { $match: { status: 'DELIVERED' } },
+        {
+          $group: {
+            _id: monthKey,
+            count: { $sum: 1 },
+            gross: { $sum: '$total' },
+            platform: { $sum: { $ifNull: ['$platformNet', 0] } },
+          },
+        },
+      ]),
+    ]);
+    const months = new Map();
+    for (const m of tripMonths) {
+      months.set(m._id, { month: m._id, trips: m.count, orders: 0, gross: m.gross, orderPlatform: 0 });
+    }
+    for (const m of orderMonths) {
+      const row = months.get(m._id) || { month: m._id, trips: 0, orders: 0, gross: 0, orderPlatform: 0 };
+      row.orders = m.count;
+      row.gross += m.gross;
+      row.orderPlatform = m.platform;
+      months.set(m._id, row);
+    }
+    const monthlyRevenue = [...months.values()]
+      .sort((a, b) => a.month.localeCompare(b.month))
+      .map((m) => ({ month: m.month, trips: m.trips, orders: m.orders, gross: money(m.gross) }));
 
     // Total commission owed by drivers (sum of negative balances)
     const driverDebt = await User.aggregate([
@@ -53,13 +127,24 @@ export const getFinanceStats = async (req, res) => {
     const totalDriverBalance = allDriverBalances[0]?.total || 0;
 
     res.status(StatusCodes.OK).json({
-      totalRevenue: total,
-      platformIncome,
-      driverEarnings,
+      totalRevenue: money(trips.gross + storeOrders.gross),
+      platformIncome: money(trips.platform + storeOrders.platform),
+      driverEarnings: money(trips.gross - trips.platform + storeOrders.riders),
+      trips,
+      storeOrders: {
+        count: storeOrders.count,
+        gross: storeOrders.gross,
+        platform: storeOrders.platform,
+        byVertical: orderByVertical.map((v) => ({
+          vertical: v._id,
+          count: v.count,
+          gross: money(v.gross),
+          platform: money(v.platform),
+        })),
+      },
       totalCommissionOwed,
       totalDriverBalance,
-      commissionRate,
-      monthlyRevenue
+      monthlyRevenue,
     });
   } catch (error) {
     console.error('Finance stats error:', error);
@@ -67,7 +152,6 @@ export const getFinanceStats = async (req, res) => {
   }
 };
 
-/** GET /admin/transactions - List transactions (optional ?driverId=) */
 export const getTransactionsAdmin = async (req, res) => {
   try {
     const { driverId, limit = 50, page = 1 } = req.query;
@@ -134,6 +218,8 @@ export const getFoodPaymentsAdmin = async (req, res) => {
 
 /** POST /admin/food-payments/:id/retry-payout - retry delivery-time food settlement disbursement */
 export const retryFoodPaymentPayoutAdmin = async (req, res) => {
+  // Payouts go out by mobile money, which is paused until the new provider is live.
+  assertMomoEnabled();
   try {
     const payment = await FoodPayment.findById(req.params.id);
     if (!payment) {
@@ -240,6 +326,7 @@ export const creditDriverBalance = async (req, res) => {
 
 /** POST /admin/payouts/run - Execute weekly payouts: send balance to drivers via Hubtel (MoMo). */
 export const runWeeklyPayouts = async (req, res) => {
+  assertMomoEnabled();
   try {
     const { sendPayment, makeShortHubtelRef, detectGhMomoChannel } = await import('../utils/hubtelService.js');
     const baseUrl =
