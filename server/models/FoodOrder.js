@@ -137,9 +137,49 @@ const foodOrderSchema = new Schema(
     refundedAt: { type: Date, default: null },
     restaurantRating: { type: Number, min: 1, max: 5, default: null },
     restaurantReview: { type: String, default: null },
+    /** Every status the order went through, with when (filled in automatically below). */
+    timeline: {
+      type: [{ status: String, at: Date, _id: false }],
+      default: () => [],
+    },
   },
   { timestamps: true }
 );
+
+/*
+ * Record each status change in `timeline`, however it's written: order.save() or a
+ * findOneAndUpdate/updateOne that sets status. Refunds are recorded the same way.
+ */
+foodOrderSchema.pre("save", function recordTimeline(next) {
+  const at = new Date();
+  if (this.isNew) {
+    if (!this.timeline?.length) this.timeline = [{ status: this.status || "PLACED", at: this.createdAt || at }];
+  } else if (this.isModified("status")) {
+    this.timeline.push({ status: this.status, at });
+  }
+  if (!this.isNew && this.isModified("refundStatus") && this.refundStatus === "REFUNDED") {
+    this.timeline.push({ status: "REFUNDED", at });
+  }
+  next();
+});
+
+function recordTimelineOnUpdate(next) {
+  const update = this.getUpdate() || {};
+  const set = update.$set || {};
+  const status = set.status ?? update.status;
+  const refund = set.refundStatus ?? update.refundStatus;
+  const events = [];
+  if (typeof status === "string") events.push({ status, at: new Date() });
+  if (refund === "REFUNDED") events.push({ status: "REFUNDED", at: new Date() });
+  if (events.length) {
+    update.$push = { ...(update.$push || {}), timeline: { $each: events } };
+    this.setUpdate(update);
+  }
+  next();
+}
+foodOrderSchema.pre("findOneAndUpdate", recordTimelineOnUpdate);
+foodOrderSchema.pre("updateOne", recordTimelineOnUpdate);
+foodOrderSchema.pre("updateMany", recordTimelineOnUpdate);
 
 foodOrderSchema.index(...clientRequestIdIndex);
 

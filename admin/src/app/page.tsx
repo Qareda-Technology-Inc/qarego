@@ -213,11 +213,16 @@ export default function Dashboard() {
                 icon={Clock}
                 tone="red"
                 title="Stores haven't accepted these orders"
-                hint="Call the store, or decline for them in Store orders"
+                hint="Open an order to call the store, or accept or decline it for them"
                 href="/food-orders"
               >
                 {a.ordersWaitingAccept.map((o) => (
-                  <ActionRow key={o._id} main={o.store} side={`${o.minutes} min · ${formatCurrency(o.total)}`} />
+                  <ActionRow
+                    key={o._id}
+                    main={o.store}
+                    side={`${o.minutes} min · ${formatCurrency(o.total)}`}
+                    href={`/food-orders/${o._id}`}
+                  />
                 ))}
               </ActionGroup>
             ) : null}
@@ -227,11 +232,16 @@ export default function Dashboard() {
                 icon={Bike}
                 tone="red"
                 title="Ready orders with no rider"
-                hint="Assign a rider from Store orders"
+                hint="Open an order to assign a rider"
                 href="/food-orders"
               >
                 {a.ordersWithoutRider.map((o) => (
-                  <ActionRow key={o._id} main={o.store} side={`waiting ${o.minutes} min`} />
+                  <ActionRow
+                    key={o._id}
+                    main={o.store}
+                    side={`waiting ${o.minutes} min`}
+                    href={`/food-orders/${o._id}`}
+                  />
                 ))}
               </ActionGroup>
             ) : null}

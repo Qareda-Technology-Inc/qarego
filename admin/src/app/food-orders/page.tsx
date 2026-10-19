@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { fetcher } from '@/lib/api';
 import { formatCurrency } from '@/lib/currency';
 import { Button } from '@/components/ui/Button';
@@ -150,7 +151,9 @@ export default function FoodOrdersPage() {
               <div className="flex-1">
                 <div className="flex items-center gap-2 flex-wrap">
                   <h2 className="font-semibold text-lg">
-                    {order.restaurant?.name || order.restaurantName || 'Store'}
+                    <Link href={`/food-orders/${order._id}`} className="hover:underline">
+                      {order.restaurant?.name || order.restaurantName || 'Store'}
+                    </Link>
                   </h2>
                   <StatusBadge status={order.status} />
                   {order.refundStatus === 'DUE' && (
@@ -192,6 +195,9 @@ export default function FoodOrdersPage() {
               </div>
 
               <div className="flex flex-col gap-2 w-full sm:w-auto sm:min-w-[140px]">
+                <Link href={`/food-orders/${order._id}`}>
+                  <Button variant="outline" className="w-full">Details</Button>
+                </Link>
                 {order.status === 'PLACED' && (
                   <>
                     <Button

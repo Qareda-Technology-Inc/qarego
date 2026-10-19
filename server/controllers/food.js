@@ -30,6 +30,7 @@ import {
 
 
 import { isDuplicateKeyError, readClientRequestId } from "../utils/idempotency.js";
+import { listAssignableRiders } from "./merchant/orders.js";
 /** Attach computed open/closed metadata to a plain restaurant object. */
 const withOpenState = (restaurant, now = new Date()) => {
   const state = computeOpenState(restaurant, now);
@@ -554,6 +555,50 @@ export const adminListFoodOrders = async (req, res) => {
   res.status(StatusCodes.OK).json({ orders });
 };
 
+/** Statuses an order may pass through, with a fallback time for orders saved before the timeline. */
+function reconstructTimeline(order) {
+  if (order.timeline?.length) return order.timeline;
+  const events = [{ status: "PLACED", at: order.createdAt }];
+  if (order.preparingStartedAt) events.push({ status: "PREPARING", at: order.preparingStartedAt });
+  if (order.status === "CANCELLED" && order.cancelledAt) {
+    events.push({ status: "CANCELLED", at: order.cancelledAt });
+  } else if (order.status !== "PLACED" && order.status !== "PREPARING") {
+    // Exact times weren't recorded before the timeline existed; show the last update.
+    events.push({ status: order.status, at: order.settledAt || order.updatedAt, approximate: true });
+  }
+  if (order.refundedAt) events.push({ status: "REFUNDED", at: order.refundedAt });
+  return events;
+}
+
+/** GET /food/admin/riders — active riders admin can assign a store delivery to. */
+export const adminListAssignableRiders = async (req, res) => {
+  if (req.user.role !== "admin") {
+    throw new BadRequestError("Admin access required");
+  }
+  return listAssignableRiders(req, res);
+};
+
+/** GET /food/admin/orders/:id — everything support needs about one order. */
+export const adminGetFoodOrder = async (req, res) => {
+  if (req.user.role !== "admin") {
+    throw new BadRequestError("Admin access required");
+  }
+  const order = await FoodOrder.findById(req.params.id)
+    .populate({
+      path: "restaurant",
+      select: "name imageEmoji vertical address latitude longitude owner",
+      populate: { path: "owner", select: "name phone" },
+    })
+    .populate("customer", "name phone")
+    .populate({ path: "ride", select: "status rider fare updatedAt", populate: { path: "rider", select: "name phone" } })
+    .lean();
+  if (!order) throw new NotFoundError("Order not found");
+
+  res.status(StatusCodes.OK).json({
+    order: { ...order, timeline: reconstructTimeline(order) },
+  });
+};
+
 /** Admin / restaurant: accept, reject, or mark ready */
 export const adminRestaurantOrderAction = async (req, res) => {
   if (req.user.role !== "admin") {
@@ -574,14 +619,20 @@ export const adminRestaurantOrderAction = async (req, res) => {
     return res.status(StatusCodes.OK).json({ order });
   }
 
-  if (!["accept", "reject", "ready"].includes(action)) {
-    throw new BadRequestError("action must be accept, reject, ready, or mark_refunded");
+  const ADMIN_ACTIONS = ["accept", "reject", "ready", "assign_rider", "collected", "empty_returned"];
+  if (!ADMIN_ACTIONS.includes(action)) {
+    throw new BadRequestError(`action must be one of: ${[...ADMIN_ACTIONS, "mark_refunded"].join(", ")}`);
+  }
+  const { driverId } = req.body;
+  if (action === "assign_rider" && !driverId) {
+    throw new BadRequestError("driverId is required to assign a rider");
   }
 
   const io = req.app.get("io");
   const result = await applyRestaurantAction(req.params.id, action, io, {
     cancelReason: cancelReason?.trim() || null,
     cancelledBy: "ADMIN",
+    driverId: driverId || null,
   });
 
   if (result.error === "not_found") throw new NotFoundError("Order not found");
@@ -603,6 +654,11 @@ export const adminRestaurantOrderAction = async (req, res) => {
     throw new BadRequestError(
       result.message || "Customer must complete MoMo payment before accepting this order"
     );
+  }
+  if (result.error === "driver_not_found") throw new BadRequestError("Rider not found");
+  if (result.error === "driver_not_active") throw new BadRequestError("Rider must be active to take orders");
+  if (result.error === "driver_ineligible") {
+    throw new BadRequestError(result.message || "This rider's vehicle can't take store deliveries");
   }
   if (result.error) throw new BadRequestError(result.error);
 

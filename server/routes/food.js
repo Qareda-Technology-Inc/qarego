@@ -12,6 +12,8 @@ import {
   getFoodCheckoutSettings,
   getFoodDeliveryQuote,
   adminListFoodOrders,
+  adminGetFoodOrder,
+  adminListAssignableRiders,
   adminRestaurantOrderAction,
 } from "../controllers/food.js";
 import {
@@ -39,6 +41,8 @@ router.post("/orders/:id/cancel", cancelMyFoodOrder);
 
 /** Restaurant console (admin token) */
 router.get("/admin/orders", adminListFoodOrders);
+router.get("/admin/orders/:id", adminGetFoodOrder);
+router.get("/admin/riders", adminListAssignableRiders);
 router.patch("/admin/orders/:id", adminRestaurantOrderAction);
 
 export default router;
