@@ -28,6 +28,9 @@ export type FoodOrderRow = {
     rider?: { name?: string; phone?: string };
   } | null;
   createdAt: string;
+  updatedAt?: string;
+  /** When the store accepted the order. */
+  preparingStartedAt?: string | null;
   notes?: string;
   prescriptionUrls?: string[];
 };

@@ -49,6 +49,7 @@ if (!fs.existsSync(publicSoundsDir)) fs.mkdirSync(publicSoundsDir, { recursive: 
 import handleSocketConnection from './controllers/sockets.js';
 import { isMomoEnabled } from "./utils/momoAvailability.js";
 import { ensureGasInExistingZones } from "./utils/serviceZones.js";
+import { fixStoreVerticalsFromTags } from "./utils/commerceStoreTypes.js";
 
 dotenv.config();
 
@@ -212,6 +213,7 @@ const start = async () => {
     await clearDemoFoodSeed();
     await ensureDefaultStoreTypes();
     await ensureGasInExistingZones();
+    await fixStoreVerticalsFromTags();
     const port = process.env.PORT || 3000;
     server.listen(port, "0.0.0.0", () => {
       startFoodCourierBroadcastScheduler(io);

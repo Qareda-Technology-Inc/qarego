@@ -23,7 +23,12 @@ export type CommerceOrderCopy = {
   enableAlertsTitle: string;
   enableAlertsBody: string;
   mapPickupTitle: string;
-};
+  /** Orders board */
+  boardSubtitle: string;
+  preparingColumn: string;
+  preparingEmpty: string;
+  readyButton: string;
+}
 
 const COPY: Record<StoreVertical, CommerceOrderCopy> = {
   FOOD: {
@@ -50,6 +55,10 @@ const COPY: Record<StoreVertical, CommerceOrderCopy> = {
     enableAlertsTitle: "Enable kitchen alerts",
     enableAlertsBody: "Tap once so new orders play a sound and show notifications.",
     mapPickupTitle: "Restaurant (pickup)",
+    boardSubtitle: "Accept new orders, cook, then mark them ready for the rider or the customer.",
+    preparingColumn: "Cooking",
+    preparingEmpty: "Nothing on the stove",
+    readyButton: "Mark ready",
   },
   GROCERY: {
     ordersTab: "Orders",
@@ -75,6 +84,10 @@ const COPY: Record<StoreVertical, CommerceOrderCopy> = {
     enableAlertsTitle: "Enable order alerts",
     enableAlertsBody: "Tap once so new orders play a sound and show notifications.",
     mapPickupTitle: "Store (pickup)",
+    boardSubtitle: "Accept new orders, pack them, then mark them ready for the rider or the customer.",
+    preparingColumn: "Packing",
+    preparingEmpty: "Nothing being packed",
+    readyButton: "Packed & ready",
   },
   PHARMACY: {
     ordersTab: "Orders",
@@ -100,6 +113,10 @@ const COPY: Record<StoreVertical, CommerceOrderCopy> = {
     enableAlertsTitle: "Enable order alerts",
     enableAlertsBody: "Tap once so new orders play a sound and show notifications.",
     mapPickupTitle: "Pharmacy (pickup)",
+    boardSubtitle: "Accept new orders, check any prescription, prepare them, then mark them ready.",
+    preparingColumn: "Preparing",
+    preparingEmpty: "Nothing being prepared",
+    readyButton: "Ready for pickup",
   },
   GAS: {
     ordersTab: "Orders",
@@ -125,6 +142,10 @@ const COPY: Record<StoreVertical, CommerceOrderCopy> = {
     enableAlertsTitle: "Enable order alerts",
     enableAlertsBody: "Tap once so new orders play a sound and show notifications.",
     mapPickupTitle: "Gas station",
+    boardSubtitle: "Accept new orders, fill or swap the cylinder, then mark it ready for the rider.",
+    preparingColumn: "Filling",
+    preparingEmpty: "No cylinders being filled",
+    readyButton: "Cylinder ready",
   },
 };
 

@@ -5,6 +5,7 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import {
   getDashboardStats,
+  getAdminOverview,
   getActiveDrivers,
   getAllTrips,
   getTripById,
@@ -86,6 +87,7 @@ const kitchenSoundUpload = multer({
 const adminRouter = express.Router();
 
 adminRouter.get('/stats', getDashboardStats);
+adminRouter.get('/overview', getAdminOverview);
 adminRouter.get('/dispatch/overview', getDispatchOverview);
 adminRouter.get('/dispatch/analytics', getDispatchAnalytics);
 adminRouter.get('/dispatch/drivers', getDispatchDrivers);

@@ -16,10 +16,10 @@ import {
   Bell,
   UtensilsCrossed,
   Plus,
-  ChefHat,
   ArrowRight,
   Wallet,
 } from "lucide-react";
+import { VerticalIcon } from "@/components/VerticalIcon";
 
 type StoreOverview = {
   _id: string;
@@ -182,7 +182,7 @@ export default function HomePage() {
 
               <div className="flex flex-wrap gap-2 mt-4 text-xs text-gray-600">
                 <span className="inline-flex items-center gap-1">
-                  <ChefHat className="h-3.5 w-3.5" /> {s.active} {storeCopy.dashboardInKitchen}
+                  <VerticalIcon vertical={s.vertical} className="h-3.5 w-3.5" /> {s.active} {storeCopy.dashboardInKitchen}
                 </span>
                 {/* Gas stations sell cylinders at admin-set prices, not a menu. */}
                 {s.vertical !== "GAS" ? (

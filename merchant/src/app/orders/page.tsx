@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { fetcher } from "@/lib/api";
 import { fetchMerchantOrders } from "@/lib/ordersApi";
 import type { FoodOrderRow } from "@/lib/orderTypes";
@@ -9,18 +9,17 @@ import { formatCurrency } from "@/lib/currency";
 import { getSocket } from "@/lib/socket";
 import { stopNewOrderRing } from "@/lib/sound";
 import { useAuth } from "@/context/AuthContext";
-import { getCommerceOrderCopy } from "@/lib/commerceOrderCopy";
+import { getCommerceOrderCopy, type CommerceOrderCopy } from "@/lib/commerceOrderCopy";
 import { Button } from "@/components/ui/Button";
 import MerchantMap from "@/components/MerchantMap";
 import { AssignRiderModal } from "@/components/AssignRiderModal";
 import { PrescriptionAttachments } from "@/components/PrescriptionAttachments";
 import { OrderPayoutNote } from "@/components/OrderPayoutNote";
+import { VerticalIcon } from "@/components/VerticalIcon";
 import {
-  ClipboardList,
-  Clock,
+  Bell,
   CheckCircle,
   XCircle,
-  ChefHat,
   RefreshCw,
   MapPin,
   Banknote,
@@ -29,13 +28,11 @@ import {
   Wifi,
   WifiOff,
   Power,
+  Clock,
+  ShoppingBag,
+  Phone,
+  PackageCheck,
 } from "lucide-react";
-
-type Ride = {
-  _id?: string;
-  status?: string;
-  rider?: { name?: string; phone?: string };
-};
 
 type RestaurantLoc = {
   _id?: string;
@@ -46,14 +43,65 @@ type RestaurantLoc = {
 };
 type OpenState = { isOpen: boolean; status: string; label: string; todayHours?: string | null };
 type Stats = { todayOrders: number; todayRevenue: number; pending: number; active: number };
-type Filter = "pending" | "active" | "all";
+type Action =
+  | "accept"
+  | "reject"
+  | "ready"
+  | "assign_rider"
+  | "cancel"
+  | "empty_returned"
+  | "collected";
+type ColumnKey = "new" | "preparing" | "ready" | "out";
+
+/** Minutes after which a card turns amber, then red, per column. */
+const LATE_AFTER: Record<ColumnKey, [number, number]> = {
+  new: [3, 6],
+  preparing: [20, 35],
+  ready: [10, 20],
+  out: [30, 50],
+};
+
+function columnOf(order: FoodOrderRow): ColumnKey {
+  switch (order.status) {
+    case "PLACED":
+      return "new";
+    case "PREPARING":
+      return "preparing";
+    case "READY_FOR_PICKUP":
+      return "ready";
+    default:
+      return "out";
+  }
+}
+
+/** When the order entered its current column (for the timer on the card). */
+function columnSince(order: FoodOrderRow): string {
+  if (order.status === "PLACED") return order.createdAt;
+  if (order.status === "PREPARING") return order.preparingStartedAt || order.updatedAt || order.createdAt;
+  return order.updatedAt || order.createdAt;
+}
+
+function minutesSince(iso: string, now: number) {
+  return Math.max(0, Math.floor((now - new Date(iso).getTime()) / 60000));
+}
+
+/** Re-render every 30 s so card timers stay current. */
+function useNow(intervalMs = 30000) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), intervalMs);
+    return () => clearInterval(t);
+  }, [intervalMs]);
+  return now;
+}
 
 export default function OrdersPage() {
   const { activeRestaurant, activeRestaurantId } = useAuth();
-  const copy = getCommerceOrderCopy(activeRestaurant?.vertical);
+  const vertical = activeRestaurant?.vertical;
+  const copy = getCommerceOrderCopy(vertical);
+  const now = useNow();
   const [orders, setOrders] = useState<FoodOrderRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<Filter>("pending");
   const [acting, setActing] = useState<string | null>(null);
   const [restaurant, setRestaurant] = useState<RestaurantLoc | null>(null);
   const [openState, setOpenState] = useState<OpenState | null>(null);
@@ -61,17 +109,12 @@ export default function OrdersPage() {
   const [mapOrderId, setMapOrderId] = useState<string | null>(null);
   const [stats, setStats] = useState<Stats | null>(null);
   const [live, setLive] = useState(false);
-  const [assignTarget, setAssignTarget] = useState<{
-    orderId: string;
-    label: string;
-  } | null>(null);
-  const filterRef = useRef(filter);
-  filterRef.current = filter;
+  const [mobileColumn, setMobileColumn] = useState<ColumnKey>("new");
+  const [assignTarget, setAssignTarget] = useState<{ orderId: string; label: string } | null>(null);
 
   const loadStats = useCallback(async () => {
     try {
-      const data = await fetcher("/merchant/stats");
-      setStats(data);
+      setStats(await fetcher("/merchant/stats"));
     } catch {
       /* ignore */
     }
@@ -79,14 +122,7 @@ export default function OrdersPage() {
 
   const load = useCallback(async () => {
     try {
-      const f = filterRef.current;
-      const params =
-        f === "pending"
-          ? { stage: "pending" as const, limit: 100 }
-          : f === "active"
-          ? { stage: "active" as const, limit: 100 }
-          : { view: "kitchen" as const, limit: 100 };
-      const data = await fetchMerchantOrders(params);
+      const data = await fetchMerchantOrders({ view: "kitchen", limit: 100 });
       setOrders(data.orders ?? []);
     } catch (e) {
       console.error(e);
@@ -95,19 +131,19 @@ export default function OrdersPage() {
     }
   }, []);
 
+  // Load now (and again when the active store changes), then poll as a fallback to the socket.
   useEffect(() => {
-    setLoading(true);
-    load();
-  }, [filter, load, activeRestaurantId]);
-
-  useEffect(() => {
-    loadStats();
-    const t = setInterval(() => {
+    const refresh = () => {
       load();
       loadStats();
-    }, 20000);
-    return () => clearInterval(t);
-  }, [load, loadStats]);
+    };
+    const first = setTimeout(refresh, 0);
+    const t = setInterval(refresh, 20000);
+    return () => {
+      clearTimeout(first);
+      clearInterval(t);
+    };
+  }, [load, loadStats, activeRestaurantId]);
 
   useEffect(() => {
     fetcher("/merchant/restaurant")
@@ -163,11 +199,7 @@ export default function OrdersPage() {
     }
   };
 
-  const act = async (
-    orderId: string,
-    action: "accept" | "reject" | "ready" | "assign_rider" | "cancel" | "empty_returned" | "collected",
-    driverId?: string
-  ) => {
+  const act = async (orderId: string, action: Action, driverId?: string) => {
     if (action === "reject" && !confirm("Decline this order?")) return;
     // Cancelling after accepting (e.g. no courier came): ask why, the customer sees it.
     let cancelReason: string | undefined;
@@ -202,317 +234,155 @@ export default function OrdersPage() {
     }
   };
 
-  return (
-    <div className="max-w-5xl">
-      <div className="flex items-center gap-3 mb-2 flex-wrap">
-        <ClipboardList className="h-7 w-7 text-brand" />
-        <h1 className="text-2xl font-bold text-foreground">{copy.ordersTitle}</h1>
-        {activeRestaurant && (
-          <span className="text-sm text-muted">
-            {activeRestaurant.imageEmoji} {activeRestaurant.name}
-          </span>
-        )}
-        <span
-          className={`ml-1 inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full ${
-            live ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"
-          }`}
-          title={live ? "Receiving orders in real time" : "Connecting to the live order feed…"}
-        >
-          {live ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
-          {live ? "Live" : "Connecting…"}
-        </span>
-      </div>
-      <p className="text-muted mb-4">
-        Accept new orders, then <strong>Mark ready</strong> (broadcast to all online riders) or{" "}
-        <strong>Assign rider</strong> (send directly to one driver).
-      </p>
+  const columns: { key: ColumnKey; title: string; empty: string; accent: string }[] = [
+    { key: "new", title: "New", empty: "No new orders", accent: "bg-amber-500" },
+    { key: "preparing", title: copy.preparingColumn, empty: copy.preparingEmpty, accent: "bg-blue-500" },
+    { key: "ready", title: "Ready", empty: "Nothing waiting", accent: "bg-violet-500" },
+    { key: "out", title: "On the way", empty: "No orders out", accent: "bg-emerald-500" },
+  ];
+  const byColumn = (key: ColumnKey) =>
+    orders
+      .filter((o) => columnOf(o) === key)
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
-      {restaurant && (
-        <div className="bg-white rounded-2xl border border-border p-4 mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <span
-              className={`inline-block h-2.5 w-2.5 rounded-full ${
-                openState?.isOpen ? "bg-green-500" : "bg-red-500"
-              }`}
-            />
-            <div>
-              <p className="font-medium text-foreground">{openState?.label ?? "—"}</p>
-              <p className="text-xs text-muted">
-                {openState?.status === "closed"
-                  ? `Outside opening hours${openState.todayHours ? ` · today ${openState.todayHours}` : ""}`
-                  : restaurant.isAcceptingOrders === false
-                  ? "You've paused new orders"
-                  : "Customers can order now"}
-              </p>
+  const paused = restaurant?.isAcceptingOrders === false;
+
+  return (
+    <div className="flex flex-col gap-5">
+      <header className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-brand/10 text-brand">
+              <VerticalIcon vertical={vertical} className="h-6 w-6" />
+            </span>
+            <div className="min-w-0">
+              <h1 className="text-2xl font-bold text-foreground">{copy.ordersTitle}</h1>
+              <p className="text-sm text-muted">{copy.boardSubtitle}</p>
             </div>
           </div>
-          <Button
-            onClick={togglePause}
-            disabled={pausing}
-            variant="outline"
-            className={
-              restaurant.isAcceptingOrders === false
-                ? "border-green-300 text-green-700"
-                : "border-red-300 text-red-600"
-            }
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span
+            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold ${
+              live ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"
+            }`}
+            title={live ? "Receiving orders in real time" : "Connecting to the live order feed…"}
           >
-            <Power className="h-4 w-4 mr-1 inline" />
-            {restaurant.isAcceptingOrders === false ? "Resume orders" : "Pause orders"}
+            {live ? <Wifi className="h-3.5 w-3.5" /> : <WifiOff className="h-3.5 w-3.5" />}
+            {live ? "Live" : "Connecting…"}
+          </span>
+          {restaurant ? (
+            <span
+              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold ${
+                openState?.isOpen && !paused ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"
+              }`}
+              title={openState?.todayHours ? `Today ${openState.todayHours}` : undefined}
+            >
+              <span
+                className={`h-2 w-2 rounded-full ${openState?.isOpen && !paused ? "bg-emerald-500" : "bg-red-500"}`}
+              />
+              {paused
+                ? "Paused"
+                : openState?.status === "closed"
+                  ? "Outside opening hours"
+                  : openState?.label ?? "Open"}
+            </span>
+          ) : null}
+          {restaurant ? (
+            <Button
+              onClick={togglePause}
+              disabled={pausing}
+              variant="outline"
+              className={paused ? "border-green-300 text-green-700" : "border-red-300 text-red-600"}
+            >
+              <Power className="mr-1 inline h-4 w-4" />
+              {paused ? "Resume orders" : "Pause orders"}
+            </Button>
+          ) : null}
+          <Button
+            variant="outline"
+            onClick={() => {
+              load();
+              loadStats();
+            }}
+          >
+            <RefreshCw className="mr-1 inline h-4 w-4" /> Refresh
           </Button>
         </div>
-      )}
+      </header>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatCard label="Orders today" value={stats ? String(stats.todayOrders) : "—"} />
+        <StatCard label="Sales today" value={stats ? formatCurrency(stats.todayRevenue) : "—"} />
         <StatCard
-          label="Revenue today"
-          value={stats ? formatCurrency(stats.todayRevenue) : "—"}
+          label="Waiting to accept"
+          value={stats ? String(stats.pending) : "—"}
+          highlight={!!stats?.pending}
         />
-        <StatCard label="Awaiting accept" value={stats ? String(stats.pending) : "—"} highlight={!!stats?.pending} />
         <StatCard label={copy.inProgressStat} value={stats ? String(stats.active) : "—"} />
       </div>
 
-      <div className="flex gap-2 mb-6">
-        {(["pending", "active", "all"] as const).map((f) => (
+      {/* Phones: one column at a time. Tablets and up: the whole board. */}
+      <div className="flex gap-2 overflow-x-auto md:hidden">
+        {columns.map((c) => (
           <button
-            key={f}
-            onClick={() => setFilter(f)}
-            className={`px-4 py-2 rounded-xl text-sm font-medium ${
-              filter === f ? "bg-brand text-white" : "bg-white text-gray-700 hover:bg-gray-100 border"
+            key={c.key}
+            onClick={() => setMobileColumn(c.key)}
+            className={`shrink-0 rounded-xl px-4 py-2 text-sm font-medium ${
+              mobileColumn === c.key ? "bg-brand text-white" : "border bg-white text-gray-700"
             }`}
           >
-            {f === "pending" ? "New" : f === "active" ? copy.activeFilter : "All"}
+            {c.title} · {byColumn(c.key).length}
           </button>
         ))}
-        <button
-          onClick={() => {
-            load();
-            loadStats();
-          }}
-          className="px-4 py-2 rounded-xl text-sm bg-slate-900 text-white ml-auto flex items-center gap-1"
-        >
-          <RefreshCw className="h-4 w-4" /> Refresh
-        </button>
       </div>
 
       {loading ? (
         <p className="text-gray-500">Loading orders…</p>
-      ) : orders.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-border p-12 text-center text-gray-500">
-          No orders in this view
-        </div>
       ) : (
-        <div className="space-y-4">
-          {orders.map((order) => (
-            <div
-              key={order._id}
-              className="bg-white rounded-2xl border border-border shadow-sm p-5 flex flex-col md:flex-row md:items-start gap-4"
-            >
-              <div className="flex-1">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h2 className="font-semibold text-lg">{order.customer?.name || "Customer"}</h2>
-                  <StatusBadge status={order.status} />
-                  <PaymentBadge method={order.paymentMethod} />
-                  {order.gasMode ? (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-800">
-                      {order.gasMode === "REFILL" ? "Refill" : "Exchange"}
-                      {order.gasSizeKg ? ` · ${order.gasSizeKg} kg` : ""}
-                    </span>
-                  ) : null}
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {columns.map((c) => {
+            const list = byColumn(c.key);
+            return (
+              <section
+                key={c.key}
+                className={`flex min-h-[200px] flex-col rounded-2xl bg-slate-100/70 p-3 ${
+                  mobileColumn === c.key ? "" : "hidden md:flex"
+                }`}
+              >
+                <div className="mb-3 flex items-center gap-2 px-1">
+                  <span className={`h-2.5 w-2.5 rounded-full ${c.accent}`} />
+                  <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-700">{c.title}</h2>
+                  <span className="ml-auto rounded-full bg-white px-2 py-0.5 text-xs font-semibold text-slate-600">
+                    {list.length}
+                  </span>
                 </div>
-                <p className="text-sm text-gray-600 mt-1">{order.customer?.phone || "—"}</p>
-                <p className="text-sm text-muted mt-1">{order.delivery?.address}</p>
-                <ul className="mt-3 text-sm text-gray-800 space-y-2">
-                  {order.items?.map((item, i) => (
-                    <li key={i}>
-                      <span>
-                        {item.quantity}× {item.name} — {formatCurrency(item.price * item.quantity)}
-                      </span>
-                      {item.modifiers?.length ? (
-                        <ul className="mt-1 ml-4 text-xs text-muted space-y-0.5">
-                          {item.modifiers.map((mod, j) => (
-                            <li key={j}>+ {formatOrderModifierLine(mod)}</li>
-                          ))}
-                        </ul>
-                      ) : null}
-                    </li>
-                  ))}
-                </ul>
-                {order.notes ? (
-                  <p className="text-sm text-brand mt-2">Note: {order.notes}</p>
-                ) : null}
-                <PrescriptionAttachments urls={order.prescriptionUrls} />
-                <p className="font-semibold mt-3">{formatCurrency(order.subtotal)} total</p>
-                <OrderPayoutNote order={order} />
-                <p className="text-xs text-gray-400 mt-1">
-                  {new Date(order.createdAt).toLocaleString()}
-                </p>
-
-                {order.ride?.rider?.name && (
-                  <p className="text-sm text-indigo-700 mt-2 flex items-center gap-1">
-                    <Bike className="h-4 w-4" />
-                    Courier: {order.ride.rider.name}
-                    {order.ride.rider.phone ? ` · ${order.ride.rider.phone}` : ""}
-                  </p>
-                )}
-
-                {order.delivery?.latitude != null && order.delivery?.longitude != null && (
-                  <div className="mt-3">
-                    <button
-                      onClick={() => setMapOrderId(mapOrderId === order._id ? null : order._id)}
-                      className="text-sm text-brand font-medium flex items-center gap-1 hover:underline"
-                    >
-                      <MapPin className="h-4 w-4" />
-                      {mapOrderId === order._id ? "Hide map" : "View delivery on map"}
-                    </button>
-                    {mapOrderId === order._id && (
-                      <div className="mt-2">
-                        <MerchantMap
-                          markers={[
-                            ...(restaurant?.latitude != null && restaurant?.longitude != null
-                              ? [
-                                  {
-                                    position: { lat: restaurant.latitude, lng: restaurant.longitude },
-                                    title: restaurant.name
-                                      ? `${restaurant.name} (pickup)`
-                                      : copy.mapPickupTitle,
-                                  },
-                                ]
-                              : []),
-                            {
-                              position: {
-                                lat: order.delivery.latitude,
-                                lng: order.delivery.longitude,
-                              },
-                              title: `Delivery — ${order.delivery.address}`,
-                            },
-                          ]}
-                          height={220}
-                        />
-                      </div>
-                    )}
+                {list.length === 0 ? (
+                  <p className="flex flex-1 items-center justify-center py-10 text-sm text-slate-400">{c.empty}</p>
+                ) : (
+                  <div className="flex flex-col gap-3">
+                    {list.map((order) => (
+                      <OrderCard
+                        key={order._id}
+                        order={order}
+                        column={c.key}
+                        copy={copy}
+                        now={now}
+                        busy={acting === order._id}
+                        mapOpen={mapOrderId === order._id}
+                        restaurant={restaurant}
+                        onToggleMap={() => setMapOrderId(mapOrderId === order._id ? null : order._id)}
+                        onAct={(action) => act(order._id, action)}
+                        onAssign={() =>
+                          setAssignTarget({ orderId: order._id, label: order.customer?.name || "this order" })
+                        }
+                      />
+                    ))}
                   </div>
                 )}
-              </div>
-
-              <div className="flex flex-col gap-2 min-w-[150px]">
-                {order.status === "PLACED" && (
-                  <>
-                    <Button
-                      disabled={acting === order._id}
-                      onClick={() => act(order._id, "accept")}
-                      className="bg-green-600 hover:bg-green-700"
-                    >
-                      <CheckCircle className="h-4 w-4 mr-1 inline" /> Accept
-                    </Button>
-                    <Button
-                      disabled={acting === order._id}
-                      onClick={() => act(order._id, "reject")}
-                      variant="outline"
-                      className="border-red-300 text-red-600"
-                    >
-                      <XCircle className="h-4 w-4 mr-1 inline" /> Decline
-                    </Button>
-                  </>
-                )}
-                {order.status === "PREPARING" && order.gasMode === "REFILL" && order.gasStage !== "AT_STATION" && (
-                  <p className="text-sm text-gray-600 flex items-center gap-1">
-                    <Bike className="h-4 w-4" />
-                    {order.gasStage === "TO_STATION"
-                      ? "Courier is bringing the empty cylinder"
-                      : "Courier collecting the customer's empty"}
-                  </p>
-                )}
-                {order.status === "PREPARING" && order.gasMode === "REFILL" && order.gasStage === "AT_STATION" && (
-                  <Button disabled={acting === order._id} onClick={() => act(order._id, "ready")}>
-                    <ChefHat className="h-4 w-4 mr-1 inline" /> Mark filled
-                  </Button>
-                )}
-                {order.status === "PREPARING" && order.gasMode !== "REFILL" && (
-                  <>
-                    <Button
-                      disabled={acting === order._id}
-                      onClick={() => act(order._id, "ready")}
-                     
-                    >
-                      <ChefHat className="h-4 w-4 mr-1 inline" /> Mark ready
-                    </Button>
-                    <Button
-                      disabled={acting === order._id}
-                      variant="outline"
-                      onClick={() =>
-                        setAssignTarget({
-                          orderId: order._id,
-                          label: order.customer?.name || "this order",
-                        })
-                      }
-                    >
-                      <Bike className="h-4 w-4 mr-1 inline" /> Assign rider
-                    </Button>
-                  </>
-                )}
-                {order.status === "READY_FOR_PICKUP" &&
-                  order.ride?.status === "SEARCHING_FOR_RIDER" &&
-                  !order.ride?.rider?.name && (
-                    <Button
-                      disabled={acting === order._id}
-                      variant="outline"
-                      onClick={() =>
-                        setAssignTarget({
-                          orderId: order._id,
-                          label: order.customer?.name || "this order",
-                        })
-                      }
-                    >
-                      <Bike className="h-4 w-4 mr-1 inline" /> Assign rider
-                    </Button>
-                  )}
-                {order.status === "READY_FOR_PICKUP" && order.fulfillmentType === "PICKUP" && (
-                  <>
-                    <p className="text-sm text-gray-600 flex items-center gap-1">
-                      <Clock className="h-4 w-4" /> Waiting for the customer to collect
-                    </p>
-                    <Button
-                      disabled={acting === order._id}
-                      className="bg-green-600 hover:bg-green-700"
-                      onClick={() => act(order._id, "collected")}
-                    >
-                      <CheckCircle className="h-4 w-4 mr-1 inline" /> Customer collected
-                    </Button>
-                  </>
-                )}
-                {order.status === "READY_FOR_PICKUP" &&
-                  order.fulfillmentType !== "PICKUP" &&
-                  !order.ride?.rider?.name && (
-                    <p className="text-sm text-gray-600 flex items-center gap-1">
-                      <Clock className="h-4 w-4" /> Waiting for rider…
-                    </p>
-                  )}
-                {order.gasMode === "EXCHANGE" &&
-                  (order.status === "PICKED_UP" || order.status === "DELIVERED") &&
-                  !order.gasEmptyReturnedAt && (
-                    <Button
-                      disabled={acting === order._id}
-                      variant="outline"
-                      onClick={() => act(order._id, "empty_returned")}
-                    >
-                      Empty cylinder returned
-                    </Button>
-                  )}
-                {((order.status === "PREPARING" && !(order.gasMode === "REFILL" && order.gasStage)) ||
-                  order.status === "READY_FOR_PICKUP") && (
-                  <Button
-                    disabled={acting === order._id}
-                    variant="outline"
-                    className="border-red-300 text-red-600"
-                    onClick={() => act(order._id, "cancel")}
-                  >
-                    <XCircle className="h-4 w-4 mr-1 inline" /> Cancel order
-                  </Button>
-                )}
-              </div>
-            </div>
-          ))}
+              </section>
+            );
+          })}
         </div>
       )}
 
@@ -522,18 +392,238 @@ export default function OrdersPage() {
         orderLabel={assignTarget?.label}
         busy={acting !== null}
         onAssign={(driverId) =>
-          assignTarget
-            ? act(assignTarget.orderId, "assign_rider", driverId)
-            : Promise.resolve()
+          assignTarget ? act(assignTarget.orderId, "assign_rider", driverId) : Promise.resolve()
         }
       />
     </div>
   );
 }
 
+function OrderCard({
+  order,
+  column,
+  copy,
+  now,
+  busy,
+  mapOpen,
+  restaurant,
+  onToggleMap,
+  onAct,
+  onAssign,
+}: {
+  order: FoodOrderRow;
+  column: ColumnKey;
+  copy: CommerceOrderCopy;
+  now: number;
+  busy: boolean;
+  mapOpen: boolean;
+  restaurant: RestaurantLoc | null;
+  onToggleMap: () => void;
+  onAct: (action: Action) => void;
+  onAssign: () => void;
+}) {
+  const mins = minutesSince(columnSince(order), now);
+  const [warn, late] = LATE_AFTER[column];
+  const timerClass =
+    mins >= late
+      ? "bg-red-100 text-red-700"
+      : mins >= warn
+        ? "bg-amber-100 text-amber-800"
+        : "bg-slate-100 text-slate-600";
+  const isNew = order.status === "PLACED";
+  const isPickup = order.fulfillmentType === "PICKUP";
+  const refillWaiting = order.status === "PREPARING" && order.gasMode === "REFILL" && order.gasStage !== "AT_STATION";
+  const canCancel =
+    (order.status === "PREPARING" && !(order.gasMode === "REFILL" && order.gasStage)) ||
+    order.status === "READY_FOR_PICKUP";
+
+  return (
+    <article
+      className={`rounded-2xl border bg-white p-4 shadow-sm ${
+        isNew ? "border-amber-300 ring-2 ring-amber-200" : "border-border"
+      }`}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="truncate font-semibold text-foreground">{order.customer?.name || "Customer"}</p>
+          <p className="text-xs text-muted">#{order._id.slice(-6).toUpperCase()}</p>
+        </div>
+        <span className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold ${timerClass}`}>
+          <Clock className="h-3 w-3" />
+          {mins < 1 ? "now" : `${mins} min`}
+        </span>
+      </div>
+
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        <PaymentBadge method={order.paymentMethod} />
+        <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
+          {isPickup ? <ShoppingBag className="h-3 w-3" /> : <Bike className="h-3 w-3" />}
+          {isPickup ? "Pickup" : "Delivery"}
+        </span>
+        {order.gasMode ? (
+          <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-800">
+            {order.gasMode === "REFILL" ? "Refill" : "Exchange"}
+            {order.gasSizeKg ? ` · ${order.gasSizeKg} kg` : ""}
+          </span>
+        ) : null}
+      </div>
+
+      <ul className="mt-3 space-y-1.5 text-sm text-gray-800">
+        {order.items?.map((item, i) => (
+          <li key={i}>
+            <span className="font-semibold">{item.quantity}×</span> {item.name}
+            {item.modifiers?.length ? (
+              <ul className="ml-5 mt-0.5 space-y-0.5 text-xs text-muted">
+                {item.modifiers.map((mod, j) => (
+                  <li key={j}>+ {formatOrderModifierLine(mod)}</li>
+                ))}
+              </ul>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+      {order.notes ? (
+        <p className="mt-2 rounded-lg bg-amber-50 px-2 py-1 text-sm text-amber-900">Note: {order.notes}</p>
+      ) : null}
+      <PrescriptionAttachments urls={order.prescriptionUrls} />
+
+      <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
+        <span className="text-sm text-muted">Order total</span>
+        <span className="font-bold text-foreground">{formatCurrency(order.subtotal)}</span>
+      </div>
+      <OrderPayoutNote order={order} />
+
+      {order.customer?.phone ? (
+        <a
+          href={`tel:${order.customer.phone}`}
+          className="mt-2 inline-flex items-center gap-1 text-xs text-slate-600 hover:text-brand"
+        >
+          <Phone className="h-3 w-3" /> {order.customer.phone}
+        </a>
+      ) : null}
+      {!isPickup && order.delivery?.address ? (
+        <p className="mt-1 text-xs text-muted">{order.delivery.address}</p>
+      ) : null}
+      {order.ride?.rider?.name ? (
+        <p className="mt-2 flex items-center gap-1 text-sm text-indigo-700">
+          <Bike className="h-4 w-4" /> {order.ride.rider.name}
+          {order.ride.rider.phone ? ` · ${order.ride.rider.phone}` : ""}
+        </p>
+      ) : null}
+
+      {order.delivery?.latitude != null && order.delivery?.longitude != null && !isPickup ? (
+        <div className="mt-2">
+          <button onClick={onToggleMap} className="flex items-center gap-1 text-xs font-medium text-brand hover:underline">
+            <MapPin className="h-3.5 w-3.5" /> {mapOpen ? "Hide map" : "Show on map"}
+          </button>
+          {mapOpen ? (
+            <div className="mt-2">
+              <MerchantMap
+                markers={[
+                  ...(restaurant?.latitude != null && restaurant?.longitude != null
+                    ? [
+                        {
+                          position: { lat: restaurant.latitude, lng: restaurant.longitude },
+                          title: restaurant.name ? `${restaurant.name} (pickup)` : copy.mapPickupTitle,
+                        },
+                      ]
+                    : []),
+                  {
+                    position: { lat: order.delivery.latitude, lng: order.delivery.longitude },
+                    title: `Delivery — ${order.delivery.address}`,
+                  },
+                ]}
+                height={180}
+              />
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      <div className="mt-4 flex flex-col gap-2">
+        {isNew ? (
+          <div className="grid grid-cols-2 gap-2">
+            <Button disabled={busy} onClick={() => onAct("accept")} className="h-11 bg-green-600 hover:bg-green-700">
+              <CheckCircle className="mr-1 inline h-4 w-4" /> Accept
+            </Button>
+            <Button
+              disabled={busy}
+              onClick={() => onAct("reject")}
+              variant="outline"
+              className="h-11 border-red-300 text-red-600"
+            >
+              <XCircle className="mr-1 inline h-4 w-4" /> Decline
+            </Button>
+          </div>
+        ) : null}
+
+        {refillWaiting ? (
+          <p className="flex items-center gap-1 text-sm text-gray-600">
+            <Bike className="h-4 w-4" />
+            {order.gasStage === "TO_STATION"
+              ? "Courier is bringing the empty cylinder"
+              : "Courier collecting the customer's empty"}
+          </p>
+        ) : null}
+        {order.status === "PREPARING" && !refillWaiting ? (
+          <Button disabled={busy} onClick={() => onAct("ready")} className="h-11">
+            <PackageCheck className="mr-1 inline h-4 w-4" /> {copy.readyButton}
+          </Button>
+        ) : null}
+        {order.status === "PREPARING" && order.gasMode !== "REFILL" && !isPickup ? (
+          <Button disabled={busy} variant="outline" onClick={onAssign}>
+            <Bike className="mr-1 inline h-4 w-4" /> Assign rider
+          </Button>
+        ) : null}
+
+        {order.status === "READY_FOR_PICKUP" && isPickup ? (
+          <>
+            <p className="flex items-center gap-1 text-sm text-gray-600">
+              <Bell className="h-4 w-4" /> Waiting for the customer to collect
+            </p>
+            <Button disabled={busy} className="h-11 bg-green-600 hover:bg-green-700" onClick={() => onAct("collected")}>
+              <CheckCircle className="mr-1 inline h-4 w-4" /> Customer collected
+            </Button>
+          </>
+        ) : null}
+        {order.status === "READY_FOR_PICKUP" && !isPickup && !order.ride?.rider?.name ? (
+          <>
+            <p className="flex items-center gap-1 text-sm text-gray-600">
+              <Clock className="h-4 w-4" /> Finding a rider…
+            </p>
+            {order.ride?.status === "SEARCHING_FOR_RIDER" ? (
+              <Button disabled={busy} variant="outline" onClick={onAssign}>
+                <Bike className="mr-1 inline h-4 w-4" /> Assign rider
+              </Button>
+            ) : null}
+          </>
+        ) : null}
+
+        {order.gasMode === "EXCHANGE" &&
+        (order.status === "PICKED_UP" || order.status === "DELIVERED") &&
+        !order.gasEmptyReturnedAt ? (
+          <Button disabled={busy} variant="outline" onClick={() => onAct("empty_returned")}>
+            Empty cylinder returned
+          </Button>
+        ) : null}
+
+        {canCancel ? (
+          <button
+            disabled={busy}
+            onClick={() => onAct("cancel")}
+            className="self-center text-xs font-medium text-red-600 hover:underline disabled:opacity-50"
+          >
+            Cancel order
+          </button>
+        ) : null}
+      </div>
+    </article>
+  );
+}
+
 function StatCard({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
   return (
-    <div className={`rounded-2xl border border-border p-4 ${highlight ? "bg-brand/5 border-brand/20" : "bg-white"}`}>
+    <div className={`rounded-2xl border p-4 ${highlight ? "border-brand/20 bg-brand/5" : "border-border bg-white"}`}>
       <p className="text-xs text-muted">{label}</p>
       <p className={`text-xl font-bold ${highlight ? "text-brand" : "text-gray-900"}`}>{value}</p>
     </div>
@@ -545,28 +635,12 @@ function PaymentBadge({ method }: { method?: "CASH" | "MOBILE_MONEY" }) {
   const isCash = method === "CASH";
   return (
     <span
-      className={`text-xs font-medium px-2 py-1 rounded-full inline-flex items-center gap-1 ${
+      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${
         isCash ? "bg-emerald-100 text-emerald-800" : "bg-sky-100 text-sky-800"
       }`}
     >
       {isCash ? <Banknote className="h-3 w-3" /> : <Smartphone className="h-3 w-3" />}
       {isCash ? "Cash" : "Mobile money"}
-    </span>
-  );
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const colors: Record<string, string> = {
-    PLACED: "bg-yellow-100 text-yellow-800",
-    PREPARING: "bg-blue-100 text-blue-800",
-    READY_FOR_PICKUP: "bg-purple-100 text-purple-800",
-    PICKED_UP: "bg-indigo-100 text-indigo-800",
-    DELIVERED: "bg-green-100 text-green-800",
-    CANCELLED: "bg-red-100 text-red-800",
-  };
-  return (
-    <span className={`text-xs font-medium px-2 py-1 rounded-full ${colors[status] || "bg-gray-100"}`}>
-      {status.replace(/_/g, " ")}
     </span>
   );
 }
