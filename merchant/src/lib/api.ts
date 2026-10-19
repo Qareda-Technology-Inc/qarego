@@ -32,7 +32,9 @@ function getAuthHeaders(customHeaders?: HeadersInit): HeadersInit {
   };
 }
 
-export async function fetcher(url: string, options: RequestInit = {}) {
+// Responses are untyped JSON, as in the admin portal; each page reads the fields it expects.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function fetcher(url: string, options: RequestInit = {}): Promise<any> {
   const base = getApiBaseUrl();
   const token = typeof window !== "undefined" ? localStorage.getItem("accessToken") : null;
   const res = await fetch(`${base}${url}`, {
@@ -41,7 +43,8 @@ export async function fetcher(url: string, options: RequestInit = {}) {
   });
 
   const raw = await res.text();
-  let data = {};
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let data: Record<string, any> = {};
   if (raw) {
     try {
       data = JSON.parse(raw);
