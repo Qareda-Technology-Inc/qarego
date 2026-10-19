@@ -1,5 +1,5 @@
 import { View, StyleSheet, Image, Pressable } from "react-native";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
@@ -19,6 +19,9 @@ import {
 } from "@/service/foodService";
 import { resolveOrderVertical } from "@/utils/commerceOrderCopy";
 import { STORE_VERTICAL_CONFIG } from "@/utils/storeVertical";
+import WelcomeSlides from "./onboarding/WelcomeSlides";
+import SpotlightTour, { type TourStep } from "./onboarding/SpotlightTour";
+import { onboardingUserId, useOnboardingStore } from "@/store/onboardingStore";
 
 function getGreeting(): string {
   const hour = new Date().getHours();
@@ -63,6 +66,47 @@ const ServiceSelectScreen = () => {
     : Colors.theme;
   const rideAllowed = isServiceAllowed("RIDE");
 
+  // First-time guidance: intro slides, then a tour of the real controls on this screen.
+  // Waits until the customer has a name, so it never sits on top of the sign-up form.
+  const userId = onboardingUserId(user);
+  const ready = !!userId && !!user?.name;
+  const welcomeSeen = useOnboardingStore((s) => s.hasSeen(userId, "welcome"));
+  const tourSeen = useOnboardingStore((s) => s.hasSeen(userId, "tour:home"));
+  const markSeen = useOnboardingStore((s) => s.markSeen);
+  const whereToRef = useRef<View>(null);
+  const servicesRef = useRef<View>(null);
+  const ordersRef = useRef<View>(null);
+  const profileRef = useRef<View>(null);
+  const tourSteps = useMemo<TourStep[]>(
+    () => [
+      {
+        key: "whereTo",
+        target: whereToRef,
+        title: "Book a ride",
+        body: "Tap here, choose where you're going, and you'll see the fare before you confirm.",
+      },
+      {
+        key: "services",
+        target: servicesRef,
+        title: "Everything else",
+        body: "Order food, groceries or medicine, send a parcel, or get your gas cylinder refilled.",
+      },
+      {
+        key: "orders",
+        target: ordersRef,
+        title: "Your orders",
+        body: "Follow an order that's on its way and see your past trips and orders.",
+      },
+      {
+        key: "profile",
+        target: profileRef,
+        title: "Your profile",
+        body: "Update your name and photo. Open Account any time and tap \"Show me around\" to see this again.",
+      },
+    ],
+    []
+  );
+
   return (
     <View style={styles.wrapper}>
       <Animated.View entering={FadeInDown.duration(420)} style={styles.header}>
@@ -80,6 +124,7 @@ const ServiceSelectScreen = () => {
           </CustomText>
         </View>
         <Pressable
+          ref={ordersRef}
           onPress={() => router.push("/customer/orders")}
           style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}
           accessibilityRole="button"
@@ -89,6 +134,7 @@ const ServiceSelectScreen = () => {
           <Ionicons name="receipt-outline" size={20} color={Colors.text} />
         </Pressable>
         <Pressable
+          ref={profileRef}
           onPress={() => router.push("/customer/profile")}
           style={({ pressed }) => [styles.avatar, pressed && styles.pressed]}
           accessibilityRole="button"
@@ -135,6 +181,7 @@ const ServiceSelectScreen = () => {
       {rideAllowed ? (
         <Animated.View entering={FadeInDown.delay(60).duration(420)}>
           <Pressable
+            ref={whereToRef}
             onPress={() =>
               router.navigate({
                 pathname: "/customer/selectlocations",
@@ -162,7 +209,9 @@ const ServiceSelectScreen = () => {
       <CustomText fontFamily="SemiBold" fontSize={15} style={styles.sectionTitle}>
         What do you need today?
       </CustomText>
-      <CircularServiceSelector goToHomeOnSelect />
+      <View ref={servicesRef} collapsable={false}>
+        <CircularServiceSelector goToHomeOnSelect />
+      </View>
 
       <OrderAgainRow orders={pastOrders} bleed={PAGE_PAD} />
 
@@ -176,6 +225,13 @@ const ServiceSelectScreen = () => {
           </View>
         </View>
       ) : null}
+
+      <WelcomeSlides visible={ready && !welcomeSeen} onDone={() => markSeen(userId, "welcome")} />
+      <SpotlightTour
+        visible={ready && welcomeSeen && !tourSeen}
+        steps={tourSteps}
+        onDone={() => markSeen(userId, "tour:home")}
+      />
     </View>
   );
 };

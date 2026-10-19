@@ -23,6 +23,8 @@ type Props = {
   /** No connection: the step can't be confirmed, so don't let it be tapped. */
   offline?: boolean;
   onPanelLayout?: (height: number) => void;
+  /** Target for the first-trip tip. */
+  panelRef?: React.RefObject<View | null>;
 };
 
 const RiderActionButton: FC<Props> = ({
@@ -39,6 +41,7 @@ const RiderActionButton: FC<Props> = ({
   actionLoading = false,
   offline = false,
   onPanelLayout,
+  panelRef,
 }) => {
   const insets = useSafeAreaInsets();
   const phase = getRiderDeliveryPhase(ride);
@@ -75,6 +78,7 @@ const RiderActionButton: FC<Props> = ({
 
   return (
     <View
+      ref={panelRef}
       style={[s.panel, s.panelCompact, { paddingBottom: Math.max(insets.bottom, 12) }]}
       onLayout={handleLayout}
     >

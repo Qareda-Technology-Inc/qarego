@@ -38,7 +38,16 @@ function hasStoredRiderCoords(location: ReturnType<typeof useRiderStore.getState
   );
 }
 
-const RiderHeader = () => {
+type RiderHeaderProps = {
+  /** Targets for the first-time rider tour on the home screen. */
+  tourRefs?: {
+    menu: React.RefObject<View | null>;
+    duty: React.RefObject<View | null>;
+    earnings: React.RefObject<View | null>;
+  };
+};
+
+const RiderHeader = ({ tourRefs }: RiderHeaderProps = {}) => {
   const { user, onDuty, setOnDuty, setLocation } = useRiderStore();
   const activeModeLabel = formatActiveModeLabel(getEffectivePreferencesFromUser(user));
   const { emit, on, off } = useWS();
@@ -214,6 +223,7 @@ const RiderHeader = () => {
 
         <View style={commonStyles.flexRowBetween}>
           <TouchableOpacity
+            ref={tourRefs?.menu}
             onPress={openDrawer}
             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
             accessibilityRole="button"
@@ -224,6 +234,7 @@ const RiderHeader = () => {
           </TouchableOpacity>
 
           <TouchableOpacity
+            ref={tourRefs?.duty}
             style={[riderStyles.toggleContainer, toggleBusy && { opacity: 0.7 }]}
             onPress={toggleOnDuty}
             disabled={toggleBusy}
@@ -260,6 +271,7 @@ const RiderHeader = () => {
       </View>
 
       <TouchableOpacity
+        ref={tourRefs?.earnings}
         style={riderStyles?.earningContainer}
         onPress={() => router.push("/rider/earnings")}
         activeOpacity={0.7}

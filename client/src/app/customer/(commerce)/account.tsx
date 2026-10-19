@@ -8,11 +8,15 @@ import { useUserStore } from "@/store/userStore";
 import { Ionicons } from "@expo/vector-icons";
 import { Colors } from "@/utils/Constants";
 import { logout, confirmDeleteAccount } from "@/service/authService";
+import { onboardingUserId, useOnboardingStore } from "@/store/onboardingStore";
 import { useWS } from "@/service/WSProvider";
 import { router } from "expo-router";
+import Constants from "expo-constants";
 import { resolveMediaUrl } from "@/service/mediaUpload";
 
 import { openLegalPage } from "@/utils/legalLinks";
+const appVersion = Constants.expoConfig?.version ?? "";
+
 const CustomerAccount = () => {
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
@@ -27,8 +31,15 @@ const CustomerAccount = () => {
     ]);
   };
 
+  const resetOnboarding = useOnboardingStore((s) => s.reset);
+  const showMeAround = () => {
+    resetOnboarding(onboardingUserId(user as { _id?: string; id?: string }));
+    router.navigate("/customer");
+  };
+
   const menuItems = [
     { icon: "person-outline", label: "Personal Info", library: Ionicons, onPress: () => router.push('/customer/profile') },
+    { icon: "compass-outline", label: "Show me around", library: Ionicons, onPress: showMeAround },
     { icon: "shield-checkmark-outline", label: "Privacy Policy", library: Ionicons, onPress: () => openLegalPage() },
     { icon: "trash-outline", label: "Delete Account", library: Ionicons, color: "red", onPress: () => confirmDeleteAccount(disconnect) },
   ];
@@ -120,7 +131,7 @@ const CustomerAccount = () => {
         </View>
 
         <View style={styles.footer}>
-            <CustomText fontSize={12} color="#999">Version 1.0.0</CustomText>
+            <CustomText fontSize={12} color="#999">Version {appVersion}</CustomText>
         </View>
 
       </ScrollView>

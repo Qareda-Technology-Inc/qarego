@@ -35,6 +35,8 @@ import BottomSheet, { BottomSheetScrollView } from "@gorhom/bottom-sheet";
 
 import { useConnectivity } from "@/service/connectivity";
 import { useRequestId } from "@/utils/useRequestId";
+import SpotlightTour, { type TourStep } from "@/components/customer/onboarding/SpotlightTour";
+import { onboardingUserId, useOnboardingStore } from "@/store/onboardingStore";
 const RideBooking = () => {
   const { height: windowHeight } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -75,6 +77,23 @@ const RideBooking = () => {
     };
   }, [route?.params, localParams]);
   const { location: storeLocation, user } = useUserStore() as any;
+
+  // One-time tip on the ride options the first time a customer books a ride.
+  const tipUserId = onboardingUserId(user);
+  const rideTipSeen = useOnboardingStore((st) => st.hasSeen(tipUserId, "tip:ridebooking"));
+  const markTipSeen = useOnboardingStore((st) => st.markSeen);
+  const optionsRef = useRef<View>(null);
+  const rideTipSteps = useMemo<TourStep[]>(
+    () => [
+      {
+        key: "options",
+        target: optionsRef,
+        title: "Pick how you travel",
+        body: "Each option shows the fare and time. That's the price you pay, in cash to your rider at the end of the trip.",
+      },
+    ],
+    []
+  );
   const isParcelFlow = item?.serviceType === "DELIVERY";
   const parcelMode: ParcelMode = isParcelFlow ? parseParcelMode(item?.parcelMode) : "SEND";
   const parcelLabels = parcelModeLabels(parcelMode);
@@ -247,6 +266,8 @@ const RideBooking = () => {
   );
 
   const displayOptions = serviceType === "DELIVERY" ? parcelOptions : rideOptions;
+  const showRideTip =
+    !isParcelFlow && !!tipUserId && !rideTipSeen && displayOptions.length > 0;
 
   const sheetRef = useRef<BottomSheet>(null);
   const handleOptionSelect = useCallback((type: "Motorcycle" | "Pragya" | "Comfort") => {
@@ -600,7 +621,7 @@ const RideBooking = () => {
               />
             ) : null}
 
-            <View style={styles.section}>
+            <View ref={optionsRef} collapsable={false} style={styles.section}>
               {isParcelFlow ? (
                 <CustomText fontFamily="SemiBold" fontSize={14} style={styles.sectionTitle}>
                   Courier options
@@ -785,6 +806,14 @@ const RideBooking = () => {
             </View>
         </BottomSheetScrollView>
       </BottomSheet>
+
+      <SpotlightTour
+        visible={showRideTip}
+        steps={rideTipSteps}
+        onDone={(shown) => {
+          if (shown) markTipSeen(tipUserId, "tip:ridebooking");
+        }}
+      />
     </View>
   );
 };

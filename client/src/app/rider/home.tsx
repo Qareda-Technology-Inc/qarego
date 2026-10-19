@@ -1,5 +1,5 @@
 import { View, FlatList, Image, Vibration, TouchableOpacity } from "react-native";
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import { useIsFocused } from "@react-navigation/native";
 import { useWS } from "@/service/WSProvider";
 import { useRiderStore } from "@/store/riderStore";
@@ -37,11 +37,59 @@ import {
   stopRiderOfferRing,
 } from "@/utils/ringSound";
 import { onRiderOfferAccepted } from "@/utils/riderOfferEvents";
+import WelcomeSlides from "@/components/customer/onboarding/WelcomeSlides";
+import SpotlightTour, { type TourStep } from "@/components/customer/onboarding/SpotlightTour";
+import { RIDER_SLIDES } from "@/components/rider/onboarding/riderSlides";
+import { onboardingUserId, useOnboardingStore } from "@/store/onboardingStore";
 
 const RiderHome = () => {
   const isFocused = useIsFocused();
-  const { emit, on, off, emitIfConnected } = useWS();
+  const { on, off, emitIfConnected } = useWS();
   const { user, onDuty, setLocation } = useRiderStore();
+
+  // First-time guidance: rider intro slides, then a tour of the home controls.
+  const tourUserId = onboardingUserId(user);
+  const tourReady = !!tourUserId;
+  const welcomeSeen = useOnboardingStore((st) => st.hasSeen(tourUserId, "rider:welcome"));
+  const tourSeen = useOnboardingStore((st) => st.hasSeen(tourUserId, "rider:tour:home"));
+  const markSeen = useOnboardingStore((st) => st.markSeen);
+  const menuRef = useRef<View>(null);
+  const dutyRef = useRef<View>(null);
+  const earningsRef = useRef<View>(null);
+  const offersRef = useRef<View>(null);
+  const tourRefs = useMemo(
+    () => ({ menu: menuRef, duty: dutyRef, earnings: earningsRef }),
+    []
+  );
+  const tourSteps = useMemo<TourStep[]>(
+    () => [
+      {
+        key: "duty",
+        target: dutyRef,
+        title: "Go on duty",
+        body: "Tap here to go ON-DUTY and start getting offers. Tap again to go OFF-DUTY when you stop.",
+      },
+      {
+        key: "earnings",
+        target: earningsRef,
+        title: "Your status and earnings",
+        body: "Shows whether you're on duty, your earnings and anything you owe. Tap it to open your earnings.",
+      },
+      {
+        key: "offers",
+        target: offersRef,
+        title: "Offers appear here",
+        body: "Each offer shows your pay and the pickup distance. The best match is highlighted. Accept before the timer runs out.",
+      },
+      {
+        key: "menu",
+        target: menuRef,
+        title: "Your menu",
+        body: "Trip history, earnings, your documents and support. Tap \"Show me around\" there to see this again.",
+      },
+    ],
+    []
+  );
 
   const [rideOffers, setRideOffers] = useState<any[]>([]);
   const [busyWithDelivery, setBusyWithDelivery] = useState(false);
@@ -253,7 +301,7 @@ const RiderHome = () => {
   return (
     <View style={[homeStyles.container, { backgroundColor: DS.color.bg }]}>
       <StatusBar style="dark" />
-      <RiderHeader />
+      <RiderHeader tourRefs={tourRefs} />
 
       {pausedServices.length > 0 ? (
         <TouchableOpacity
@@ -267,6 +315,7 @@ const RiderHome = () => {
         </TouchableOpacity>
       ) : null}
 
+      <View ref={offersRef} collapsable={false} style={{ flex: 1 }}>
       <FlatList
         data={!onDuty || busyWithDelivery ? [] : rideOffers}
         renderItem={renderRides}
@@ -299,7 +348,18 @@ const RiderHome = () => {
           </View>
         }
       />
+      </View>
 
+      <WelcomeSlides
+        visible={tourReady && !welcomeSeen}
+        slides={RIDER_SLIDES}
+        onDone={() => markSeen(tourUserId, "rider:welcome")}
+      />
+      <SpotlightTour
+        visible={tourReady && welcomeSeen && !tourSeen}
+        steps={tourSteps}
+        onDone={() => markSeen(tourUserId, "rider:tour:home")}
+      />
     </View>
   );
 };

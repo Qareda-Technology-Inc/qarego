@@ -16,6 +16,7 @@ import { router, type Href } from "expo-router";
 import { logout } from "@/service/authService";
 import { useWS } from "@/service/WSProvider";
 import { useUserStore } from "@/store/userStore";
+import { onboardingUserId, useOnboardingStore } from "@/store/onboardingStore";
 import { useRiderStore } from "@/store/riderStore";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { appAxios } from "@/service/apiInterceptors";
@@ -37,6 +38,8 @@ interface DrawerMenuItem {
   badgeText?: string | null;
   badgeTone?: "danger" | "warning" | "neutral";
   comingSoon?: string;
+  /** Runs instead of navigating to href. */
+  action?: () => void;
 }
 
 const SideDrawer: FC<SideDrawerProps> = ({ visible, onClose, role }) => {
@@ -46,6 +49,7 @@ const SideDrawer: FC<SideDrawerProps> = ({ visible, onClose, role }) => {
   const riderStore = useRiderStore();
 
   const user = role === "customer" ? userStore.user : riderStore.user;
+  const resetOnboarding = useOnboardingStore((s) => s.reset);
   const [activeTripCount, setActiveTripCount] = useState(0);
   const [pendingOfferCount, setPendingOfferCount] = useState(0);
   const [hasDebt, setHasDebt] = useState(false);
@@ -140,6 +144,16 @@ const SideDrawer: FC<SideDrawerProps> = ({ visible, onClose, role }) => {
       badgeTone: pendingOfferCount > 0 ? "danger" : "neutral",
     },
     {
+      icon: "compass-outline",
+      label: "Show me around",
+      library: Ionicons,
+      href: "/rider/home",
+      action: () => {
+        resetOnboarding(onboardingUserId(user));
+        router.navigate("/rider/home");
+      },
+    },
+    {
       icon: "shield-checkmark-outline",
       label: "Safety",
       library: Ionicons,
@@ -196,6 +210,11 @@ const SideDrawer: FC<SideDrawerProps> = ({ visible, onClose, role }) => {
   const onMenuPress = (item: DrawerMenuItem) => {
     if (item.comingSoon) {
       showComingSoon(item.comingSoon);
+      return;
+    }
+    if (item.action) {
+      onClose();
+      InteractionManager.runAfterInteractions(item.action);
       return;
     }
     navigate(item.href);

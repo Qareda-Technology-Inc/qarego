@@ -35,6 +35,8 @@ import { riderDeliveryStyles as deliveryStyles } from "@/styles/riderDeliverySty
 import { ACTIVE_RIDER_RIDE_STATUSES } from "@/utils/riderRideUtils";
 
 import { useConnectivity } from "@/service/connectivity";
+import SpotlightTour, { type TourStep } from "@/components/customer/onboarding/SpotlightTour";
+import { onboardingUserId, useOnboardingStore } from "@/store/onboardingStore";
 type OtpPurpose = "pickup" | "delivery";
 
 function hasMapCoords(loc?: { latitude?: unknown; longitude?: unknown } | null) {
@@ -65,6 +67,23 @@ const LiveRide = () => {
   const online = useConnectivity((st) => st.online);
   const [panelHeight, setPanelHeight] = useState(320);
   const { location, setLocation, setOnDuty, user } = useRiderStore();
+
+  // One-time tip on the trip steps the first time a rider takes a trip.
+  const tripTipUserId = onboardingUserId(user);
+  const tripTipSeen = useOnboardingStore((st) => st.hasSeen(tripTipUserId, "rider:tip:trip"));
+  const markTripTipSeen = useOnboardingStore((st) => st.markSeen);
+  const tripPanelRef = useRef<View>(null);
+  const tripTipSteps = useMemo<TourStep[]>(
+    () => [
+      {
+        key: "steps",
+        target: tripPanelRef,
+        title: "Follow the steps",
+        body: "Go to the pickup and tap \"I've arrived\". Ask the customer for their 4-digit code to start the trip. Use the buttons here to navigate or call.",
+      },
+    ],
+    []
+  );
   const { emit, emitIfConnected, on, off, connectNonce } = useWS();
   const [rideData, setRideData] = useState<any>(null);
   const rideDataRef = useRef<any>(null);
@@ -470,6 +489,15 @@ const LiveRide = () => {
         onAction={handlePrimaryAction}
         actionColor={deliveryPhase.swipeColor}
         onPanelLayout={setPanelHeight}
+        panelRef={tripPanelRef}
+      />
+
+      <SpotlightTour
+        visible={!!rideData && !!tripTipUserId && !tripTipSeen}
+        steps={tripTipSteps}
+        onDone={(shown) => {
+          if (shown) markTripTipSeen(tripTipUserId, "rider:tip:trip");
+        }}
       />
 
       {isOtpModalVisible && (

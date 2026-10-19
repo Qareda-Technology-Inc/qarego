@@ -6,7 +6,7 @@ import {
   Linking,
 } from "react-native";
 import { TouchableOpacity as BottomSheetTouchable } from "@gorhom/bottom-sheet";
-import React, { FC, useCallback, useState } from "react";
+import React, { FC, useCallback, useMemo, useRef, useState } from "react";
 import { useWS } from "@/service/WSProvider";
 import CustomText from "../shared/CustomText";
 import { getVehicleIconSource, getVehicleLabel } from "@/utils/mapUtils";
@@ -28,6 +28,8 @@ import { openMapsRoute, openMapsToPoint, type MapPoint } from "@/utils/openMapsN
 import { shouldShowFoodDeliveryCodeOnLiveRide } from "@/utils/foodOrderTracking";
 
 import { canActNowOrExplain } from "@/service/connectivity";
+import SpotlightTour, { type TourStep } from "@/components/customer/onboarding/SpotlightTour";
+import { onboardingUserId, useOnboardingStore } from "@/store/onboardingStore";
 interface RideItem {
   _id: string;
   serviceType?: "RIDE" | "DELIVERY" | "FOOD";
@@ -124,6 +126,23 @@ const LiveTrackingSheet: FC<{
   const showParcelDeliveryCode = isParcel && item?.status === "IN_PROGRESS" && item?.deliveryOtp;
   const riderName = item?.rider?.name ?? (isParcel ? "Your courier" : "Your rider");
 
+  // One-time tip on the pickup code the first time a customer's rider is on the way.
+  const tipUserId = onboardingUserId(user);
+  const codeTipSeen = useOnboardingStore((s) => s.hasSeen(tipUserId, "tip:ridecode"));
+  const markTipSeen = useOnboardingStore((s) => s.markSeen);
+  const otpRef = useRef<View>(null);
+  const codeTipSteps = useMemo<TourStep[]>(
+    () => [
+      {
+        key: "code",
+        target: otpRef,
+        title: "Your pickup code",
+        body: "When your rider arrives, check it's them, then tell them this code. Never share it on the phone or by message.",
+      },
+    ],
+    []
+  );
+
   const statusTitle = getStatusTitle(item, isFood, isParcel, storeCopy, parcelStatus);
   const statusSubtitle = getStatusSubtitle(item, isFood, isParcel, storeCopy, parcelStatus);
 
@@ -202,7 +221,7 @@ const LiveTrackingSheet: FC<{
       </View>
 
       {showRideOtp ? (
-        <View style={styles.otpCard}>
+        <View ref={otpRef} collapsable={false} style={styles.otpCard}>
           <CustomText fontSize={11} fontFamily="SemiBold" style={styles.otpLabel}>
             Share this code with your rider
           </CustomText>
@@ -377,6 +396,14 @@ const LiveTrackingSheet: FC<{
           maskedPhone={item.rider?.phone ? maskPhone(item.rider.phone) : undefined}
         />
       ) : null}
+
+      <SpotlightTour
+        visible={!!showRideOtp && !!tipUserId && !codeTipSeen}
+        steps={codeTipSteps}
+        onDone={(shown) => {
+          if (shown) markTipSeen(tipUserId, "tip:ridecode");
+        }}
+      />
     </View>
   );
 };
