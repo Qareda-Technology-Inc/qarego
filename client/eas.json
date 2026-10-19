@@ -41,7 +41,16 @@
         "buildType": "app-bundle"
       },
       "ios": {
-        "image": "latest"
+        "image": "macos-tahoe-26.5-xcode-26.6"
+      }
+    },
+    "ios-sim-release": {
+      "extends": "production",
+      "autoIncrement": false,
+      "distribution": "internal",
+      "ios": {
+        "simulator": true,
+        "image": "macos-tahoe-26.5-xcode-26.6"
       }
     }
   },
