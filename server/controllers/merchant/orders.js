@@ -221,6 +221,11 @@ export const myOrderAction = async (req, res) => {
   if (result.error === "laundry_awaiting_customer") {
     throw new BadRequestError("Waiting for the customer to approve the new price");
   }
+  if (result.error === "collect_first_assign") {
+    throw new BadRequestError(
+      "This order is collected first, so riders are sent automatically. Mark it ready when it's done and the return trip goes out."
+    );
+  }
   if (result.error === "already_settled") {
     throw new BadRequestError("This order has already been paid out and can no longer be cancelled");
   }

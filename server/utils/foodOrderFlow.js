@@ -410,6 +410,12 @@ export async function applyRestaurantAction(orderId, action, io, options = {}) {
     case "assign_rider": {
       const driverId = options.driverId;
       if (!driverId) return { error: "driver_required" };
+      // Gas refills and laundry are collected first and go back only once the store marks them
+      // ready (after the count and price check for laundry). Before that, assigning would skip
+      // those steps; afterwards it just picks the rider for the return trip.
+      if (isCollectFirstOrder(foodOrder) && foodOrder.status !== "READY_FOR_PICKUP") {
+        return { error: "collect_first_assign" };
+      }
       const driver = await User.findById(driverId).select("role driverDetails");
       if (!driver || driver.role !== "rider") return { error: "driver_not_found" };
       if (driver.driverDetails?.status !== "active") {

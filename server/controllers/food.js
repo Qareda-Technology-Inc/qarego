@@ -3,6 +3,7 @@ import Restaurant from "../models/Restaurant.js";
 import MenuItem from "../models/MenuItem.js";
 import FoodOrder, { FOOD_CODE_FIELDS } from "../models/FoodOrder.js";
 import User from "../models/User.js";
+import Transaction from "../models/Transaction.js";
 import { BadRequestError, NotFoundError } from "../errors/index.js";
 import { StatusCodes } from "http-status-codes";
 import {
@@ -607,12 +608,28 @@ export const adminGetFoodOrder = async (req, res) => {
       populate: { path: "owner", select: "name phone" },
     })
     .populate("customer", "name phone")
-    .populate({ path: "ride", select: "status rider fare updatedAt", populate: { path: "rider", select: "name phone" } })
+    .populate({ path: "ride", select: "status rider fare gasLeg updatedAt", populate: { path: "rider", select: "name phone" } })
+    .populate({
+      path: "collectionRide",
+      select: "status rider fare gasLeg updatedAt",
+      populate: { path: "rider", select: "name phone" },
+    })
     .lean();
   if (!order) throw new NotFoundError("Order not found");
 
+  // Laundry collected by one rider and returned by another: show how the pay was split.
+  const tripShare = order.collectionRide?._id
+    ? await Transaction.find({
+        type: { $in: ["TRIP_SHARE_CREDIT", "TRIP_SHARE_DEBIT"] },
+        ride: { $in: [order.collectionRide._id, order.ride?._id].filter(Boolean) },
+      })
+        .select("type amount driver createdAt")
+        .populate("driver", "name phone")
+        .lean()
+    : [];
+
   res.status(StatusCodes.OK).json({
-    order: { ...order, timeline: reconstructTimeline(order) },
+    order: { ...order, timeline: reconstructTimeline(order), tripShare },
   });
 };
 
@@ -658,11 +675,25 @@ export const adminRestaurantOrderAction = async (req, res) => {
   }
   if (result.error === "gas_in_custody") {
     throw new BadRequestError(
-      "The customer's cylinder is with the courier or station. Return it before cancelling."
+      "The customer's cylinder or laundry is with the courier or the store. Return it before cancelling."
     );
   }
   if (result.error === "gas_not_at_station") {
     throw new BadRequestError("The customer's empty cylinder hasn't reached the station yet");
+  }
+  if (result.error === "laundry_not_at_shop") {
+    throw new BadRequestError("The laundry hasn't reached the shop yet");
+  }
+  if (result.error === "laundry_not_counted") {
+    throw new BadRequestError("The shop hasn't counted the items and confirmed the price yet");
+  }
+  if (result.error === "laundry_awaiting_customer") {
+    throw new BadRequestError("Waiting for the customer to approve the new price");
+  }
+  if (result.error === "collect_first_assign") {
+    throw new BadRequestError(
+      "This order is collected first. You can pick a rider for the return trip once the store marks it ready."
+    );
   }
   if (result.error === "already_settled") {
     throw new BadRequestError("This order has already been paid out and can no longer be cancelled");

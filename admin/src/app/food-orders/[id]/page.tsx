@@ -35,7 +35,20 @@ type OrderDetail = {
     owner?: Person | null;
   } | null;
   customer?: Person | null;
-  ride?: { _id: string; status?: string; rider?: Person | null } | null;
+  ride?: { _id: string; status?: string; gasLeg?: string | null; rider?: Person | null } | null;
+  /** Collect-first orders (gas refill, laundry): the trip that brought it to the store. */
+  collectionRide?: { _id: string; status?: string; rider?: Person | null } | null;
+  gasStage?: "TO_STATION" | "AT_STATION" | null;
+  laundry?: {
+    estimatedSubtotal: number;
+    estimatedItemCount: number;
+    priceStatus: "estimate" | "awaiting_customer" | "approved" | "declined";
+    countedAt?: string | null;
+    countedItemCount?: number | null;
+    previousSubtotal?: number | null;
+    decidedAt?: string | null;
+  } | null;
+  tripShare?: { type: "TRIP_SHARE_CREDIT" | "TRIP_SHARE_DEBIT"; amount: number; driver?: Person | null }[];
   items: { name: string; quantity: number; price: number; modifiers?: { optionName: string }[] }[];
   notes?: string;
   prescriptionUrls?: string[];
@@ -94,6 +107,22 @@ const VERTICAL_LABEL: Record<string, string> = {
   PHARMACY: "Pharmacy",
   GAS: "Gas station",
   LAUNDRY: "Laundry",
+};
+
+/** Collection trips run the other way: rider goes to the customer, then to the store. */
+const COLLECT_STATUS_LABEL: Record<string, string> = {
+  SEARCHING_FOR_RIDER: "Looking for a rider",
+  START: "Heading to the customer",
+  ARRIVED: "At the customer",
+  IN_PROGRESS: "Taking it to the store",
+  COMPLETED: "Dropped at the store",
+};
+
+const LAUNDRY_PRICE: Record<string, { label: string; tone: string }> = {
+  estimate: { label: "Not counted yet", tone: "bg-gray-100 text-gray-700" },
+  awaiting_customer: { label: "Waiting for customer to approve", tone: "bg-amber-100 text-amber-800" },
+  approved: { label: "Price agreed", tone: "bg-green-100 text-green-800" },
+  declined: { label: "Declined · returning unwashed", tone: "bg-red-100 text-red-800" },
 };
 
 function gapLabel(fromIso: string, toIso: string) {
@@ -185,8 +214,17 @@ export default function StoreOrderDetailPage() {
   const isPickup = order.fulfillmentType === "PICKUP";
   const rider = order.ride?.rider ?? null;
   const open = ["PLACED", "PREPARING", "READY_FOR_PICKUP"].includes(order.status);
+  const laundry = order.laundry ?? null;
+  const collectFirst = order.gasMode === "REFILL" || !!laundry;
+  // Collect-first orders only take a chosen rider for the return trip, once the store marks them ready.
   const canAssign =
-    !isPickup && !rider && (order.status === "PREPARING" || order.status === "READY_FOR_PICKUP") && order.gasMode !== "REFILL";
+    !isPickup &&
+    !rider &&
+    (collectFirst ? order.status === "READY_FOR_PICKUP" : order.status === "PREPARING" || order.status === "READY_FOR_PICKUP");
+  const laundryReady =
+    !!laundry && order.gasStage === "AT_STATION" && (laundry.priceStatus === "approved" || laundry.priceStatus === "declined");
+  const collector = order.collectionRide?.rider ?? null;
+  const isReturnLeg = collectFirst && order.ride?.gasLeg === "RETURN";
   const storeName = order.restaurant?.name || order.restaurantName || "Store";
 
   return (
@@ -306,6 +344,61 @@ export default function StoreOrderDetailPage() {
             </CardContent>
           </Card>
 
+          {laundry ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Laundry</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 text-sm">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className={`rounded-full px-2 py-1 text-xs font-medium ${LAUNDRY_PRICE[laundry.priceStatus]?.tone}`}>
+                    {LAUNDRY_PRICE[laundry.priceStatus]?.label ?? laundry.priceStatus}
+                  </span>
+                  <span className="text-gray-600">
+                    {order.gasStage === "AT_STATION"
+                      ? "Bag is at the shop"
+                      : order.gasStage === "TO_STATION"
+                        ? "Bag is with the collecting rider"
+                        : order.status === "PLACED"
+                          ? "Not collected yet"
+                          : "Bag has left the shop"}
+                  </span>
+                </div>
+                <dl className="grid grid-cols-2 gap-x-6 gap-y-1.5">
+                  <dt className="text-gray-500">Customer estimate</dt>
+                  <dd className="text-right">
+                    {laundry.estimatedItemCount} items · {formatCurrency(laundry.estimatedSubtotal)}
+                  </dd>
+                  {laundry.countedAt ? (
+                    <>
+                      <dt className="text-gray-500">Shop counted</dt>
+                      <dd className="text-right font-medium">
+                        {laundry.countedItemCount ?? "?"} items ·{" "}
+                        {formatCurrency(laundry.priceStatus === "declined" ? laundry.previousSubtotal ?? 0 : order.subtotal)}
+                      </dd>
+                      <dt className="text-gray-500">Counted at</dt>
+                      <dd className="text-right text-gray-700">{new Date(laundry.countedAt).toLocaleString()}</dd>
+                    </>
+                  ) : null}
+                  {laundry.decidedAt ? (
+                    <>
+                      <dt className="text-gray-500">Customer answered</dt>
+                      <dd className="text-right text-gray-700">
+                        {laundry.priceStatus === "declined" ? "Declined" : "Approved"} ·{" "}
+                        {new Date(laundry.decidedAt).toLocaleString()}
+                      </dd>
+                    </>
+                  ) : null}
+                </dl>
+                {laundry.priceStatus === "declined" ? (
+                  <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-800">
+                    Nothing is washed. The customer pays the delivery fee only and the store earns nothing on this order.
+                  </p>
+                ) : null}
+              </CardContent>
+            </Card>
+          ) : null}
+
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Money</CardTitle>
@@ -324,6 +417,17 @@ export default function StoreOrderDetailPage() {
                 <Row label="Rider" value={order.riderNet} />
                 <Row label="QareGO" value={order.platformNet} strong />
               </dl>
+              {order.tripShare?.length ? (
+                <div className="rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-900 sm:col-span-2">
+                  <p className="font-semibold">Rider pay split between two riders</p>
+                  {order.tripShare.map((t, i) => (
+                    <p key={i}>
+                      {t.driver?.name || "Rider"}: {t.amount > 0 ? "+" : ""}
+                      {formatCurrency(t.amount)} {t.type === "TRIP_SHARE_CREDIT" ? "(collected the bag)" : "(returned it)"}
+                    </p>
+                  ))}
+                </div>
+              ) : null}
             </CardContent>
           </Card>
         </div>
@@ -341,9 +445,22 @@ export default function StoreOrderDetailPage() {
                 person={{ name: storeName, phone: order.restaurant?.owner?.phone }}
                 detail={order.restaurant?.address}
               />
-              {isPickup ? null : rider ? (
-                <Contact icon={Bike} role="Rider" person={rider} detail={order.ride?.status ? RIDE_STATUS_LABEL[order.ride.status] ?? order.ride.status : undefined} />
-              ) : (
+              {collectFirst && collector ? (
+                <Contact
+                  icon={Bike}
+                  role="Collected by"
+                  person={collector}
+                  detail={order.collectionRide?.status ? COLLECT_STATUS_LABEL[order.collectionRide.status] : undefined}
+                />
+              ) : null}
+              {isPickup ? null : rider && !(collectFirst && !isReturnLeg) ? (
+                <Contact
+                  icon={Bike}
+                  role={isReturnLeg ? "Bringing it back" : "Rider"}
+                  person={rider}
+                  detail={order.ride?.status ? RIDE_STATUS_LABEL[order.ride.status] ?? order.ride.status : undefined}
+                />
+              ) : collectFirst && collector && !isReturnLeg ? null : (
                 <p className="flex items-center gap-2 text-sm text-gray-500">
                   <Bike className="h-4 w-4" /> No rider yet
                 </p>
@@ -361,7 +478,7 @@ export default function StoreOrderDetailPage() {
                   <CheckCircle className="mr-1 inline h-4 w-4" /> Accept for the store
                 </Button>
               ) : null}
-              {order.status === "PREPARING" && order.gasMode !== "REFILL" ? (
+              {order.status === "PREPARING" && order.gasMode !== "REFILL" && (!laundry || laundryReady) ? (
                 <Button disabled={busy} onClick={() => act("ready")} className="w-full">
                   Mark ready
                 </Button>
@@ -414,7 +531,11 @@ export default function StoreOrderDetailPage() {
                 </Button>
               ) : null}
 
-              {open ? (
+              {open && collectFirst && order.gasStage ? (
+                <p className="rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-600">
+                  Can&apos;t cancel while the customer&apos;s {laundry ? "laundry" : "cylinder"} is with the rider or the store. It has to go back first.
+                </p>
+              ) : open ? (
                 cancelling ? (
                   <div className="space-y-2 rounded-lg border border-red-200 bg-red-50/50 p-3">
                     <label htmlFor="cancel-reason" className="text-sm font-medium text-red-800">
