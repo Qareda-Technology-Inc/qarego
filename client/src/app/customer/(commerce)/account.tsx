@@ -2,20 +2,73 @@ import { View, ScrollView, TouchableOpacity, StyleSheet, Alert, Image } from "re
 import React from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
-import { commonStyles } from "@/styles/commonStyles";
 import CustomText from "@/components/shared/CustomText";
 import { useUserStore } from "@/store/userStore";
 import { Ionicons } from "@expo/vector-icons";
 import { Colors } from "@/utils/Constants";
+import { DS } from "@/theme/designSystem";
 import { logout, confirmDeleteAccount } from "@/service/authService";
 import { onboardingUserId, useOnboardingStore } from "@/store/onboardingStore";
 import { useWS } from "@/service/WSProvider";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import Constants from "expo-constants";
 import { resolveMediaUrl } from "@/service/mediaUpload";
-
 import { openLegalPage } from "@/utils/legalLinks";
+
 const appVersion = Constants.expoConfig?.version ?? "";
+
+type Row = {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  sub?: string;
+  onPress: () => void;
+  danger?: boolean;
+};
+
+const initialsOf = (name: string) =>
+  name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((p) => p[0]?.toUpperCase() ?? "")
+    .join("");
+
+/** A titled card of tappable rows. */
+const Section = ({ title, rows }: { title?: string; rows: Row[] }) => (
+  <View style={{ marginBottom: DS.spacing.md }}>
+    {title ? (
+      <CustomText fontFamily="SemiBold" fontSize={12} color={DS.color.textMuted} style={styles.sectionLabel}>
+        {title}
+      </CustomText>
+    ) : null}
+    <View style={styles.card}>
+      {rows.map((row, i) => (
+        <TouchableOpacity
+          key={row.label}
+          onPress={row.onPress}
+          activeOpacity={0.7}
+          style={[styles.row, i < rows.length - 1 && styles.rowDivider]}
+          accessibilityRole="button"
+        >
+          <View style={[styles.rowIcon, row.danger && styles.rowIconDanger]}>
+            <Ionicons name={row.icon} size={18} color={row.danger ? DS.color.danger : Colors.primaryText} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <CustomText fontFamily="Medium" fontSize={15} color={row.danger ? DS.color.danger : Colors.text}>
+              {row.label}
+            </CustomText>
+            {row.sub ? (
+              <CustomText fontSize={12} color={DS.color.textMuted} style={{ marginTop: 2 }} numberOfLines={1}>
+                {row.sub}
+              </CustomText>
+            ) : null}
+          </View>
+          {row.danger ? null : <Ionicons name="chevron-forward" size={18} color={DS.color.textSoft} />}
+        </TouchableOpacity>
+      ))}
+    </View>
+  </View>
+);
 
 const CustomerAccount = () => {
   const insets = useSafeAreaInsets();
@@ -23,11 +76,16 @@ const CustomerAccount = () => {
   const { user } = useUserStore();
   const { disconnect } = useWS();
   const avatarUri = resolveMediaUrl((user as { profileImage?: string })?.profileImage);
+  // Opened from the ride map's menu (no tab bar there), so offer a way back to it.
+  const { from } = useLocalSearchParams<{ from?: string }>();
+  const fromRideMap = from === "ride";
+  // Back steps through the tabs, not off them, so jump to the map that is still underneath.
+  const backToRideMap = () => router.dismissTo("/customer/home");
 
   const handleLogout = () => {
-    Alert.alert("Logout", "Are you sure you want to logout?", [
+    Alert.alert("Log out", "Are you sure you want to log out?", [
       { text: "Cancel", style: "cancel" },
-      { text: "Logout", style: "destructive", onPress: () => logout(disconnect) },
+      { text: "Log out", style: "destructive", onPress: () => logout(disconnect) },
     ]);
   };
 
@@ -37,204 +95,178 @@ const CustomerAccount = () => {
     router.navigate("/customer");
   };
 
-  const menuItems = [
-    { icon: "person-outline", label: "Personal Info", library: Ionicons, onPress: () => router.push('/customer/profile') },
-    { icon: "compass-outline", label: "Show me around", library: Ionicons, onPress: showMeAround },
-    { icon: "shield-checkmark-outline", label: "Privacy Policy", library: Ionicons, onPress: () => openLegalPage() },
-    { icon: "trash-outline", label: "Delete Account", library: Ionicons, color: "red", onPress: () => confirmDeleteAccount(disconnect) },
+  const ratingCount = user?.totalRatings || 0;
+  const initials = initialsOf(user?.name || "");
+
+  const accountRows: Row[] = [
+    {
+      icon: "person-outline",
+      label: "Personal info",
+      sub: "Name, photo and email",
+      onPress: () => router.push("/customer/profile"),
+    },
+  ];
+  const helpRows: Row[] = [
+    { icon: "compass-outline", label: "Show me around", sub: "Replay the app tour", onPress: showMeAround },
+    { icon: "document-text-outline", label: "Privacy policy", onPress: () => openLegalPage() },
   ];
 
   return (
-    <View style={commonStyles.page}>
-      <ScrollView
-        contentContainerStyle={{
-          paddingTop: insets.top + 8,
-          paddingBottom: tabBarHeight + 16,
-        }}
-      >
-        {user && !user.name && (
-          <View style={styles.noticeContainer}>
-            <Ionicons name="information-circle" size={20} color={Colors.primary} />
-            <View style={{ flex: 1, marginLeft: 10 }}>
-              <CustomText fontFamily="SemiBold" fontSize={14} style={{ marginBottom: 2 }}>
-                Complete Your Profile
-              </CustomText>
-              <CustomText fontSize={12} color="#666">
-                Please update your name in Personal Info
-              </CustomText>
-            </View>
-          </View>
+    <View style={styles.page}>
+      <View style={[styles.header, { paddingTop: insets.top + 6 }]}>
+        {fromRideMap ? (
+          <TouchableOpacity onPress={backToRideMap} style={styles.backButton} hitSlop={10} accessibilityLabel="Back">
+            <Ionicons name="arrow-back" size={22} color={Colors.text} />
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.backButton} />
         )}
+        <CustomText fontFamily="SemiBold" fontSize={17}>
+          My account
+        </CustomText>
+        <View style={styles.backButton} />
+      </View>
 
-        <View style={styles.header}>
-            <View style={styles.profileContainer}>
-                <View style={styles.avatarContainer}>
-                    {avatarUri ? (
-                      <Image source={{ uri: avatarUri }} style={styles.avatarImage} />
-                    ) : (
-                      <View style={styles.avatarPlaceholder}>
-                        <Ionicons name="person" size={55} color={Colors.text} />
-                      </View>
-                    )}
-                    <TouchableOpacity style={styles.editIcon} onPress={() => router.push('/customer/profile')}>
-                        <Ionicons name="pencil" size={14} color="#fff" />
-                    </TouchableOpacity>
-                </View>
-                
-                <View style={styles.userInfo}>
-                    <CustomText variant="h5" fontFamily="Bold">{user?.name || "User Name"}</CustomText>
-                    <View style={styles.ratingContainer}>
-                        <Ionicons name="star" size={14} color="#FFD700" />
-                        <CustomText fontFamily="Medium" fontSize={14} style={{ marginLeft: 4 }}>
-                            {user?.averageRating?.toFixed(1) || "5.0"}
-                        </CustomText>
-                    </View>
-                    <CustomText fontSize={12} color="#666">{user?.phone || ""}</CustomText>
-                </View>
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: tabBarHeight + 24 }]}>
+        <TouchableOpacity
+          style={[styles.card, styles.profileCard]}
+          activeOpacity={0.8}
+          onPress={() => router.push("/customer/profile")}
+          accessibilityRole="button"
+          accessibilityLabel="Open personal info"
+        >
+          {avatarUri ? (
+            <Image source={{ uri: avatarUri }} style={styles.avatar} />
+          ) : (
+            <View style={[styles.avatar, styles.avatarEmpty]}>
+              {initials ? (
+                <CustomText fontFamily="Bold" fontSize={22} color={Colors.primaryText}>
+                  {initials}
+                </CustomText>
+              ) : (
+                <Ionicons name="person" size={28} color={Colors.primaryText} />
+              )}
             </View>
-        </View>
+          )}
+          <View style={{ flex: 1, marginLeft: 14 }}>
+            <CustomText fontFamily="Bold" fontSize={17} numberOfLines={1}>
+              {user?.name || "Add your name"}
+            </CustomText>
+            <CustomText fontSize={13} color={DS.color.textMuted} style={{ marginTop: 2 }} numberOfLines={1}>
+              {user?.phone}
+            </CustomText>
+            {ratingCount > 0 && user?.averageRating ? (
+              <View style={styles.pill}>
+                <Ionicons name="star" size={11} color="#F5B301" />
+                <CustomText fontFamily="SemiBold" fontSize={11} style={{ marginLeft: 3 }}>
+                  {user.averageRating.toFixed(1)}
+                </CustomText>
+                <CustomText fontSize={11} color={DS.color.textMuted} style={{ marginLeft: 3 }}>
+                  from riders
+                </CustomText>
+              </View>
+            ) : null}
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={DS.color.textSoft} />
+        </TouchableOpacity>
 
-        <View style={styles.menuContainer}>
-            {menuItems.map((item, index) => (
-                <TouchableOpacity 
-                    key={index} 
-                    style={styles.menuItem} 
-                    onPress={item.onPress}
-                    activeOpacity={0.7}
-                >
-                    <View style={styles.menuItemLeft}>
-                        <View style={[styles.iconContainer, { backgroundColor: item.color ? '#ffecec' : '#f5f5f5' }]}>
-                            <item.library name={item.icon as any} size={20} color={item.color || "#333"} />
-                        </View>
-                        <CustomText fontFamily="Medium" fontSize={16} style={{ marginLeft: 15, color: item.color || Colors.text }}>
-                            {item.label}
-                        </CustomText>
-                    </View>
-                    <Ionicons name="chevron-forward" size={20} color="#ccc" />
-                </TouchableOpacity>
-            ))}
+        {user && !user.name ? (
+          <TouchableOpacity style={styles.notice} onPress={() => router.push("/customer/profile")} activeOpacity={0.85}>
+            <Ionicons name="sparkles-outline" size={18} color={Colors.primaryText} />
+            <CustomText fontSize={13} color="#5c4a00" style={{ flex: 1, marginLeft: 10 }}>
+              Add your name so riders and stores know who they&apos;re serving.
+            </CustomText>
+            <Ionicons name="chevron-forward" size={18} color="#b08900" />
+          </TouchableOpacity>
+        ) : null}
 
-             <TouchableOpacity 
-                style={[styles.menuItem, { marginTop: 20 }]} 
-                onPress={handleLogout}
-                activeOpacity={0.7}
-            >
-                <View style={styles.menuItemLeft}>
-                    <View style={[styles.iconContainer, { backgroundColor: '#ffecec' }]}>
-                        <Ionicons name="log-out-outline" size={20} color="red" />
-                    </View>
-                    <CustomText fontFamily="Medium" fontSize={16} style={{ marginLeft: 15, color: "red" }}>
-                        Logout
-                    </CustomText>
-                </View>
-            </TouchableOpacity>
-        </View>
+        <Section title="ACCOUNT" rows={accountRows} />
+        <Section title="HELP" rows={helpRows} />
+        <Section rows={[{ icon: "log-out-outline", label: "Log out", onPress: handleLogout, danger: true }]} />
 
-        <View style={styles.footer}>
-            <CustomText fontSize={12} color="#999">Version {appVersion}</CustomText>
-        </View>
-
+        <TouchableOpacity onPress={() => confirmDeleteAccount(disconnect)} style={styles.deleteLink} hitSlop={8}>
+          <CustomText fontSize={13} color={DS.color.textSoft}>
+            Delete my account
+          </CustomText>
+        </TouchableOpacity>
+        <CustomText fontSize={12} color={DS.color.textSoft} style={{ textAlign: "center", marginTop: 6 }}>
+          QareGO {appVersion ? `v${appVersion}` : ""}
+        </CustomText>
       </ScrollView>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-    header: {
-        padding: 20,
-        backgroundColor: '#fff',
-        borderBottomWidth: 1,
-        borderBottomColor: '#f0f0f0',
-        alignItems: 'center'
-    },
-    profileContainer: {
-        alignItems: 'center',
-        marginTop: 10
-    },
-    avatarContainer: {
-        position: 'relative',
-        marginBottom: 15
-    },
-    avatarPlaceholder: {
-        width: 100,
-        height: 100,
-        borderRadius: 50,
-        backgroundColor: '#eee',
-        justifyContent: 'center',
-        alignItems: 'center'
-    },
-    avatarImage: {
-        width: 100,
-        height: 100,
-        borderRadius: 50,
-    },
-    editIcon: {
-        position: 'absolute',
-        bottom: 0,
-        right: 0,
-        backgroundColor: Colors.primary,
-        width: 30,
-        height: 30,
-        borderRadius: 15,
-        justifyContent: 'center',
-        alignItems: 'center',
-        borderWidth: 2,
-        borderColor: '#fff'
-    },
-    userInfo: {
-        alignItems: 'center'
-    },
-    ratingContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#fff9c4',
-        paddingHorizontal: 8,
-        paddingVertical: 2,
-        borderRadius: 12,
-        marginTop: 5,
-        marginBottom: 5
-    },
-    menuContainer: {
-        padding: 20,
-        width: '100%'
-    },
-    menuItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingVertical: 15,
-        borderBottomWidth: 1,
-        borderBottomColor: '#f5f5f5',
-        width: '100%'
-    },
-    menuItemLeft: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        flex: 1
-    },
-    iconContainer: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        justifyContent: 'center',
-        alignItems: 'center'
-    },
-    footer: {
-        alignItems: 'center',
-        marginTop: 20,
-        marginBottom: 20
-    },
-    noticeContainer: {
-        flexDirection: 'row',
-        backgroundColor: '#fff9e6',
-        margin: 20,
-        marginBottom: 10,
-        padding: 15,
-        borderRadius: 12,
-        borderWidth: 1,
-        borderColor: '#ffe082',
-        alignItems: 'center'
-    }
+  page: { flex: 1, backgroundColor: DS.color.bg },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: DS.spacing.md,
+    paddingBottom: DS.spacing.sm,
+    backgroundColor: DS.color.surface,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: DS.color.border,
+  },
+  backButton: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
+  content: { padding: DS.spacing.lg },
+  card: {
+    backgroundColor: DS.color.surface,
+    borderRadius: DS.radius.lg,
+    borderWidth: 1,
+    borderColor: DS.color.border,
+    ...DS.shadow.card,
+  },
+  profileCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: DS.spacing.md,
+    marginBottom: DS.spacing.md,
+  },
+  avatar: { width: 60, height: 60, borderRadius: 30, backgroundColor: DS.color.border },
+  avatarEmpty: {
+    backgroundColor: "#FDF6C8",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "#F6E88A",
+  },
+  pill: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    marginTop: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: DS.radius.pill,
+    borderWidth: 1,
+    borderColor: DS.color.border,
+  },
+  notice: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFBEA",
+    borderColor: "#F6E88A",
+    borderWidth: 1,
+    borderRadius: DS.radius.md,
+    padding: DS.spacing.sm,
+    marginBottom: DS.spacing.md,
+  },
+  sectionLabel: { letterSpacing: 0.6, marginBottom: 8, marginLeft: 4 },
+  row: { flexDirection: "row", alignItems: "center", paddingHorizontal: DS.spacing.md, paddingVertical: 13 },
+  rowDivider: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: DS.color.border },
+  rowIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: "#FDF6C8",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  rowIconDanger: { backgroundColor: "#FEE2E2" },
+  deleteLink: { alignSelf: "center", paddingVertical: 8, marginTop: 4 },
 });
 
 export default CustomerAccount;

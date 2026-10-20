@@ -14,8 +14,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import CustomText from "./CustomText";
 import { Colors } from "@/utils/Constants";
 import { router, type Href } from "expo-router";
-import { logout } from "@/service/authService";
-import { useWS } from "@/service/WSProvider";
 import { useUserStore } from "@/store/userStore";
 import { useRiderStore } from "@/store/riderStore";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
@@ -45,7 +43,6 @@ interface DrawerMenuItem {
 
 const SideDrawer: FC<SideDrawerProps> = ({ visible, onClose, role }) => {
   const insets = useSafeAreaInsets();
-  const { disconnect } = useWS();
   const userStore = useUserStore();
   const riderStore = useRiderStore();
 
@@ -63,13 +60,6 @@ const SideDrawer: FC<SideDrawerProps> = ({ visible, onClose, role }) => {
     onClose();
     InteractionManager.runAfterInteractions(() => {
       router.push(href);
-    });
-  };
-
-  const handleLogout = () => {
-    onClose();
-    InteractionManager.runAfterInteractions(() => {
-      logout(disconnect);
     });
   };
 
@@ -156,6 +146,13 @@ const SideDrawer: FC<SideDrawerProps> = ({ visible, onClose, role }) => {
 
   const customerMenuItems: DrawerMenuItem[] = [
     {
+      // The ride map replaces the services screen, so this is the way back to it.
+      icon: "grid-outline",
+      label: "All services",
+      library: Ionicons,
+      href: "/customer",
+    },
+    {
       icon: "receipt-outline",
       label: "Orders",
       library: Ionicons,
@@ -175,13 +172,6 @@ const SideDrawer: FC<SideDrawerProps> = ({ visible, onClose, role }) => {
       href: "/customer/home",
       comingSoon: "Support chat",
     },
-    {
-      icon: "information-circle-outline",
-      label: "About",
-      library: Ionicons,
-      href: "/customer/home",
-      comingSoon: "About",
-    },
   ];
 
   const menuItems = useMemo(
@@ -189,8 +179,9 @@ const SideDrawer: FC<SideDrawerProps> = ({ visible, onClose, role }) => {
     [role, activeTripCount, pendingOfferCount, hasDebt]
   );
 
+  // The customer drawer lives on the ride map, which has no tab bar: tell Account to show a back arrow.
   const accountHref: Href =
-    role === "customer" ? "/customer/account" : "/rider/account";
+    role === "customer" ? { pathname: "/customer/account", params: { from: "ride" } } : "/rider/account";
 
   const onMenuPress = (item: DrawerMenuItem) => {
     if (item.comingSoon) {
@@ -329,27 +320,6 @@ const SideDrawer: FC<SideDrawerProps> = ({ visible, onClose, role }) => {
             })}
           </ScrollView>
 
-          {role === "rider" ? null : (
-          <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
-            <View style={styles.footerDivider} />
-            <Pressable
-              onPress={handleLogout}
-              style={({ pressed }) => [
-                styles.menuItem,
-                pressed && styles.menuItemPressed,
-              ]}
-            >
-              <MaterialIcons name="logout" size={22} color={Colors.danger || "red"} />
-              <CustomText
-                fontSize={15}
-                fontFamily="SemiBold"
-                style={{ color: Colors.danger || "red", marginLeft: 15 }}
-              >
-                Log out
-              </CustomText>
-            </Pressable>
-          </View>
-          )}
         </View>
       </View>
     </Modal>
@@ -477,13 +447,6 @@ const styles = StyleSheet.create({
   },
   badgeTextWarning: {
     color: "#92400E",
-  },
-  footer: {
-    borderTopWidth: 1,
-    borderTopColor: "#eee",
-  },
-  footerDivider: {
-    height: 0,
   },
 });
 
