@@ -4,6 +4,7 @@ import { StatusCodes } from 'http-status-codes';
 import { BadRequestError, NotFoundError, UnauthenticatedError } from '../errors/index.js';
 import { normalizePhone } from '../utils/phone.js';
 import { persistMulterFile, sanitizeMediaUrl, resolveMediaUrl } from '../utils/mediaStorage.js';
+import { sendPushToUserId } from '../utils/pushNotifications.js';
 
 function withResolvedDriverMedia(driver, req) {
   const doc = driver?.toObject ? driver.toObject() : { ...driver };
@@ -402,6 +403,17 @@ export const updateDriver = async (req, res) => {
       applyVehicleFields(driver, req.body);
       await applyLicenseAndIdDocs(driver, urls, files);
       await applyVehicleRegistrationDocs(driver, urls, files);
+      // Fixed what admin asked for: put them back in the review queue.
+      if (
+        driver.driverDetails.review?.decision === 'changes_requested' &&
+        courierAttemptedOnboardingFields(req.body, files)
+      ) {
+        driver.driverDetails.review = {
+          ...driver.driverDetails.review,
+          decision: 'resubmitted',
+          at: new Date(),
+        };
+      }
     }
 
     driver.markModified('driverDetails');
@@ -476,4 +488,91 @@ export const deleteDriver = async (req, res) => {
   }
 
   res.status(StatusCodes.OK).json({ message: 'Driver removed successfully' });
+};
+
+/** Documents a rider needs before approval; police clearance is added by admin. */
+const REQUIRED_DOCS = [
+  ['licenseFront', "Driver's licence (front)"],
+  ['licenseBack', "Driver's licence (back)"],
+  ['nationalId', 'Ghana Card'],
+];
+
+function missingForApproval(driver) {
+  const d = driver.driverDetails || {};
+  const missing = REQUIRED_DOCS.filter(([key]) => !d[key]).map(([, label]) => label);
+  if (!d.vehicle?.category) missing.push('Vehicle type');
+  if (!d.vehicle?.plateNumber) missing.push('Number plate');
+  if (!driver.name) missing.push('Name');
+  return missing;
+}
+
+/** GET /drivers/review/pending — riders waiting for approval, oldest first. */
+export const getPendingDrivers = async (req, res) => {
+  const riders = await User.find({
+    role: 'rider',
+    deletedAt: null,
+    $or: [{ 'driverDetails.status': 'pending' }, { 'driverDetails.status': { $exists: false } }],
+  })
+    .select('name phone email createdAt updatedAt driverDetails')
+    .sort({ createdAt: 1 })
+    .limit(200);
+  res.status(StatusCodes.OK).json({
+    riders: riders.map((r) => ({
+      ...withResolvedDriverMedia(r, req),
+      missing: missingForApproval(r),
+    })),
+  });
+};
+
+/**
+ * POST /drivers/:id/review — { decision: "approve" | "request_changes", note }
+ * Approve activates the rider; request_changes keeps them pending with a note they see.
+ */
+export const reviewDriver = async (req, res) => {
+  const { decision } = req.body;
+  const note = String(req.body.note || '').trim();
+  if (!['approve', 'request_changes'].includes(decision)) {
+    throw new BadRequestError('decision must be approve or request_changes');
+  }
+  if (decision === 'request_changes' && !note) {
+    throw new BadRequestError('Tell the rider what to fix');
+  }
+  const driver = await User.findOne({ _id: req.params.id, role: 'rider' });
+  if (!driver) throw new NotFoundError('Rider not found');
+
+  if (decision === 'approve') {
+    const missing = missingForApproval(driver);
+    if (missing.length && !req.body.override) {
+      throw new BadRequestError(`Still missing: ${missing.join(', ')}`);
+    }
+    driver.driverDetails.status = 'active';
+  } else {
+    driver.driverDetails.status = 'pending';
+  }
+  driver.driverDetails.review = {
+    decision: decision === 'approve' ? 'approved' : 'changes_requested',
+    note: note || null,
+    at: new Date(),
+    by: req.user.id,
+  };
+  driver.markModified('driverDetails');
+  await driver.save();
+
+  // Let the rider know right away; the app also shows the note on their account.
+  sendPushToUserId(
+    driver._id,
+    decision === 'approve'
+      ? {
+          title: "You're approved",
+          body: 'Your QareGO rider account is active. Go on duty to start getting offers.',
+          data: { type: 'rider_review', decision: 'approved' },
+        }
+      : {
+          title: 'Action needed on your rider account',
+          body: note.length > 120 ? `${note.slice(0, 117)}…` : note,
+          data: { type: 'rider_review', decision: 'changes_requested' },
+        }
+  ).catch((err) => console.warn('[review] push failed:', err?.message || err));
+
+  res.status(StatusCodes.OK).json({ driver: withResolvedDriverMedia(driver, req) });
 };

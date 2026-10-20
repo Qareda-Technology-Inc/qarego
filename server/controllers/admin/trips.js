@@ -18,6 +18,31 @@ export const getAllTrips = async (req, res) => {
       else if (type === 'DELIVERY') query.serviceType = 'DELIVERY';
     }
 
+    // Search by customer or rider name/phone, an address, or the end of the trip id.
+    const q = String(req.query.q || '').trim();
+    if (q) {
+      const pattern = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+      // 024… and +23324… are the same number.
+      const digits = q.replace(/\D/g, '').replace(/^(233|0)/, '');
+      const people = await User.find({
+        role: { $in: ['customer', 'rider'] },
+        $or: [{ name: pattern }, ...(digits.length >= 4 ? [{ phone: new RegExp(digits) }] : [])],
+      })
+        .select('_id')
+        .limit(200)
+        .lean();
+      const ids = people.map((p) => p._id);
+      query.$or = [
+        { customer: { $in: ids } },
+        { rider: { $in: ids } },
+        { 'pickup.address': pattern },
+        { 'drop.address': pattern },
+        ...(/^[a-f0-9]{4,24}$/i.test(q)
+          ? [{ $expr: { $regexMatch: { input: { $toString: '$_id' }, regex: `${q}$`, options: 'i' } } }]
+          : []),
+      ];
+    }
+
     const trips = await Ride.find(query)
       .populate('customer', 'name phone email')
       .populate('rider', 'name phone email')

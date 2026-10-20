@@ -141,6 +141,20 @@ const userSchema = new Schema(
         type: String,
         default: "all",
       },
+      /**
+       * Admin approval review. "changes_requested" keeps the rider pending with a note they
+       * see in the app; it becomes "resubmitted" when they update their documents.
+       */
+      review: {
+        decision: {
+          type: String,
+          enum: ["approved", "changes_requested", "resubmitted", null],
+          default: null,
+        },
+        note: { type: String, default: null },
+        at: { type: Date, default: null },
+        by: { type: Schema.Types.ObjectId, ref: "User", default: null },
+      },
     },
   },
   {

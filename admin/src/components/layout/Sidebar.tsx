@@ -17,6 +17,7 @@ import {
   Radio,
   Bell,
   MapPinned,
+  UserCheck,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/context/AuthContext';
@@ -27,6 +28,7 @@ const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'Reports', href: '/reports', icon: BarChart3 },
   { name: 'Drivers', href: '/drivers', icon: Car },
+  { name: 'Rider approvals', href: '/drivers/review', icon: UserCheck },
   { name: 'Dispatch', href: '/dispatch', icon: Radio },
   { name: 'Customers', href: '/customers', icon: Users },
   { name: 'Trips', href: '/trips', icon: MapPin },

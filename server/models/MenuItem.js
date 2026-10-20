@@ -34,6 +34,8 @@ const menuItemSchema = new Schema(
     category: { type: String, default: "Mains", trim: true },
     menuCategory: { type: Schema.Types.ObjectId, ref: "MenuCategory", default: null },
     isAvailable: { type: Boolean, default: true },
+    /** "Sold out today": hidden from customers until this time, then back on its own. */
+    soldOutUntil: { type: Date, default: null },
     /** Item photo (Cloudinary URL or /uploads path) */
     imageUrl: { type: String, default: null },
     /** e.g. popular, new, spicy */

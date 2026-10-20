@@ -11,6 +11,7 @@ import { BadRequestError, NotFoundError } from "../errors/index.js";
 import { normalizePhone } from "../utils/phone.js";
 import { sanitizeImageUrl } from "../utils/mediaStorage.js";
 import { detectGhMomoChannel } from "../utils/hubtelService.js";
+import FoodOrder from "../models/FoodOrder.js";
 
 function normalizePayoutConfig(next = {}, prev = {}) {
   const allowedChannels = new Set(["mtn-gh", "vodafone-gh", "airteltigo-gh"]);
@@ -414,11 +415,34 @@ export const adminUpdateRestaurant = async (req, res) => {
 };
 
 /** DELETE /admin/restaurants/:id — remove restaurant and its menu items */
+/**
+ * DELETE /admin/restaurants/:id — only for stores that were never used. A store with orders
+ * keeps its history (Finance, order pages, its balance), so switch it to Inactive instead.
+ */
 export const adminDeleteRestaurant = async (req, res) => {
-  const restaurant = await Restaurant.findByIdAndDelete(req.params.id);
+  const restaurant = await Restaurant.findById(req.params.id);
   if (!restaurant) {
     throw new NotFoundError("Restaurant not found");
   }
+  const openOrder = await FoodOrder.exists({
+    restaurant: restaurant._id,
+    status: { $in: ["PLACED", "PREPARING", "READY_FOR_PICKUP", "PICKED_UP"] },
+  });
+  if (openOrder) {
+    throw new BadRequestError("This store has an order in progress. Finish or cancel it first.");
+  }
+  if ((Number(restaurant.commissionOwed) || 0) > 0.004) {
+    throw new BadRequestError(
+      "This store still owes QareGO money. Record their payment in Finance before deleting it."
+    );
+  }
+  const pastOrders = await FoodOrder.countDocuments({ restaurant: restaurant._id });
+  if (pastOrders > 0) {
+    throw new BadRequestError(
+      `This store has ${pastOrders} past order${pastOrders === 1 ? "" : "s"}, which must stay for the books. Switch it to Inactive instead: customers won't see it.`
+    );
+  }
+  await Restaurant.deleteOne({ _id: restaurant._id });
   await MenuItem.deleteMany({ restaurant: restaurant._id });
 
   res.status(StatusCodes.OK).json({ message: "Restaurant removed" });

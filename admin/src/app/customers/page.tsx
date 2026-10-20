@@ -4,7 +4,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { useEffect, useState } from "react";
 import { fetcher } from "@/lib/api";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { User, Phone, Mail, Star, Calendar, Trash2, Edit2, Plus } from "lucide-react";
+import { User, Phone, Mail, Star, Calendar, Trash2, Edit2, Plus, Search } from "lucide-react";
+import Link from "next/link";
+import { ConfirmByTypingModal } from "@/components/ConfirmByTypingModal";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { Input } from "@/components/ui/Input";
@@ -27,6 +29,8 @@ export default function CustomersPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [formData, setFormData] = useState({ name: '', phone: '', email: '', isSuspended: false });
+  const [search, setSearch] = useState('');
+  const [closeTarget, setCloseTarget] = useState<Customer | null>(null);
 
   useEffect(() => {
     loadCustomers();
@@ -44,15 +48,33 @@ export default function CustomersPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this customer?")) return;
+  const handleDelete = (id: string) => {
+    setCloseTarget(customers.find((c) => c._id === id) ?? null);
+  };
+
+  const closeAccount = async () => {
+    if (!closeTarget) return;
     try {
-      await fetcher(`/customers/${id}`, { method: 'DELETE' });
-      setCustomers(customers.filter(c => c._id !== id));
+      await fetcher(`/customers/${closeTarget._id}`, { method: 'DELETE' });
+      setCustomers((list) => list.filter((c) => c._id !== closeTarget._id));
+      setCloseTarget(null);
     } catch (error) {
-      alert("Failed to delete customer");
+      alert(error instanceof Error ? error.message : "Couldn't close this account");
     }
   };
+
+  /** Name, phone (any format) or email. */
+  const q = search.trim().toLowerCase();
+  // Match local (024…) and international (+23324…) forms of the same number.
+  const qDigits = q.replace(/\D/g, '').replace(/^(233|0)/, '');
+  const visible = q
+    ? customers.filter(
+        (c) =>
+          c.name?.toLowerCase().includes(q) ||
+          c.email?.toLowerCase().includes(q) ||
+          (qDigits.length >= 3 && c.phone?.replace(/\D/g, '').includes(qDigits))
+      )
+    : customers;
 
   const handleEdit = (customer: Customer) => {
     setEditingCustomer(customer);
@@ -133,19 +155,32 @@ export default function CustomersPage() {
       />
 
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <CardTitle>Customer Directory</CardTitle>
+          <div className="relative w-full sm:w-72">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search name, phone or email"
+              className="h-10 w-full rounded-lg border border-gray-300 pl-9 pr-3 text-sm"
+              aria-label="Search customers"
+            />
+          </div>
         </CardHeader>
         <CardContent>
           <div className="md:hidden space-y-3">
-            {customers.map((customer) => (
+            {visible.map((customer) => (
               <div key={customer._id} className="rounded-lg border border-gray-200 p-4">
                 <div className="flex items-center gap-3">
                   <div className="h-10 w-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-sm shrink-0">
                     {customer.name ? customer.name.charAt(0).toUpperCase() : <User className="h-5 w-5" />}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="font-medium text-gray-900 truncate">{customer.name || "Unknown"}</p>
+                    <Link href={`/customers/${customer._id}`} className="block font-medium text-gray-900 truncate hover:underline">
+                      {customer.name || "Unknown"}
+                    </Link>
                     <p className="text-xs text-gray-500">{customer.phone}</p>
                     {customer.email ? <p className="text-xs text-gray-400 truncate">{customer.email}</p> : null}
                   </div>
@@ -187,7 +222,7 @@ export default function CustomersPage() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {customers.map((customer) => (
+                {visible.map((customer) => (
                   <tr key={customer._id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
@@ -197,7 +232,9 @@ export default function CustomersPage() {
                            </div>
                         </div>
                         <div className="ml-4">
-                          <div className="text-sm font-medium text-gray-900">{customer.name || "Unknown"}</div>
+                          <Link href={`/customers/${customer._id}`} className="text-sm font-medium text-gray-900 hover:underline">
+                            {customer.name || "Unknown"}
+                          </Link>
                         </div>
                       </div>
                     </td>
@@ -249,8 +286,10 @@ export default function CustomersPage() {
                 ))}
               </tbody>
             </table>
-            {customers.length === 0 && (
-                <div className="text-center py-4 text-gray-500">No customers found.</div>
+            {visible.length === 0 && (
+                <div className="text-center py-4 text-gray-500">
+                  {q ? `No customers match "${search.trim()}".` : "No customers found."}
+                </div>
             )}
           </div>
         </CardContent>
@@ -314,6 +353,19 @@ export default function CustomersPage() {
           </div>
         </form>
       </Modal>
+      <ConfirmByTypingModal
+        open={!!closeTarget}
+        title="Close customer account"
+        name={closeTarget?.name || closeTarget?.phone || ""}
+        consequences={[
+          "Their name, email, phone and photo are removed, and they can't sign in.",
+          "Their past trips and orders stay, without their details, for the books.",
+          "This can't be undone. The phone number can be used to sign up again.",
+        ]}
+        actionLabel="Close account"
+        onCancel={() => setCloseTarget(null)}
+        onConfirm={closeAccount}
+      />
     </div>
   );
 }

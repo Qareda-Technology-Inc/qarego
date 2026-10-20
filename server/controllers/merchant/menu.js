@@ -12,6 +12,7 @@ import {
   MENU_ITEM_TAGS,
 } from "../../utils/menuDisplay.js";
 import { applyMenuDiscount, enrichMenuItemForDisplay } from "../../utils/menuDiscount.js";
+import { endOfToday } from "../../utils/menuAvailability.js";
 import { buildMenuPayload } from "../../utils/menuResponse.js";
 import { formatModifiersForMenuItem, normalizeModifierGroups } from "../../utils/menuModifiers.js";
 
@@ -164,6 +165,10 @@ export const createMyMenuItem = async (req, res) => {
   if (!name || (price == null && originalPrice == null)) {
     throw new BadRequestError("Menu item name and price are required");
   }
+  // Every new item needs a real photo, so customers see what they're ordering.
+  if (!sanitizeImageUrl(imageUrl)) {
+    throw new BadRequestError("Add a photo of this item before saving it");
+  }
 
   const catFields = await resolveMenuCategoryForItem(req.restaurantId, {
     menuCategoryId,
@@ -213,6 +218,12 @@ export const updateMyMenuItem = async (req, res) => {
 
   if (req.body.isAvailable !== undefined) {
     item.isAvailable = !!req.body.isAvailable;
+    // Switching an item back on also ends any "sold out today".
+    if (item.isAvailable) item.soldOutUntil = null;
+  }
+  // Cooks and owners: sold out until tomorrow, then back on its own.
+  if (req.body.soldOutToday !== undefined) {
+    item.soldOutUntil = req.body.soldOutToday ? endOfToday() : null;
   }
 
   if (isOwner) {
@@ -310,4 +321,59 @@ export const deleteMyMenuItem = async (req, res) => {
   });
   if (!item) throw new NotFoundError("Menu item not found");
   res.status(StatusCodes.OK).json({ message: "Menu item removed" });
+};
+
+/**
+ * POST /merchant/menu/bulk-price — { itemIds, mode: "percent" | "amount" | "set", value }
+ * percent: +10 raises by 10%, -5 lowers by 5%; amount: adds GH₵ (negative lowers); set: one price.
+ * Discounted items keep their discount: the original price changes and the sale price follows.
+ */
+export const bulkUpdateMyMenuPrices = async (req, res) => {
+  const { itemIds, mode } = req.body;
+  const value = Number(req.body.value);
+  if (!Array.isArray(itemIds) || itemIds.length === 0) {
+    throw new BadRequestError("Choose at least one item");
+  }
+  if (!["percent", "amount", "set"].includes(mode)) {
+    throw new BadRequestError("mode must be percent, amount or set");
+  }
+  if (!Number.isFinite(value)) throw new BadRequestError("Enter a number");
+  if (mode === "percent" && value <= -100) throw new BadRequestError("Can't lower a price by 100% or more");
+  if (mode === "set" && value <= 0) throw new BadRequestError("Price must be more than 0");
+
+  const items = await MenuItem.find({ _id: { $in: itemIds }, restaurant: req.restaurantId });
+  const round2 = (n) => Math.round(n * 100) / 100;
+  const next = (current) => {
+    if (mode === "percent") return round2(current * (1 + value / 100));
+    if (mode === "amount") return round2(current + value);
+    return round2(value);
+  };
+
+  const updated = [];
+  for (const item of items) {
+    const discounted = item.badge === "discount" && item.originalPrice != null;
+    const base = next(discounted ? item.originalPrice : item.price);
+    if (base <= 0) {
+      throw new BadRequestError(`${item.name} would end up at GH₵0 or less`);
+    }
+    if (discounted) {
+      const pricing = applyMenuDiscount({
+        price: item.price,
+        originalPrice: base,
+        discountPercent: item.discountPercent,
+        discountLabel: item.discountLabel,
+        badge: "discount",
+      });
+      item.price = pricing.price;
+      item.originalPrice = pricing.originalPrice;
+    } else {
+      item.price = base;
+    }
+    updated.push(item);
+  }
+  await Promise.all(updated.map((i) => i.save()));
+  res.status(StatusCodes.OK).json({
+    updated: updated.length,
+    items: updated.map((i) => ({ _id: i._id, name: i.name, price: i.price, originalPrice: i.originalPrice })),
+  });
 };

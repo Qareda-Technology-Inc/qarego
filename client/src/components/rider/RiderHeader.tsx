@@ -74,6 +74,22 @@ const RiderHeader = ({ tourRefs }: RiderHeaderProps = {}) => {
       setCommissionOwed(
         Number(res.data?.commissionOwed ?? (currentBalance < 0 ? Math.abs(currentBalance) : 0))
       );
+      // Keep the saved account status fresh, so an approval (or a request for changes)
+      // shows without signing out and back in.
+      const { user: current, setUser } = useRiderStore.getState();
+      const nextStatus = res.data?.driverStatus;
+      const nextReview = res.data?.review ?? null;
+      if (
+        current &&
+        nextStatus &&
+        (current.driverDetails?.status !== nextStatus ||
+          JSON.stringify(current.driverDetails?.review ?? null) !== JSON.stringify(nextReview))
+      ) {
+        setUser({
+          ...current,
+          driverDetails: { ...current.driverDetails, status: nextStatus, review: nextReview },
+        });
+      }
     } catch {
       setRiderAmount(null);
       setWalletBalance(0);
@@ -118,7 +134,9 @@ const RiderHeader = ({ tourRefs }: RiderHeaderProps = {}) => {
         status === "suspended_debt"
           ? "Clear your commission balance before going on duty."
           : status === "pending"
-            ? "Your account is pending admin approval. Complete your profile and wait for activation."
+            ? user?.driverDetails?.review?.decision === "changes_requested" && user.driverDetails.review.note
+              ? `Please update your documents: ${user.driverDetails.review.note}`
+              : "Your account is pending admin approval. Complete your profile and wait for activation."
             : "Your driver account is not active. Contact admin."
       );
       return;

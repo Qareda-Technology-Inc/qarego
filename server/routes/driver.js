@@ -10,6 +10,8 @@ import {
   getDriver,
   updateDriver,
   deleteDriver,
+  getPendingDrivers,
+  reviewDriver,
 } from '../controllers/driver.js';
 import authMiddleware from '../middleware/authentication.js';
 import requireAdmin from '../middleware/requireAdmin.js';
@@ -93,7 +95,9 @@ const adminOnly = [authMiddleware, requireAdmin];
 
 router.post('/register', ...adminOnly, optionalDriverUploads, registerDriver);
 router.get('/', ...adminOnly, getAllDrivers);
+router.get('/review/pending', ...adminOnly, getPendingDrivers);
 router.get('/:id', ...adminOnly, getDriver);
+router.post('/:id/review', ...adminOnly, reviewDriver);
 router.patch('/:id', authMiddleware, optionalDriverUploads, updateDriver);
 router.delete('/:id', ...adminOnly, deleteDriver);
 

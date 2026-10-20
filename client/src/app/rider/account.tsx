@@ -58,6 +58,10 @@ const RiderAccount = () => {
 
   const driverStatus = getDriverAccountStatus(user);
   const isPending = isDriverPendingApproval(user);
+  const review = (user as { driverDetails?: { review?: { decision?: string; note?: string } } } | null)
+    ?.driverDetails?.review;
+  const changesRequested = isPending && review?.decision === "changes_requested";
+  const reviewNote = review?.note ?? "";
   const canGoOnDuty = canCourierGoOnDuty(user);
 
   const menuItems = [
@@ -101,10 +105,14 @@ const RiderAccount = () => {
             <Ionicons name="time-outline" size={20} color={Colors.primary} />
             <View style={{ flex: 1, marginLeft: 10 }}>
               <CustomText fontFamily="SemiBold" fontSize={14} style={{ marginBottom: 2 }}>
-                Account pending approval
+                {changesRequested ? "Action needed on your documents" : "Account pending approval"}
               </CustomText>
               <CustomText fontSize={12} color="#666">
-                Complete your profile and documents. You cannot go on duty until admin activates your account.
+                {changesRequested
+                  ? `${reviewNote} Tap to update your documents.`
+                  : review?.decision === "resubmitted"
+                    ? "Thanks, we're checking your updated documents."
+                    : "Complete your profile and documents. You cannot go on duty until admin activates your account."}
               </CustomText>
             </View>
             <Ionicons name="chevron-forward" size={18} color="#999" />

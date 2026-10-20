@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Loader2, Plus, Trash2, Pencil, Check, X } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
+import { getCommerceOrderCopy } from "@/lib/commerceOrderCopy";
 
 export type MenuCategory = {
   _id: string;
@@ -19,6 +21,8 @@ export default function MenuCategoryManager({
 }: {
   onCategoriesChange?: (categories: MenuCategory[]) => void;
 }) {
+  const { activeRestaurant } = useAuth();
+  const copy = getCommerceOrderCopy(activeRestaurant?.vertical);
   const [categories, setCategories] = useState<MenuCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [newName, setNewName] = useState("");
@@ -120,7 +124,7 @@ export default function MenuCategoryManager({
     <div className="bg-white rounded-2xl border border-border p-4 mb-6">
       <h2 className="text-sm font-semibold text-foreground mb-1">1. Categories</h2>
       <p className="text-xs text-muted mb-4">
-        Organize your menu into sections — e.g. Main Dishes, Drinks, Sides. Choose row (side scroll)
+        Organize your menu into sections, e.g. {copy.categoryExamples}. Choose row (side scroll)
         or column (grid) for how customers browse items.
       </p>
 
@@ -210,7 +214,7 @@ export default function MenuCategoryManager({
             id="newCat"
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
-            placeholder="e.g. Main Dishes, Drinks, Sides"
+            placeholder={`e.g. ${copy.categoryExamples}`}
           />
         </div>
         <Button

@@ -341,32 +341,50 @@ export const deleteMyAccount = async (req, res) => {
   if (!["customer", "rider"].includes(user.role)) {
     throw new BadRequestError("Staff accounts are removed by an administrator");
   }
+  await closeUserAccount(user);
+  res.status(StatusCodes.OK).json({ deleted: true });
+};
 
+/**
+ * Close a customer or rider account the same way whoever asks (the user in the app, or an
+ * admin): refuse while a trip, order or balance is open, delete their files, blank their
+ * details and block sign-in. Trips, orders and payments stay, anonymised, for accounting.
+ */
+export async function closeUserAccount(user, { byAdmin = false } = {}) {
+  const who = byAdmin ? "This account" : "You";
   const activeTrip = await Ride.exists({
     $or: [{ customer: user._id }, { rider: user._id }],
     status: { $in: ACTIVE_TRIP_STATUSES },
   });
   if (activeTrip) {
-    throw new BadRequestError("Finish or cancel your current trip before deleting your account");
+    throw new BadRequestError(
+      byAdmin
+        ? "This account has a trip in progress. Finish or cancel it first."
+        : "Finish or cancel your current trip before deleting your account"
+    );
   }
   const openOrder = await FoodOrder.exists({
     customer: user._id,
     status: { $in: OPEN_ORDER_STATUSES },
   });
   if (openOrder) {
-    throw new BadRequestError("Wait for your current order to finish before deleting your account");
+    throw new BadRequestError(
+      byAdmin
+        ? "This account has an order in progress. Wait for it to finish or cancel it first."
+        : "Wait for your current order to finish before deleting your account"
+    );
   }
 
   if (user.role === "rider") {
     const balance = Math.round((Number(user.balance) || 0) * 100) / 100;
     if (balance < 0) {
       throw new BadRequestError(
-        `You owe ${formatCurrency(-balance)} in commission. Clear it before deleting your account.`
+        `${who} owe${byAdmin ? "s" : ""} ${formatCurrency(-balance)} in commission. Clear it before deleting ${byAdmin ? "the" : "your"} account.`
       );
     }
     if (balance > 0) {
       throw new BadRequestError(
-        `You have ${formatCurrency(balance)} still to be paid out. Wait for your payout before deleting your account.`
+        `${byAdmin ? "This rider has" : "You have"} ${formatCurrency(balance)} still to be paid out. Pay it out before deleting ${byAdmin ? "the" : "your"} account.`
       );
     }
   }
@@ -389,9 +407,7 @@ export const deleteMyAccount = async (req, res) => {
       $unset: { phone: "", username: "", driverDetails: "" },
     }
   );
-
-  res.status(StatusCodes.OK).json({ deleted: true });
-};
+}
 
 /** Best effort: a missing or already-deleted file must not block account deletion. */
 async function deleteUserMedia(user) {

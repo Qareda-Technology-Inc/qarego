@@ -23,6 +23,7 @@ import {
   deleteMyMenuCategory,
   listMyMenu,
   createMyMenuItem,
+  bulkUpdateMyMenuPrices,
   updateMyMenuItem,
   updateMyMenuItemModifiers,
   deleteMyMenuItem,
@@ -78,6 +79,7 @@ router.delete("/menu-categories/:id", loadMerchantContext, requireOwner, deleteM
 // Menu
 router.get("/menu", loadMerchantContext, listMyMenu);
 router.post("/menu", loadMerchantContext, requireOwner, createMyMenuItem);
+router.post("/menu/bulk-price", loadMerchantContext, requireOwner, bulkUpdateMyMenuPrices);
 router.patch("/menu/:itemId", loadMerchantContext, updateMyMenuItem); // cooks: availability only
 router.patch("/menu/:itemId/modifiers", loadMerchantContext, requireOwner, updateMyMenuItemModifiers);
 router.delete("/menu/:itemId", loadMerchantContext, requireOwner, deleteMyMenuItem);

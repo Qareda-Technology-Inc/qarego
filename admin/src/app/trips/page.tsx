@@ -18,6 +18,8 @@ export default function TripsPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [typeFilter, setTypeFilter] = useState<'ALL' | 'RIDE' | 'DELIVERY'>('ALL');
+  const [searchInput, setSearchInput] = useState('');
+  const [search, setSearch] = useState('');
   const [assignModal, setAssignModal] = useState<{
     rideId: string;
     serviceType: string;
@@ -26,9 +28,18 @@ export default function TripsPage() {
   const [assigningDriverId, setAssigningDriverId] = useState<string | null>(null);
   const [assignError, setAssignError] = useState<string | null>(null);
 
+  // Search once typing pauses, from the first page.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setSearch(searchInput.trim());
+      setPage(1);
+    }, 400);
+    return () => clearTimeout(t);
+  }, [searchInput]);
+
   useEffect(() => {
     loadTrips();
-  }, [page, statusFilter, typeFilter]);
+  }, [page, statusFilter, typeFilter, search]);
 
   useEffect(() => {
     if (assignModal) {
@@ -41,7 +52,9 @@ export default function TripsPage() {
   const loadTrips = async () => {
     setLoading(true);
     try {
-      const data = await fetcher(`/admin/trips?page=${page}&limit=10&status=${statusFilter}&type=${typeFilter}`);
+      const data = await fetcher(
+        `/admin/trips?page=${page}&limit=10&status=${statusFilter}&type=${typeFilter}${search ? `&q=${encodeURIComponent(search)}` : ''}`
+      );
       setTrips(data.trips);
       setTotalPages(data.totalPages);
     } catch (error) {
@@ -91,6 +104,14 @@ export default function TripsPage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Trips Management</h1>
         <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+          <input
+            type="search"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            placeholder="Name, phone, address or trip #"
+            aria-label="Search trips"
+            className="border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-900 w-full sm:w-64 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
           <select
             className="border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
             value={typeFilter}

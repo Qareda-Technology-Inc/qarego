@@ -17,6 +17,7 @@ import {
   resolveFormVertical,
 } from "@/lib/storeForm";
 import { Plus, Store, UserCircle, UserPlus, Settings2, MapPin, Pencil, Trash2 } from "lucide-react";
+import { ConfirmByTypingModal } from "@/components/ConfirmByTypingModal";
 
 interface Vendor {
   _id: string;
@@ -67,6 +68,7 @@ export default function VendorsPage() {
   const [editVendorModal, setEditVendorModal] = useState(false);
   const [editVendorId, setEditVendorId] = useState("");
   const [editVendorForm, setEditVendorForm] = useState({ username: "", password: "", name: "", phone: "" });
+  const [vendorSearch, setVendorSearch] = useState("");
   const [deleteVendorModal, setDeleteVendorModal] = useState(false);
   const [deleteVendorTarget, setDeleteVendorTarget] = useState<Vendor | null>(null);
   const [deleteStoreModal, setDeleteStoreModal] = useState(false);
@@ -106,6 +108,21 @@ export default function VendorsPage() {
   const storesFor = (vendorId: string) =>
     restaurants.filter((r) => r.owner?._id === vendorId);
   const unassigned = restaurants.filter((r) => !r.owner);
+
+  // Search vendors by name, username or phone, or by any of their stores' names or addresses.
+  const vq = vendorSearch.trim().toLowerCase();
+  const vqDigits = vq.replace(/\D/g, "").replace(/^(233|0)/, "");
+  const visibleVendors = vq
+    ? vendors.filter(
+        (v) =>
+          v.name?.toLowerCase().includes(vq) ||
+          v.username?.toLowerCase().includes(vq) ||
+          (vqDigits.length >= 3 && v.phone?.replace(/\D/g, "").includes(vqDigits)) ||
+          storesFor(v._id).some(
+            (r) => r.name?.toLowerCase().includes(vq) || r.address?.toLowerCase().includes(vq)
+          )
+      )
+    : vendors;
 
   const createVendor = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -267,6 +284,17 @@ export default function VendorsPage() {
         </Button>
       </div>
 
+      {vendors.length > 0 ? (
+        <input
+          type="search"
+          value={vendorSearch}
+          onChange={(e) => setVendorSearch(e.target.value)}
+          placeholder="Search vendor, phone, store or address"
+          aria-label="Search vendors and stores"
+          className="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm sm:w-96"
+        />
+      ) : null}
+
       {vendors.length === 0 ? (
         <Card>
           <CardContent className="text-center py-12 text-gray-500">
@@ -276,7 +304,10 @@ export default function VendorsPage() {
         </Card>
       ) : (
         <div className="space-y-4">
-          {vendors.map((v) => {
+          {visibleVendors.length === 0 ? (
+            <p className="py-8 text-center text-sm text-gray-500">No vendors or stores match &quot;{vendorSearch.trim()}&quot;.</p>
+          ) : null}
+          {visibleVendors.map((v) => {
             const stores = storesFor(v._id);
             return (
               <Card key={v._id}>
@@ -310,7 +341,7 @@ export default function VendorsPage() {
                         setDeleteVendorTarget(v);
                         setDeleteVendorModal(true);
                       }}
-                      className="w-full sm:w-auto text-red-600 border-red-200 hover:bg-red-50"
+                      className="w-full sm:w-auto text-gray-500 border-gray-200 hover:text-red-600 hover:bg-red-50"
                     >
                       <Trash2 className="h-4 w-4 mr-1" /> Delete
                     </Button>
@@ -381,7 +412,7 @@ export default function VendorsPage() {
                               setDeleteStoreTarget(r);
                               setDeleteStoreModal(true);
                             }}
-                            className="inline-flex items-center text-red-600 hover:text-red-700 text-sm font-medium"
+                            className="inline-flex items-center text-gray-400 hover:text-red-600 text-sm"
                           >
                             <Trash2 className="h-4 w-4 mr-1" /> Delete store
                           </button>
@@ -441,7 +472,7 @@ export default function VendorsPage() {
                       setDeleteStoreTarget(r);
                       setDeleteStoreModal(true);
                     }}
-                    className="inline-flex items-center text-red-600 hover:text-red-700 text-sm font-medium shrink-0"
+                    className="inline-flex items-center text-gray-400 hover:text-red-600 text-sm shrink-0"
                   >
                     <Trash2 className="h-4 w-4 mr-1" /> Delete store
                   </button>
@@ -483,45 +514,39 @@ export default function VendorsPage() {
         </form>
       </Modal>
 
-      {/* Delete Vendor Confirmation */}
-      <Modal isOpen={deleteVendorModal} onClose={() => setDeleteVendorModal(false)} title="Delete Vendor">
-        <div className="space-y-4">
-          <p className="text-sm text-gray-700">
-            Delete vendor <span className="font-semibold">{deleteVendorTarget?.name || deleteVendorTarget?.username}</span>?
-          </p>
-          <p className="text-xs text-gray-500">
-            Their stores will become unassigned and can be reassigned later.
-          </p>
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={() => setDeleteVendorModal(false)}>
-              Cancel
-            </Button>
-            <Button type="button" onClick={deleteVendor} className="bg-red-600 hover:bg-red-700">
-              Delete Vendor
-            </Button>
-          </div>
-        </div>
-      </Modal>
+      <ConfirmByTypingModal
+        open={deleteVendorModal}
+        title="Delete vendor"
+        name={deleteVendorTarget?.username || deleteVendorTarget?.name || ""}
+        consequences={[
+          "Their login stops working straight away.",
+          "Their stores stay, but become unassigned until you give them to another vendor.",
+          "This can't be undone.",
+        ]}
+        actionLabel="Delete vendor"
+        onCancel={() => {
+          setDeleteVendorModal(false);
+          setDeleteVendorTarget(null);
+        }}
+        onConfirm={deleteVendor}
+      />
 
-      {/* Delete Store Confirmation */}
-      <Modal isOpen={deleteStoreModal} onClose={() => setDeleteStoreModal(false)} title="Delete Store">
-        <div className="space-y-4">
-          <p className="text-sm text-gray-700">
-            Delete store <span className="font-semibold">{deleteStoreTarget?.name}</span>?
-          </p>
-          <p className="text-xs text-gray-500">
-            This will permanently remove the store and its menu items.
-          </p>
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={() => setDeleteStoreModal(false)}>
-              Cancel
-            </Button>
-            <Button type="button" onClick={deleteStore} className="bg-red-600 hover:bg-red-700">
-              Delete Store
-            </Button>
-          </div>
-        </div>
-      </Modal>
+      <ConfirmByTypingModal
+        open={deleteStoreModal}
+        title="Delete store"
+        name={deleteStoreTarget?.name || ""}
+        consequences={[
+          "The store and its whole menu are removed.",
+          "Only stores that never had an order can be deleted. For any other store, switch it to Inactive.",
+          "This can't be undone.",
+        ]}
+        actionLabel="Delete store"
+        onCancel={() => {
+          setDeleteStoreModal(false);
+          setDeleteStoreTarget(null);
+        }}
+        onConfirm={deleteStore}
+      />
 
       {/* Edit Vendor */}
       <Modal isOpen={editVendorModal} onClose={() => setEditVendorModal(false)} title="Edit Vendor">

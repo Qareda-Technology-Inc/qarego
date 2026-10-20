@@ -875,7 +875,7 @@ export const rateRide = async (req, res) => {
 export const getMyTransactions = async (req, res) => {
   const driverId = req.user.id;
   try {
-    const user = await User.findById(driverId).select("balance");
+    const user = await User.findById(driverId).select("balance driverDetails.status driverDetails.review");
     const transactions = await Transaction.find({ driver: driverId })
       .populate("ride", "fare status paymentMethod serviceType")
       .sort({ createdAt: -1 })
@@ -923,6 +923,15 @@ export const getMyTransactions = async (req, res) => {
       salesSummary,
       commissionByService,
       transactions: enrichedTransactions,
+      // The app refreshes the rider's account status from here (e.g. after admin approval).
+      driverStatus: user?.driverDetails?.status ?? "pending",
+      review: user?.driverDetails?.review?.decision
+        ? {
+            decision: user.driverDetails.review.decision,
+            note: user.driverDetails.review.note,
+            at: user.driverDetails.review.at,
+          }
+        : null,
     });
   } catch (error) {
     console.error("Error fetching transactions:", error);

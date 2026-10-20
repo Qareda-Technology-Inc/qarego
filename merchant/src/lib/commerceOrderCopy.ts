@@ -28,6 +28,11 @@ export type CommerceOrderCopy = {
   preparingColumn: string;
   preparingEmpty: string;
   readyButton: string;
+  /** Menu page */
+  itemsHeading: string;
+  itemSingular: string;
+  staffRole: string;
+  categoryExamples: string;
 }
 
 const COPY: Record<StoreVertical, CommerceOrderCopy> = {
@@ -59,6 +64,10 @@ const COPY: Record<StoreVertical, CommerceOrderCopy> = {
     preparingColumn: "Cooking",
     preparingEmpty: "Nothing on the stove",
     readyButton: "Mark ready",
+    itemsHeading: "Dishes",
+    itemSingular: "dish",
+    staffRole: "cook",
+    categoryExamples: "Main Dishes, Drinks, Sides",
   },
   GROCERY: {
     ordersTab: "Orders",
@@ -88,6 +97,10 @@ const COPY: Record<StoreVertical, CommerceOrderCopy> = {
     preparingColumn: "Packing",
     preparingEmpty: "Nothing being packed",
     readyButton: "Packed & ready",
+    itemsHeading: "Products",
+    itemSingular: "product",
+    staffRole: "staff member",
+    categoryExamples: "Fresh Produce, Drinks, Household",
   },
   PHARMACY: {
     ordersTab: "Orders",
@@ -117,6 +130,10 @@ const COPY: Record<StoreVertical, CommerceOrderCopy> = {
     preparingColumn: "Preparing",
     preparingEmpty: "Nothing being prepared",
     readyButton: "Ready for pickup",
+    itemsHeading: "Products",
+    itemSingular: "product",
+    staffRole: "staff member",
+    categoryExamples: "Pain Relief, Vitamins, Baby Care",
   },
   GAS: {
     ordersTab: "Orders",
@@ -146,6 +163,10 @@ const COPY: Record<StoreVertical, CommerceOrderCopy> = {
     preparingColumn: "Filling",
     preparingEmpty: "No cylinders being filled",
     readyButton: "Cylinder ready",
+    itemsHeading: "Items",
+    itemSingular: "item",
+    staffRole: "staff member",
+    categoryExamples: "Cylinders, Accessories",
   },
 };
 

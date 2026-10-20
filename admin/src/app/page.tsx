@@ -266,14 +266,14 @@ export default function Dashboard() {
                 tone="blue"
                 title={`${a.pendingRiders.count} rider${a.pendingRiders.count === 1 ? "" : "s"} waiting for approval`}
                 hint="Check their documents and approve"
-                href="/drivers"
+                href="/drivers/review"
               >
                 {a.pendingRiders.items.map((r) => (
                   <ActionRow
                     key={r._id}
                     main={r.name}
                     side={r.phone ?? ""}
-                    href={`/drivers/${r._id}/edit`}
+                    href={`/drivers/review?id=${r._id}`}
                   />
                 ))}
               </ActionGroup>

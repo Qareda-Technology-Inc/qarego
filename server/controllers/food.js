@@ -31,6 +31,7 @@ import {
 
 import { isDuplicateKeyError, readClientRequestId } from "../utils/idempotency.js";
 import { listAssignableRiders } from "./merchant/orders.js";
+import { availableNowFilter } from "../utils/menuAvailability.js";
 /** Attach computed open/closed metadata to a plain restaurant object. */
 const withOpenState = (restaurant, now = new Date()) => {
   const state = computeOpenState(restaurant, now);
@@ -72,7 +73,7 @@ export const getRestaurantMenu = async (req, res) => {
 
   const menuItems = await MenuItem.find({
     restaurant: restaurant._id,
-    isAvailable: true,
+    ...availableNowFilter(),
   })
     .sort({ category: 1, name: 1 })
     .lean();
@@ -196,7 +197,7 @@ export const createFoodOrder = async (req, res) => {
   const menuDocs = await MenuItem.find({
     _id: { $in: menuIds },
     restaurant: restaurant._id,
-    isAvailable: true,
+    ...availableNowFilter(),
   });
 
   const menuMap = new Map(menuDocs.map((m) => [m._id.toString(), m]));

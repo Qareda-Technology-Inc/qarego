@@ -17,7 +17,7 @@ import MenuModifierEditor, {
 } from "@/components/MenuModifierEditor";
 import ImageUploadField from "@/components/ImageUploadField";
 import { resolveImageUrl } from "@/lib/resolveImageUrl";
-import { UtensilsCrossed, Plus, Edit2, Trash2, Loader2, SlidersHorizontal } from "lucide-react";
+import { UtensilsCrossed, Plus, Edit2, Trash2, Loader2, SlidersHorizontal, ImageOff, X } from "lucide-react";
 
 interface MenuItem {
   _id: string;
@@ -27,6 +27,8 @@ interface MenuItem {
   category?: string;
   menuCategory?: string;
   isAvailable: boolean;
+  /** "Sold out today": hidden from customers until this time. */
+  soldOutUntil?: string | null;
   imageUrl?: string | null;
   tags?: string[];
   badge?: string | null;
@@ -66,6 +68,12 @@ const EMPTY_ITEM = {
   discountPercent: "",
 };
 
+function isSoldOutToday(item: MenuItem) {
+  return !!item.soldOutUntil && new Date(item.soldOutUntil).getTime() > Date.now();
+}
+
+type BulkMode = "percent" | "amount" | "set";
+
 export default function MenuPage() {
   const { isOwner, activeRestaurant } = useAuth();
   const copy = getCommerceOrderCopy(activeRestaurant?.vertical);
@@ -78,6 +86,10 @@ export default function MenuPage() {
   const [saving, setSaving] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [modifierItem, setModifierItem] = useState<MenuItem | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkMode, setBulkMode] = useState<BulkMode>("percent");
+  const [bulkValue, setBulkValue] = useState("");
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   const discountPreview = useMemo(() => {
     if (form.badge !== "discount") return null;
@@ -101,7 +113,8 @@ export default function MenuPage() {
   };
 
   useEffect(() => {
-    load();
+    const first = setTimeout(load, 0);
+    return () => clearTimeout(first);
   }, []);
 
   const openAdd = () => {
@@ -145,6 +158,10 @@ export default function MenuPage() {
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!editing && !form.imageUrl) {
+      alert(`Add a photo of this ${copy.itemSingular} so customers can see what they're ordering.`);
+      return;
+    }
     if (!form.menuCategoryId) {
       alert("Select a category");
       return;
@@ -198,12 +215,19 @@ export default function MenuPage() {
     }
   };
 
-  const toggleAvailable = async (item: MenuItem) => {
+  /** Sold out for today (back on its own tomorrow), back in stock, or switched off for good. */
+  const setAvailability = async (item: MenuItem, change: "soldOutToday" | "available" | "off") => {
     setBusy(item._id);
     try {
       await fetcher(`/merchant/menu/${item._id}`, {
         method: "PATCH",
-        body: JSON.stringify({ isAvailable: !item.isAvailable }),
+        body: JSON.stringify(
+          change === "soldOutToday"
+            ? { soldOutToday: true }
+            : change === "available"
+              ? { isAvailable: true, soldOutToday: false }
+              : { isAvailable: false }
+        ),
       });
       await load();
     } catch (err: unknown) {
@@ -226,6 +250,46 @@ export default function MenuPage() {
     }
   };
 
+  const toggleSelected = (ids: string[], on: boolean) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      ids.forEach((id) => (on ? next.add(id) : next.delete(id)));
+      return next;
+    });
+  };
+
+  const applyBulkPrice = async () => {
+    const value = Number(bulkValue);
+    if (!bulkValue.trim() || !Number.isFinite(value)) {
+      alert("Enter a number");
+      return;
+    }
+    const what =
+      bulkMode === "percent"
+        ? `${value >= 0 ? "raise" : "lower"} prices by ${Math.abs(value)}%`
+        : bulkMode === "amount"
+          ? `${value >= 0 ? "add" : "take off"} ${formatCurrency(Math.abs(value))}`
+          : `set the price to ${formatCurrency(value)}`;
+    if (!confirm(`${what[0].toUpperCase()}${what.slice(1)} for ${selected.size} item${selected.size === 1 ? "" : "s"}?`)) return;
+    setBulkBusy(true);
+    try {
+      const res = await fetcher("/merchant/menu/bulk-price", {
+        method: "POST",
+        body: JSON.stringify({ itemIds: [...selected], mode: bulkMode, value }),
+      });
+      setSelected(new Set());
+      setBulkValue("");
+      await load();
+      alert(`Updated ${res.updated} price${res.updated === 1 ? "" : "s"}.`);
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Couldn't update prices");
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  const noPhotoCount = items.filter((i) => !i.imageUrl).length;
+
   const grouped = useMemo(() => {
     const acc: Record<string, MenuItem[]> = {};
     const order: string[] = [];
@@ -245,7 +309,8 @@ export default function MenuPage() {
   }, [items, categories]);
 
   return (
-    <div className="max-w-4xl">
+    // Leave room at the bottom for the bulk price bar while items are selected.
+    <div className={`max-w-4xl ${selected.size > 0 ? "pb-24" : ""}`}>
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <UtensilsCrossed className="h-7 w-7 text-brand" />
@@ -264,22 +329,32 @@ export default function MenuPage() {
       {isOwner && <MenuCategoryManager onCategoriesChange={setCategories} />}
 
       {isOwner && categories.length > 0 ? (
-        <h2 className="text-sm font-semibold text-foreground mb-3">2. Dishes</h2>
+        <h2 className="text-sm font-semibold text-foreground mb-3">2. {copy.itemsHeading}</h2>
       ) : null}
 
       {!isOwner && (
         <p className="text-sm text-muted mb-4">
-          As a cook you can mark items sold out or available. Ask the owner to change prices.
+          As a {copy.staffRole} you can mark items sold out or back in stock. Ask the owner to change prices.
         </p>
       )}
+
+      {isOwner && noPhotoCount > 0 ? (
+        <div className="mb-4 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <ImageOff className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>
+            {noPhotoCount} {noPhotoCount === 1 ? copy.itemSingular : copy.itemsHeading.toLowerCase()} {noPhotoCount === 1 ? "has" : "have"} no photo.
+            Items with a photo sell better, and every new {copy.itemSingular} needs one.
+          </span>
+        </div>
+      ) : null}
 
       {loading ? (
         <p className="text-gray-500">Loading menu…</p>
       ) : items.length === 0 ? (
         <div className="bg-white rounded-2xl border border-border p-12 text-center text-gray-500">
           {categories.length === 0
-            ? "Create a category first, then add dishes."
-            : "No dishes yet — add your first item."}
+            ? `Create a category first, then add ${copy.itemsHeading.toLowerCase()}.`
+            : `No ${copy.itemsHeading.toLowerCase()} yet. Add your first ${copy.itemSingular}.`}
         </div>
       ) : (
         <div className="bg-white rounded-2xl border border-border p-4 space-y-6">
@@ -288,13 +363,34 @@ export default function MenuPage() {
             if (!catItems.length) return null;
             return (
             <div key={category}>
-              <h3 className="text-xs font-semibold uppercase text-gray-500 mb-2">{category}</h3>
+              <div className="mb-2 flex items-center gap-2">
+                {isOwner ? (
+                  <input
+                    type="checkbox"
+                    aria-label={`Select all in ${category}`}
+                    checked={catItems.every((i) => selected.has(i._id))}
+                    onChange={(e) => toggleSelected(catItems.map((i) => i._id), e.target.checked)}
+                  />
+                ) : null}
+                <h3 className="text-xs font-semibold uppercase text-gray-500">{category}</h3>
+              </div>
               <div className="divide-y border rounded-lg">
                 {catItems.map((item) => (
                   <div
                     key={item._id}
-                    className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 p-4 bg-white"
+                    className={`flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 p-4 ${
+                      selected.has(item._id) ? "bg-brand/5" : "bg-white"
+                    }`}
                   >
+                    {isOwner ? (
+                      <input
+                        type="checkbox"
+                        aria-label={`Select ${item.name}`}
+                        checked={selected.has(item._id)}
+                        onChange={(e) => toggleSelected([item._id], e.target.checked)}
+                        className="shrink-0"
+                      />
+                    ) : null}
                     {item.imageUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
@@ -302,15 +398,29 @@ export default function MenuPage() {
                         alt=""
                         className="w-16 h-16 rounded-lg object-cover shrink-0 border"
                       />
-                    ) : null}
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => (isOwner ? openEdit(item) : undefined)}
+                        className="flex h-16 w-16 shrink-0 flex-col items-center justify-center gap-0.5 rounded-lg border-2 border-dashed border-amber-300 text-[10px] font-medium text-amber-700"
+                        title={isOwner ? "Add a photo" : "No photo"}
+                      >
+                        <ImageOff className="h-4 w-4" />
+                        {isOwner ? "Add photo" : "No photo"}
+                      </button>
+                    )}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-medium text-foreground">{item.name}</span>
-                        {!item.isAvailable && (
+                        {!item.isAvailable ? (
                           <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700">
-                            Sold out
+                            Turned off
                           </span>
-                        )}
+                        ) : isSoldOutToday(item) ? (
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
+                            Sold out today
+                          </span>
+                        ) : null}
                         {item.badge === "discount" && (
                           <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-800">
                             {discountBadgeLabel(item)}
@@ -345,20 +455,27 @@ export default function MenuPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={busy === item._id}
-                        onClick={() => toggleAvailable(item)}
-                      >
-                        {busy === item._id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : item.isAvailable ? (
-                          "Mark sold out"
-                        ) : (
-                          "Mark available"
-                        )}
-                      </Button>
+                      {busy === item._id ? (
+                        <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+                      ) : !item.isAvailable || isSoldOutToday(item) ? (
+                        <Button variant="outline" size="sm" onClick={() => setAvailability(item, "available")}>
+                          {item.isAvailable ? "Back in stock" : "Turn on"}
+                        </Button>
+                      ) : (
+                        <>
+                          <Button variant="outline" size="sm" onClick={() => setAvailability(item, "soldOutToday")}>
+                            Sold out today
+                          </Button>
+                          <button
+                            type="button"
+                            onClick={() => setAvailability(item, "off")}
+                            className="text-xs text-gray-500 hover:text-red-600 hover:underline"
+                            title="Hide until you turn it back on"
+                          >
+                            Turn off
+                          </button>
+                        </>
+                      )}
                       {isOwner && (
                         <>
                           <Button
@@ -393,10 +510,44 @@ export default function MenuPage() {
         </div>
       )}
 
+      {isOwner && selected.size > 0 ? (
+        <div className="fixed inset-x-0 bottom-4 z-30 mx-auto flex w-[min(720px,calc(100%-2rem))] flex-wrap items-center gap-3 rounded-2xl border border-border bg-white px-4 py-3 shadow-xl">
+          <span className="text-sm font-semibold text-foreground">{selected.size} selected</span>
+          <select
+            value={bulkMode}
+            onChange={(e) => setBulkMode(e.target.value as BulkMode)}
+            className="h-9 rounded-lg border border-border bg-white px-2 text-sm"
+            aria-label="How to change the price"
+          >
+            <option value="percent">Change by %</option>
+            <option value="amount">Change by GH₵</option>
+            <option value="set">Set price to</option>
+          </select>
+          <Input
+            value={bulkValue}
+            onChange={(e) => setBulkValue(e.target.value)}
+            placeholder={bulkMode === "percent" ? "e.g. 10 or -5" : bulkMode === "amount" ? "e.g. 2 or -1" : "e.g. 25"}
+            inputMode="decimal"
+            className="h-9 w-32"
+            aria-label="Amount"
+          />
+          <Button size="sm" disabled={bulkBusy} onClick={applyBulkPrice}>
+            {bulkBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Apply"}
+          </Button>
+          <button
+            type="button"
+            onClick={() => setSelected(new Set())}
+            className="ml-auto inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-800"
+          >
+            <X className="h-4 w-4" /> Clear
+          </button>
+        </div>
+      ) : null}
+
       <Modal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
-        title={editing ? "Edit dish" : "Add dish"}
+        title={editing ? `Edit ${copy.itemSingular}` : copy.menuAddLabel}
       >
         <form onSubmit={save} className="space-y-4">
           <div>
@@ -417,8 +568,8 @@ export default function MenuPage() {
             />
           </div>
           <ImageUploadField
-            label="Item photo"
-            hint="Optional — JPG or PNG, max 500 KB."
+            label="Photo"
+            hint={editing ? "JPG or PNG, max 500 KB." : "Required. A clear photo of this exact item. JPG or PNG, max 500 KB."}
             folder="menu"
             value={form.imageUrl}
             onChange={(imageUrl) => setForm({ ...form, imageUrl })}
