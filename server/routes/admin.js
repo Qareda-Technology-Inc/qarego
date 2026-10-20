@@ -9,7 +9,7 @@ import {
   getActiveDrivers,
   getAllTrips,
   getTripById,
-  getRidesReport,
+  getReport,
   getActiveTrips,
   assignRideToDriver,
   getFinanceStats,
@@ -98,7 +98,7 @@ adminRouter.get('/drivers/active', getActiveDrivers);
 adminRouter.get('/trips', getAllTrips);
 adminRouter.get('/trips/active', getActiveTrips);
 adminRouter.get('/trips/:id', getTripById);
-adminRouter.get('/reports/rides-by-day', getRidesReport);
+adminRouter.get('/reports', getReport);
 adminRouter.post('/rides/:rideId/assign', assignRideToDriver);
 adminRouter.get('/finance', getFinanceStats);
 adminRouter.get('/settings', getSettingsAdmin);

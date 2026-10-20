@@ -1,4 +1,4 @@
-// Admin trips: lists, detail, reports, live map and manual dispatch.
+// Admin trips: lists, detail, live map and manual dispatch.
 import User from "../../models/User.js";
 import Ride, { RIDE_CODE_FIELDS } from "../../models/Ride.js";
 import { StatusCodes } from "http-status-codes";
@@ -78,34 +78,6 @@ export const getTripById = async (req, res) => {
   } catch (error) {
     console.error('Get trip by id error:', error);
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ message: 'Failed to fetch trip' });
-  }
-};
-
-/** GET /admin/reports/rides-by-day - Rides per day for last N days (default 14) */
-export const getRidesReport = async (req, res) => {
-  try {
-    const days = Math.min(90, Math.max(1, parseInt(req.query.days, 10) || 14));
-    const start = new Date();
-    start.setDate(start.getDate() - days);
-    start.setHours(0, 0, 0, 0);
-
-    const report = await Ride.aggregate([
-      { $match: { createdAt: { $gte: start } } },
-      {
-        $group: {
-          _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
-          count: { $sum: 1 },
-          completed: { $sum: { $cond: [{ $eq: ['$status', 'COMPLETED'] }, 1, 0] } },
-          totalFare: { $sum: { $cond: [{ $eq: ['$status', 'COMPLETED'] }, '$fare', 0] } },
-        },
-      },
-      { $sort: { _id: 1 } },
-    ]);
-
-    res.status(StatusCodes.OK).json({ report, days });
-  } catch (error) {
-    console.error('Rides report error:', error);
-    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ message: 'Failed to fetch report' });
   }
 };
 

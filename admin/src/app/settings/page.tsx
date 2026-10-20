@@ -1,15 +1,15 @@
-
 "use client";
 
-import { useState, useEffect } from 'react';
+import { Suspense, useEffect, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { CURRENCY_SYMBOL } from '@/lib/currency';
-import { fetcher } from '@/lib/api';
-import { Save, Loader2, Volume2 } from 'lucide-react';
-import { getApiBaseUrl } from '@/lib/api';
+import { fetcher, getApiBaseUrl } from '@/lib/api';
+import { notify } from '@/lib/notify';
+import { Save, Loader2, Volume2, Receipt, Percent, Radar, PauseCircle, Store, Bell, RotateCcw } from 'lucide-react';
 import { SettingsCheckboxOption } from '@/components/SettingsCheckboxOption';
 import { SettingsAudioUpload } from '@/components/SettingsAudioUpload';
 import { MenuCategoryLayoutsCard } from '@/components/MenuCategoryLayoutsCard';
@@ -41,853 +41,813 @@ function parseMoney(raw: string, fallback: number): number {
   return Math.max(0, n);
 }
 
+const VEHICLES = ['motorcycle', 'pragya', 'comfort'] as const;
+const VEHICLE_LABELS: Record<(typeof VEHICLES)[number], string> = {
+  motorcycle: 'Motorcycle',
+  pragya: 'Pragya (tricycle)',
+  comfort: 'Comfort (car)',
+};
+const DEFAULT_FARES: Record<string, { baseFare: number; perKmRate: number; minimumFare: number }> = {
+  motorcycle: { baseFare: 8, perKmRate: 4, minimumFare: 20 },
+  pragya: { baseFare: 12, perKmRate: 6, minimumFare: 28 },
+  comfort: { baseFare: 18, perKmRate: 9, minimumFare: 45 },
+};
+
+type FareForm = Record<string, { baseFare: string; perKmRate: string; minimumFare: string }>;
+
+/** Everything on the page that is edited first and then saved with the tab's Save button. */
+type Form = {
+  fares: FareForm;
+  storeFees: { rate: string; min: string; max: string; deliveryCommission: string };
+  commission: {
+    global: string;
+    ride: string;
+    delivery: string;
+    food: string;
+    debtLimit: string;
+    minCashout: string;
+  };
+  vehiclePolicy: { pragyaFoodEnabled: boolean; comfortFoodEnabled: boolean };
+  reliability: { strikesBeforePause: string; pauseDurationHours: string; strikeDecayOnCompletion: string };
+  ranking: {
+    fareWeight: string;
+    earningsPerKmWeight: string;
+    pickupPenaltyPerKm: string;
+    urgencyWeight: string;
+    foodReadyBoost: string;
+    maxPickupKm: string;
+  };
+  pause: { RIDE: boolean; DELIVERY: boolean; FOOD: boolean };
+};
+
+const TABS = [
+  { key: 'fares', label: 'Fares & fees', icon: Receipt, parts: ['fares', 'storeFees'] },
+  { key: 'commission', label: 'Commission', icon: Percent, parts: ['commission'] },
+  { key: 'dispatch', label: 'Dispatch', icon: Radar, parts: ['vehiclePolicy', 'reliability', 'ranking'] },
+  { key: 'pause', label: 'Pause services', icon: PauseCircle, parts: ['pause'] },
+  { key: 'stores', label: 'Store app', icon: Store, parts: [] },
+  { key: 'sounds', label: 'Alert sounds', icon: Bell, parts: [] },
+] as const satisfies readonly { key: string; label: string; icon: unknown; parts: readonly (keyof Form)[] }[];
+type TabKey = (typeof TABS)[number]['key'];
+
+const partsOf = (tab: TabKey): readonly (keyof Form)[] => TABS.find((t) => t.key === tab)?.parts ?? [];
+
+/** Copy the given parts from `source` into `target`. */
+function withParts(target: Form, source: Form, parts: readonly (keyof Form)[]): Form {
+  const next = { ...target };
+  for (const p of parts) Object.assign(next, { [p]: source[p] });
+  return next;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function formFromSettings(data: any): Form {
+  const rate = data.commissionRate ?? 0.15;
+  const vcp = data.vehicleCapabilityPolicy || {};
+  const rp = data.reliabilityPolicy || {};
+  const rw = data.dispatchRankingWeights || {};
+  const sm = data.serviceMaintenance || {};
+  const fares: FareForm = {};
+  for (const v of VEHICLES) {
+    const r = data.fareRates?.[v] || {};
+    const d = DEFAULT_FARES[v];
+    fares[v] = {
+      baseFare: String(r.baseFare ?? d.baseFare),
+      perKmRate: String(r.perKmRate ?? d.perKmRate),
+      minimumFare: String(r.minimumFare ?? d.minimumFare),
+    };
+  }
+  return {
+    fares,
+    storeFees: {
+      rate: toPercentText(data.foodServiceFeeRate ?? 0.08),
+      min: String(data.foodServiceFeeMin ?? 2),
+      max: String(data.foodServiceFeeMax ?? 12),
+      deliveryCommission: toPercentText(data.foodDeliveryCommissionRate ?? 0),
+    },
+    commission: {
+      global: toPercentText(rate),
+      ride: toPercentText(data.commissionByService?.RIDE ?? rate),
+      delivery: toPercentText(data.commissionByService?.DELIVERY ?? rate),
+      food: toPercentText(data.commissionByService?.FOOD ?? rate),
+      debtLimit: String(data.debtLimit ?? -100),
+      minCashout: String(data.minCashoutAmount ?? 1),
+    },
+    vehiclePolicy: { pragyaFoodEnabled: !!vcp.pragyaFoodEnabled, comfortFoodEnabled: !!vcp.comfortFoodEnabled },
+    reliability: {
+      strikesBeforePause: String(rp.strikesBeforePause ?? 5),
+      pauseDurationHours: String(rp.pauseDurationHours ?? 24),
+      strikeDecayOnCompletion: String(rp.strikeDecayOnCompletion ?? 1),
+    },
+    ranking: {
+      fareWeight: String(rw.fareWeight ?? 1),
+      earningsPerKmWeight: String(rw.earningsPerKmWeight ?? 8),
+      pickupPenaltyPerKm: String(rw.pickupPenaltyPerKm ?? 4),
+      urgencyWeight: String(rw.urgencyWeight ?? 10),
+      foodReadyBoost: String(rw.foodReadyBoost ?? 12),
+      maxPickupKm: String(rw.maxPickupKm ?? 25),
+    },
+    pause: { RIDE: !!sm.RIDE, DELIVERY: !!sm.DELIVERY, FOOD: !!sm.FOOD },
+  };
+}
+
+/** What a tab's Save button sends, or an error message when a field is wrong. */
+function payloadFor(tab: TabKey, f: Form): Record<string, unknown> | string {
+  switch (tab) {
+    case 'fares': {
+      const fareRates: Record<string, { baseFare: number; perKmRate: number; minimumFare: number }> = {};
+      for (const v of VEHICLES) {
+        fareRates[v] = {
+          baseFare: parseMoney(f.fares[v].baseFare, 0),
+          perKmRate: parseMoney(f.fares[v].perKmRate, 0),
+          minimumFare: parseMoney(f.fares[v].minimumFare, 0),
+        };
+      }
+      const foodServiceFeeMin = parseMoney(f.storeFees.min, 2);
+      const foodServiceFeeMax = parseMoney(f.storeFees.max, 12);
+      if (foodServiceFeeMin > foodServiceFeeMax) return 'The service fee minimum is higher than the maximum.';
+      return {
+        fareRates,
+        foodServiceFeeRate: parsePercent(f.storeFees.rate, 0.08),
+        foodServiceFeeMin,
+        foodServiceFeeMax,
+        foodDeliveryCommissionRate: parsePercent(f.storeFees.deliveryCommission, 0),
+      };
+    }
+    case 'commission': {
+      const debtLimit = parseOptionalNumber(f.commission.debtLimit);
+      if (debtLimit == null || String(f.commission.debtLimit).trim() === '') {
+        return 'Debt limit must be a number, for example -100.';
+      }
+      return {
+        commissionRate: parsePercent(f.commission.global, 0.15),
+        commissionByService: {
+          RIDE: parsePercent(f.commission.ride, 0.15),
+          DELIVERY: parsePercent(f.commission.delivery, 0.15),
+          FOOD: parsePercent(f.commission.food, 0.15),
+        },
+        debtLimit,
+        minCashoutAmount: parseMoney(f.commission.minCashout, 1),
+      };
+    }
+    case 'dispatch':
+      return {
+        vehicleCapabilityPolicy: f.vehiclePolicy,
+        reliabilityPolicy: {
+          strikesBeforePause: parseInt(f.reliability.strikesBeforePause, 10) || 5,
+          pauseDurationHours: parseInt(f.reliability.pauseDurationHours, 10) || 24,
+          strikeDecayOnCompletion: parseInt(f.reliability.strikeDecayOnCompletion, 10) || 1,
+        },
+        dispatchRankingWeights: {
+          fareWeight: parseFloat(f.ranking.fareWeight) || 1,
+          earningsPerKmWeight: parseFloat(f.ranking.earningsPerKmWeight) || 8,
+          pickupPenaltyPerKm: parseFloat(f.ranking.pickupPenaltyPerKm) || 4,
+          urgencyWeight: parseFloat(f.ranking.urgencyWeight) || 10,
+          foodReadyBoost: parseFloat(f.ranking.foodReadyBoost) || 12,
+          maxPickupKm: parseFloat(f.ranking.maxPickupKm) || 25,
+        },
+      };
+    case 'pause':
+      return { serviceMaintenance: f.pause };
+    default:
+      return {};
+  }
+}
+
 export default function SettingsPage() {
+  return (
+    <Suspense fallback={null}>
+      <SettingsTabs />
+    </Suspense>
+  );
+}
+
+function SettingsTabs() {
   const { momoEnabled } = useFeatures();
-  const [loading, setLoading] = useState(false);
-  const [loadingGlobal, setLoadingGlobal] = useState(true);
-  const [globalSettings, setGlobalSettings] = useState<{
-    commissionRate?: number;
-    commissionByService?: Record<string, number>;
-    debtLimit?: number;
-    minCashoutAmount?: number;
-    fareRates?: Record<string, { baseFare: number; perKmRate: number; minimumFare: number }>;
-    kitchenAlertSoundUrl?: string;
-    riderAlertSoundUrl?: string;
-    foodServiceFeeRate?: number;
-    foodServiceFeeMin?: number;
-    foodServiceFeeMax?: number;
-    foodDeliveryCommissionRate?: number;
-    vehicleCapabilityPolicy?: { pragyaFoodEnabled?: boolean; comfortFoodEnabled?: boolean };
-    serviceMaintenance?: Record<string, boolean>;
-    dispatchRankingWeights?: Record<string, number>;
-  }>({});
-  const [reliabilityPolicy, setReliabilityPolicy] = useState({
-    strikesBeforePause: "5",
-    pauseDurationHours: "24",
-    strikeDecayOnCompletion: "1",
-  });
-  const [rankingWeights, setRankingWeights] = useState({
-    fareWeight: "1",
-    earningsPerKmWeight: "8",
-    pickupPenaltyPerKm: "4",
-    urgencyWeight: "10",
-    foodReadyBoost: "12",
-    maxPickupKm: "25",
-  });
-  const [vehiclePolicy, setVehiclePolicy] = useState({
-    pragyaFoodEnabled: false,
-    comfortFoodEnabled: false,
-  });
-  const [serviceMaintenance, setServiceMaintenance] = useState({
-    RIDE: false,
-    DELIVERY: false,
-    FOOD: false,
-  });
+  const router = useRouter();
+  const pathname = usePathname();
+  const params = useSearchParams();
+  const requestedTab = params.get('tab');
+  const tab: TabKey = TABS.some((t) => t.key === requestedTab) ? (requestedTab as TabKey) : 'fares';
+  const openTab = (key: TabKey) => router.replace(`${pathname}?tab=${key}`, { scroll: false });
+
+  const [form, setForm] = useState<Form | null>(null);
+  const [saved, setSaved] = useState<Form | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
   const [kitchenSoundUrl, setKitchenSoundUrl] = useState('/sounds/new-order.mp3');
   const [riderSoundUrl, setRiderSoundUrl] = useState('/sounds/rider.mp3');
   const [uploadingSound, setUploadingSound] = useState(false);
   const [uploadingRiderSound, setUploadingRiderSound] = useState(false);
-  const [settings, setSettings] = useState({
-    commissionRate: '15',
-    commissionRide: '15',
-    commissionDelivery: '15',
-    commissionFood: '15',
-    debtLimit: '-100',
-    minCashoutAmount: '1',
-    foodServiceFeeRate: '8',
-    foodServiceFeeMin: '2',
-    foodServiceFeeMax: '12',
-    foodDeliveryCommissionRate: '0',
-    supportEmail: 'support@qarego.com',
-    platformName: 'QareGO',
-  });
-  const [fareRates, setFareRates] = useState<Record<string, { baseFare: string; perKmRate: string; minimumFare: string }>>({
-    motorcycle: { baseFare: '8', perKmRate: '4', minimumFare: '20' },
-    pragya: { baseFare: '12', perKmRate: '6', minimumFare: '28' },
-    comfort: { baseFare: '18', perKmRate: '9', minimumFare: '45' },
-  });
 
   useEffect(() => {
-    const load = async () => {
-      try {
-        const data = await fetcher('/admin/settings');
-        setGlobalSettings(data);
+    let alive = true;
+    fetcher('/admin/settings')
+      .then((data) => {
+        if (!alive) return;
+        const next = formFromSettings(data);
+        setForm(next);
+        setSaved(next);
         setKitchenSoundUrl(data.kitchenAlertSoundUrl || '/sounds/new-order.mp3');
         setRiderSoundUrl(data.riderAlertSoundUrl || '/sounds/rider.mp3');
-        setSettings(prev => ({
-          ...prev,
-          commissionRate: toPercentText(data.commissionRate ?? 0.15),
-          commissionRide: toPercentText(data.commissionByService?.RIDE ?? data.commissionRate ?? 0.15),
-          commissionDelivery: toPercentText(data.commissionByService?.DELIVERY ?? data.commissionRate ?? 0.15),
-          commissionFood: toPercentText(data.commissionByService?.FOOD ?? data.commissionRate ?? 0.15),
-          debtLimit: String(data.debtLimit ?? -100),
-          minCashoutAmount: String(data.minCashoutAmount ?? 1),
-          foodServiceFeeRate: toPercentText(data.foodServiceFeeRate ?? 0.08),
-          foodServiceFeeMin: String(data.foodServiceFeeMin ?? 2),
-          foodServiceFeeMax: String(data.foodServiceFeeMax ?? 12),
-          foodDeliveryCommissionRate: toPercentText(data.foodDeliveryCommissionRate ?? 0),
-        }));
-        if (data.fareRates && typeof data.fareRates === 'object') {
-          const next: Record<string, { baseFare: string; perKmRate: string; minimumFare: string }> = {};
-          ['motorcycle', 'pragya', 'comfort'].forEach((v) => {
-            const r = data.fareRates[v];
-            next[v] = {
-              baseFare: r?.baseFare != null ? String(r.baseFare) : (v === 'motorcycle' ? '8' : v === 'pragya' ? '12' : '18'),
-              perKmRate: r?.perKmRate != null ? String(r.perKmRate) : (v === 'motorcycle' ? '4' : v === 'pragya' ? '6' : '9'),
-              minimumFare: r?.minimumFare != null ? String(r.minimumFare) : (v === 'motorcycle' ? '20' : v === 'pragya' ? '28' : '45'),
-            };
-          });
-          setFareRates(next);
-        }
-        const vcp = data.vehicleCapabilityPolicy || {};
-        setVehiclePolicy({
-          pragyaFoodEnabled: !!vcp.pragyaFoodEnabled,
-          comfortFoodEnabled: !!vcp.comfortFoodEnabled,
-        });
-        const sm = data.serviceMaintenance || {};
-        setServiceMaintenance({
-          RIDE: !!sm.RIDE,
-          DELIVERY: !!sm.DELIVERY,
-          FOOD: !!sm.FOOD,
-        });
-        const rw = data.dispatchRankingWeights || {};
-        const rp = data.reliabilityPolicy || {};
-        setReliabilityPolicy({
-          strikesBeforePause: String(rp.strikesBeforePause ?? 5),
-          pauseDurationHours: String(rp.pauseDurationHours ?? 24),
-          strikeDecayOnCompletion: String(rp.strikeDecayOnCompletion ?? 1),
-        });
-        setRankingWeights({
-          fareWeight: String(rw.fareWeight ?? 1),
-          earningsPerKmWeight: String(rw.earningsPerKmWeight ?? 8),
-          pickupPenaltyPerKm: String(rw.pickupPenaltyPerKm ?? 4),
-          urgencyWeight: String(rw.urgencyWeight ?? 10),
-          foodReadyBoost: String(rw.foodReadyBoost ?? 12),
-          maxPickupKm: String(rw.maxPickupKm ?? 25),
-        });
-      } catch (e) {
-        console.error('Failed to load global settings', e);
-      } finally {
-        setLoadingGlobal(false);
-      }
+      })
+      .catch((e: unknown) => alive && setLoadError(e instanceof Error ? e.message : 'Could not load settings'));
+    return () => {
+      alive = false;
     };
-    load();
   }, []);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setSettings(prev => ({ ...prev, [name]: value }));
-  };
+  const isDirty = (key: TabKey) =>
+    !!form && !!saved && partsOf(key).some((p) => JSON.stringify(form[p]) !== JSON.stringify(saved[p]));
+  const anyDirty = TABS.some((t) => isDirty(t.key));
+  const pausedCount = saved ? Object.values(saved.pause).filter(Boolean).length : 0;
 
-  const handleFareChange = (vehicle: string, field: string, value: string) => {
-    setFareRates(prev => ({
-      ...prev,
-      [vehicle]: { ...prev[vehicle], [field]: value },
-    }));
-  };
+  // Warn before closing the page with edits that were never saved.
+  useEffect(() => {
+    if (!anyDirty) return;
+    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [anyDirty]);
 
-  const patchSettings = async (payload: Record<string, unknown>, successMessage: string) => {
-    setLoading(true);
-    try {
-      await fetcher('/admin/settings', {
-        method: 'PATCH',
-        body: JSON.stringify(payload),
-        headers: { 'Content-Type': 'application/json' },
-      });
-      alert(successMessage);
-    } catch (e) {
-      console.error(e);
-      alert('Failed to save settings.');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const update = <K extends keyof Form>(part: K, patch: Partial<Form[K]>) =>
+    setForm((f) => (f ? { ...f, [part]: { ...f[part], ...patch } } : f));
 
-  const handleSaveFareRates = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      const payload: Record<string, { baseFare: number; perKmRate: number; minimumFare: number }> = {};
-      ['motorcycle', 'pragya', 'comfort'].forEach((v) => {
-        payload[v] = {
-          baseFare: parseFloat(fareRates[v]?.baseFare || '0') || 0,
-          perKmRate: parseFloat(fareRates[v]?.perKmRate || '0') || 0,
-          minimumFare: parseFloat(fareRates[v]?.minimumFare || '0') || 0,
-        };
-      });
-      await fetcher('/admin/settings', {
-        method: 'PATCH',
-        body: JSON.stringify({ fareRates: payload }),
-      });
-      alert('Fare rates saved.');
-    } catch (e) {
-      console.error(e);
-      alert('Failed to save fare rates.');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const discard = () => setForm((f) => (f && saved ? withParts(f, saved, partsOf(tab)) : f));
 
-  const handleSaveKitchenSoundUrl = async () => {
-    setLoading(true);
-    try {
-      await fetcher('/admin/settings', {
-        method: 'PATCH',
-        body: JSON.stringify({ kitchenAlertSoundUrl: kitchenSoundUrl.trim() || '/sounds/new-order.mp3' }),
-      });
-      alert('Kitchen alert sound URL saved.');
-    } catch (e) {
-      console.error(e);
-      alert('Failed to save kitchen alert sound URL.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleUploadKitchenSound = async (file: File | null) => {
-    if (!file) return;
-    if (!file.type.startsWith('audio/')) {
-      alert('Please choose an audio file (mp3, wav, etc.)');
+  const saveTab = async () => {
+    if (!form) return;
+    const payload = payloadFor(tab, form);
+    if (typeof payload === 'string') {
+      notify.error(payload);
       return;
     }
-    setUploadingSound(true);
+    setSaving(true);
     try {
-      const form = new FormData();
-      form.append('sound', file);
+      const data = await fetcher('/admin/settings', { method: 'PATCH', body: JSON.stringify(payload) });
+      // Show what the server actually stored (it clamps and rounds some values).
+      const stored = formFromSettings(data);
+      const parts = partsOf(tab);
+      setForm((f) => (f ? withParts(f, stored, parts) : f));
+      setSaved((s) => (s ? withParts(s, stored, parts) : s));
+      notify.success('Settings saved');
+    } catch (e) {
+      notify.error('Could not save settings', e instanceof Error ? e.message : undefined);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const saveSoundUrl = async (field: 'kitchenAlertSoundUrl' | 'riderAlertSoundUrl', value: string, fallback: string) => {
+    setSaving(true);
+    try {
+      await fetcher('/admin/settings', {
+        method: 'PATCH',
+        body: JSON.stringify({ [field]: value.trim() || fallback }),
+      });
+      notify.success('Alert sound saved');
+    } catch (e) {
+      notify.error('Could not save the alert sound', e instanceof Error ? e.message : undefined);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const uploadSound = async (
+    file: File | null,
+    endpoint: 'kitchen-alert-sound' | 'rider-alert-sound',
+    onDone: (url: string) => void,
+    setBusy: (busy: boolean) => void,
+    successMessage: string
+  ) => {
+    if (!file) return;
+    if (!file.type.startsWith('audio/')) {
+      notify.error('Choose an audio file (mp3, wav, etc.)');
+      return;
+    }
+    setBusy(true);
+    try {
+      const body = new FormData();
+      body.append('sound', file);
       const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
-      const res = await fetch(`${getApiBaseUrl()}/admin/settings/kitchen-alert-sound`, {
+      const res = await fetch(`${getApiBaseUrl()}/admin/settings/${endpoint}`, {
         method: 'POST',
         headers: token ? { Authorization: `Bearer ${token}` } : {},
-        body: form,
+        body,
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.message || 'Upload failed');
-      const pathUrl = data.kitchenAlertSoundUrl || '/sounds/new-order.mp3';
-      setKitchenSoundUrl(pathUrl);
-      alert('Kitchen alert sound uploaded. All merchant kitchens will use this file.');
+      onDone(data.kitchenAlertSoundUrl || data.riderAlertSoundUrl);
+      notify.success(successMessage);
     } catch (e) {
-      console.error(e);
-      alert(e instanceof Error ? e.message : 'Upload failed');
+      notify.error(e instanceof Error ? e.message : 'Upload failed');
     } finally {
-      setUploadingSound(false);
+      setBusy(false);
     }
   };
 
-  const handleSaveRiderSoundUrl = async () => {
-    setLoading(true);
-    try {
-      await fetcher('/admin/settings', {
-        method: 'PATCH',
-        body: JSON.stringify({ riderAlertSoundUrl: riderSoundUrl.trim() || '/sounds/rider.mp3' }),
-      });
-      alert('Rider alert sound URL saved.');
-    } catch (e) {
-      console.error(e);
-      alert('Failed to save rider alert sound URL.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleUploadRiderSound = async (file: File | null) => {
-    if (!file) return;
-    if (!file.type.startsWith('audio/')) {
-      alert('Please choose an audio file (mp3, wav, etc.)');
-      return;
-    }
-    setUploadingRiderSound(true);
-    try {
-      const form = new FormData();
-      form.append('sound', file);
-      const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
-      const res = await fetch(`${getApiBaseUrl()}/admin/settings/rider-alert-sound`, {
-        method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        body: form,
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.message || 'Upload failed');
-      const pathUrl = data.riderAlertSoundUrl || '/sounds/rider.mp3';
-      setRiderSoundUrl(pathUrl);
-      alert('Rider alert sound uploaded. All rider apps will use this file.');
-    } catch (e) {
-      console.error(e);
-      alert(e instanceof Error ? e.message : 'Upload failed');
-    } finally {
-      setUploadingRiderSound(false);
-    }
-  };
-
-  const handleSubmitGlobal = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const commissionRate = parsePercent(settings.commissionRate, 0.15);
-    const debtLimitRaw = parseOptionalNumber(settings.debtLimit);
-    const debtLimit = debtLimitRaw == null ? -100 : debtLimitRaw;
-    const minCashoutAmount = parseMoney(settings.minCashoutAmount, 1);
-    if (debtLimitRaw == null && String(settings.debtLimit).trim() !== '') {
-      alert('Debt limit must be a valid number (e.g. -100).');
-      return;
-    }
-    await patchSettings(
-      {
-        commissionRate,
-        debtLimit,
-        minCashoutAmount,
-      },
-      'Global commission and debt limit saved.'
-    );
-  };
-
-  const handleSaveCommissionByService = async () => {
-    await patchSettings(
-      {
-        commissionByService: {
-          RIDE: parsePercent(settings.commissionRide, 0.15),
-          DELIVERY: parsePercent(settings.commissionDelivery, 0.15),
-          FOOD: parsePercent(settings.commissionFood, 0.15),
-        },
-      },
-      'Service commission saved.'
-    );
-  };
-
-  const handleSaveVehiclePolicy = async () => {
-    await patchSettings(
-      { vehicleCapabilityPolicy: vehiclePolicy },
-      'Vehicle capability policy saved.'
-    );
-  };
-
-  const handleSaveReliabilityPolicy = async () => {
-    await patchSettings(
-      {
-        reliabilityPolicy: {
-          strikesBeforePause: parseInt(reliabilityPolicy.strikesBeforePause, 10) || 5,
-          pauseDurationHours: parseInt(reliabilityPolicy.pauseDurationHours, 10) || 24,
-          strikeDecayOnCompletion: parseInt(reliabilityPolicy.strikeDecayOnCompletion, 10) || 1,
-        },
-      },
-      "Reliability policy saved."
-    );
-  };
-
-  const handleSaveRankingWeights = async () => {
-    await patchSettings(
-      {
-        dispatchRankingWeights: {
-          fareWeight: parseFloat(rankingWeights.fareWeight) || 1,
-          earningsPerKmWeight: parseFloat(rankingWeights.earningsPerKmWeight) || 8,
-          pickupPenaltyPerKm: parseFloat(rankingWeights.pickupPenaltyPerKm) || 4,
-          urgencyWeight: parseFloat(rankingWeights.urgencyWeight) || 10,
-          foodReadyBoost: parseFloat(rankingWeights.foodReadyBoost) || 12,
-          maxPickupKm: parseFloat(rankingWeights.maxPickupKm) || 25,
-        },
-      },
-      "Dispatch ranking weights saved."
-    );
-  };
-
-  const handleSaveServiceMaintenance = async () => {
-    await patchSettings(
-      { serviceMaintenance },
-      'Service maintenance flags saved.'
-    );
-  };
-
-  const handleSaveFoodServiceFee = async () => {
-    const foodServiceFeeRate = parsePercent(settings.foodServiceFeeRate, 0.08);
-    const foodServiceFeeMin = parseMoney(settings.foodServiceFeeMin, 2);
-    const foodServiceFeeMax = parseMoney(settings.foodServiceFeeMax, 12);
-    const foodDeliveryCommissionRate = parsePercent(settings.foodDeliveryCommissionRate, 0);
-    if (foodServiceFeeMin > foodServiceFeeMax) {
-      alert('Food service fee minimum cannot be greater than maximum.');
-      return;
-    }
-    await patchSettings(
-      {
-        foodServiceFeeRate,
-        foodServiceFeeMin,
-        foodServiceFeeMax,
-        foodDeliveryCommissionRate,
-      },
-      'Food fee and delivery commission saved.'
-    );
-  };
+  const tabHasForm = partsOf(tab).length > 0;
+  const dirty = isDirty(tab);
 
   return (
-    <div className="space-y-6 max-w-4xl">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-        <h1 className="text-2xl font-bold text-gray-900">Platform Settings</h1>
+    <div className="max-w-5xl space-y-6">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
+          <p className="mt-0.5 text-sm text-gray-500">Prices, commission and how offers reach riders.</p>
+        </div>
         <a href="/dispatch" className="text-sm text-blue-600 hover:underline">
           Rider dispatch overview →
         </a>
       </div>
 
-      <div className="space-y-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Commission & Debt Limit (Global)</CardTitle>
-            <CardDescription>
-              Baseline platform commission and debt policy. Riders are suspended when balance drops below debt limit.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {loadingGlobal ? (
-              <div className="flex items-center gap-2 text-gray-500"><Loader2 className="w-4 h-4 animate-spin" /> Loading...</div>
-            ) : (
-              <>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="commissionRate">Commission (%)</Label>
-                    <Input id="commissionRate" name="commissionRate" type="number" step="0.5" min="0" max="100" value={settings.commissionRate} onChange={handleChange} />
-                    <p className="text-xs text-gray-500">Used for any service without its own rate below</p>
+      <nav className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0" aria-label="Settings sections">
+        <div className="flex min-w-max gap-1 border-b border-gray-200">
+          {TABS.map((t) => {
+            const Icon = t.icon;
+            const active = t.key === tab;
+            return (
+              <button
+                key={t.key}
+                onClick={() => openTab(t.key)}
+                aria-current={active ? 'page' : undefined}
+                className={`-mb-px flex items-center gap-2 border-b-2 px-3 py-2.5 text-sm font-medium transition ${
+                  active
+                    ? 'border-blue-600 text-blue-700'
+                    : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-800'
+                }`}
+              >
+                <Icon className="h-4 w-4" />
+                {t.label}
+                {t.key === 'pause' && pausedCount ? (
+                  <span className="rounded-full bg-amber-100 px-1.5 text-xs font-semibold text-amber-800">
+                    {pausedCount} paused
+                  </span>
+                ) : null}
+                {isDirty(t.key) ? (
+                  <span className="h-2 w-2 rounded-full bg-amber-500" title="Unsaved changes" />
+                ) : null}
+              </button>
+            );
+          })}
+        </div>
+      </nav>
+
+      {loadError ? (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{loadError}</div>
+      ) : !form ? (
+        <div className="flex min-h-[30vh] items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+        </div>
+      ) : (
+        <div className={`space-y-6 ${tabHasForm ? 'pb-24' : ''}`}>
+          {tab === 'fares' ? (
+            <>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Ride and parcel fares</CardTitle>
+                  <CardDescription>
+                    Fare = base fare + price per km, never less than the minimum. Set for each vehicle.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="hidden grid-cols-[10rem_1fr_1fr_1fr] gap-3 pb-2 text-xs font-medium uppercase text-gray-500 sm:grid">
+                    <span>Vehicle</span>
+                    <span>Base fare ({CURRENCY_SYMBOL})</span>
+                    <span>Per km ({CURRENCY_SYMBOL})</span>
+                    <span>Minimum ({CURRENCY_SYMBOL})</span>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="debtLimit">Debt Limit ({CURRENCY_SYMBOL})</Label>
-                    <Input id="debtLimit" name="debtLimit" type="number" value={settings.debtLimit} onChange={handleChange} />
-                    <p className="text-xs text-gray-500">Driver suspended when balance &lt; this (e.g. -100)</p>
+                  <div className="divide-y divide-gray-100">
+                    {VEHICLES.map((v) => (
+                      <div key={v} className="grid grid-cols-3 gap-3 py-3 sm:grid-cols-[10rem_1fr_1fr_1fr] sm:items-center">
+                        <span className="col-span-3 font-medium text-gray-900 sm:col-span-1">{VEHICLE_LABELS[v]}</span>
+                        {(
+                          [
+                            ['baseFare', 'Base fare'],
+                            ['perKmRate', 'Per km'],
+                            ['minimumFare', 'Minimum'],
+                          ] as const
+                        ).map(([field, label]) => (
+                          <label key={field} className="space-y-1">
+                            <span className="block text-xs text-gray-500 sm:hidden">{label}</span>
+                            <Input
+                              aria-label={`${VEHICLE_LABELS[v]} ${label.toLowerCase()}`}
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={form.fares[v][field]}
+                              onChange={(e) => update('fares', { [v]: { ...form.fares[v], [field]: e.target.value } })}
+                            />
+                          </label>
+                        ))}
+                      </div>
+                    ))}
                   </div>
-                  {/* Riders cash out by mobile money, which is paused. */}
-                  {momoEnabled ? (
-                    <div className="space-y-2">
-                      <Label htmlFor="minCashoutAmount">Min Cash Out ({CURRENCY_SYMBOL})</Label>
-                      <Input id="minCashoutAmount" name="minCashoutAmount" type="number" min="0" step="0.01" value={settings.minCashoutAmount} onChange={handleChange} />
-                      <p className="text-xs text-gray-500">Minimum rider wallet withdrawal per request</p>
-                    </div>
-                  ) : null}
-                  <div>
-                    <Button type="button" onClick={handleSubmitGlobal} disabled={loading}>
-                      {loading ? 'Saving...' : <><Save className="w-4 h-4 mr-2" /> Save Commission & Debt</>}
-                    </Button>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Store order fees</CardTitle>
+                  <CardDescription>
+                    Food, groceries, pharmacy and gas. The service fee is added at checkout; the commission on the
+                    delivery fee is taken from the rider when the order is delivered.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    <Field
+                      id="foodServiceFeeRate"
+                      label="Service fee (%)"
+                      hint="Of the items' total"
+                      step="0.5"
+                      max="100"
+                      value={form.storeFees.rate}
+                      onChange={(rate) => update('storeFees', { rate })}
+                    />
+                    <Field
+                      id="foodServiceFeeMin"
+                      label={`Service fee at least (${CURRENCY_SYMBOL})`}
+                      step="0.01"
+                      value={form.storeFees.min}
+                      onChange={(min) => update('storeFees', { min })}
+                    />
+                    <Field
+                      id="foodServiceFeeMax"
+                      label={`Service fee at most (${CURRENCY_SYMBOL})`}
+                      step="0.01"
+                      value={form.storeFees.max}
+                      onChange={(max) => update('storeFees', { max })}
+                    />
+                    <Field
+                      id="foodDeliveryCommissionRate"
+                      label="Commission on delivery fee (%)"
+                      hint="0 = the rider keeps the whole delivery fee"
+                      step="0.5"
+                      max="100"
+                      value={form.storeFees.deliveryCommission}
+                      onChange={(deliveryCommission) => update('storeFees', { deliveryCommission })}
+                    />
                   </div>
-                </div>
-              </>
-            )}
-          </CardContent>
-        </Card>
+                </CardContent>
+              </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Commission by service</CardTitle>
-            <CardDescription>
-              Override rider commission per service type. If not set, global commission applies.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="commissionRide">Rides (%)</Label>
-                <Input
-                  id="commissionRide"
-                  name="commissionRide"
-                  type="number"
-                  step="0.5"
-                  min="0"
-                  max="100"
-                  value={settings.commissionRide}
-                  onChange={handleChange}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="commissionDelivery">Parcels (%)</Label>
-                <Input
-                  id="commissionDelivery"
-                  name="commissionDelivery"
-                  type="number"
-                  step="0.5"
-                  min="0"
-                  max="100"
-                  value={settings.commissionDelivery}
-                  onChange={handleChange}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="commissionFood">Store orders (%)</Label>
-                <Input
-                  id="commissionFood"
-                  name="commissionFood"
-                  type="number"
-                  step="0.5"
-                  min="0"
-                  max="100"
-                  value={settings.commissionFood}
-                  onChange={handleChange}
-                />
-                <p className="text-xs text-gray-500">Commission on menu subtotal at delivery settlement.</p>
-              </div>
-            </div>
-            <Button type="button" onClick={handleSaveCommissionByService} disabled={loading}>
-              {loading ? 'Saving...' : <><Save className="w-4 h-4 mr-2" /> Save Service Commission</>}
-            </Button>
-          </CardContent>
-        </Card>
+              <GasPricesCard />
+            </>
+          ) : null}
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Vehicle capability (rider dispatch)</CardTitle>
-            <CardDescription>
-              Motorcycle riders always receive ride, parcel, and food offers. Enable food for Pragya or Comfort when policy allows.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3 text-gray-900">
-            <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-gray-800 leading-relaxed">
-              <p className="font-semibold text-gray-900 mb-2">Enable food delivery for a car (Comfort) rider</p>
-              <ol className="list-decimal list-inside space-y-1.5 text-gray-800">
-                <li>
-                  Turn on <strong>Comfort — food delivery offers</strong> below, then click{" "}
-                  <strong>Save vehicle policy</strong>.
-                </li>
-                <li>
-                  In <strong>Drivers</strong> → edit the rider → set vehicle type to{" "}
-                  <strong>Comfort (Car)</strong> and status <strong>Active</strong>.
-                </li>
-                <li>
-                  On the same driver page, under <strong>Work mode</strong>, enable{" "}
-                  <strong>Food</strong> (or preset “All services” / “Food only”).
-                </li>
-                <li>
-                  Rider must go <strong>on duty</strong> in the app with food enabled in work mode.
-                </li>
-              </ol>
-              <p className="mt-2 text-gray-700">
-                Motorcycle riders always receive food offers. Pragya needs the Pragya food toggle above.
-              </p>
-            </div>
-            <SettingsCheckboxOption
-              id="pragyaFoodEnabled"
-              checked={vehiclePolicy.pragyaFoodEnabled}
-              onChange={(checked) =>
-                setVehiclePolicy((p) => ({ ...p, pragyaFoodEnabled: checked }))
-              }
-              title="Pragya — food delivery offers"
-              description="When enabled, Pragya (tricycle) riders can receive food courier jobs. Off by default; motorcycle is the primary food vehicle."
-              activeHint="Pragya riders may receive FOOD offers when their work mode includes food."
-            />
-            <SettingsCheckboxOption
-              id="comfortFoodEnabled"
-              checked={vehiclePolicy.comfortFoodEnabled}
-              onChange={(checked) =>
-                setVehiclePolicy((p) => ({ ...p, comfortFoodEnabled: checked }))
-              }
-              title="Comfort — food delivery offers"
-              description="When enabled, Comfort (car) riders can receive food courier jobs. Off by default."
-              activeHint="Comfort riders may receive FOOD offers when their work mode includes food."
-            />
-            <Button type="button" onClick={handleSaveVehiclePolicy} disabled={loading} className="mt-2">
-              {loading ? 'Saving...' : <><Save className="w-4 h-4 mr-2" /> Save vehicle policy</>}
-            </Button>
-          </CardContent>
-        </Card>
+          {tab === 'commission' ? (
+            <>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Commission by service</CardTitle>
+                  <CardDescription>
+                    QareGO&apos;s share of each completed job. For store orders it&apos;s taken from the items&apos;
+                    total when the order is delivered.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                    <Field
+                      id="commissionRide"
+                      label="Rides (%)"
+                      step="0.5"
+                      max="100"
+                      value={form.commission.ride}
+                      onChange={(ride) => update('commission', { ride })}
+                    />
+                    <Field
+                      id="commissionDelivery"
+                      label="Parcels (%)"
+                      step="0.5"
+                      max="100"
+                      value={form.commission.delivery}
+                      onChange={(delivery) => update('commission', { delivery })}
+                    />
+                    <Field
+                      id="commissionFood"
+                      label="Store orders (%)"
+                      step="0.5"
+                      max="100"
+                      value={form.commission.food}
+                      onChange={(food) => update('commission', { food })}
+                    />
+                  </div>
+                  <div className="mt-4 max-w-xs">
+                    <Field
+                      id="commissionRate"
+                      label="Default (%)"
+                      hint="Used for any service without a rate of its own"
+                      step="0.5"
+                      max="100"
+                      value={form.commission.global}
+                      onChange={(global) => update('commission', { global })}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Rider reliability policy</CardTitle>
-            <CardDescription>
-              Missed offers (timer expires or dismiss) add strikes per service. Completing trips reduces strikes.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label>Strikes before pause</Label>
-                <Input
-                  type="number"
-                  min="1"
-                  value={reliabilityPolicy.strikesBeforePause}
-                  onChange={(e) =>
-                    setReliabilityPolicy((p) => ({ ...p, strikesBeforePause: e.target.value }))
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Pause duration (hours)</Label>
-                <Input
-                  type="number"
-                  min="1"
-                  value={reliabilityPolicy.pauseDurationHours}
-                  onChange={(e) =>
-                    setReliabilityPolicy((p) => ({ ...p, pauseDurationHours: e.target.value }))
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Strike reduction per completion</Label>
-                <Input
-                  type="number"
-                  min="0"
-                  value={reliabilityPolicy.strikeDecayOnCompletion}
-                  onChange={(e) =>
-                    setReliabilityPolicy((p) => ({ ...p, strikeDecayOnCompletion: e.target.value }))
-                  }
-                />
-              </div>
-            </div>
-            <Button type="button" onClick={handleSaveReliabilityPolicy} disabled={loading}>
-              {loading ? "Saving..." : <><Save className="w-4 h-4 mr-2" /> Save reliability policy</>}
-            </Button>
-          </CardContent>
-        </Card>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Rider balances</CardTitle>
+                  <CardDescription>
+                    Riders collect cash and owe QareGO the commission. When a rider&apos;s balance falls below the
+                    debt limit they are suspended until they pay.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <Field
+                      id="debtLimit"
+                      label={`Debt limit (${CURRENCY_SYMBOL})`}
+                      hint="A negative number, e.g. -100"
+                      min=""
+                      value={form.commission.debtLimit}
+                      onChange={(debtLimit) => update('commission', { debtLimit })}
+                    />
+                    {/* Riders cash out by mobile money, which is paused. */}
+                    {momoEnabled ? (
+                      <Field
+                        id="minCashoutAmount"
+                        label={`Smallest cash-out (${CURRENCY_SYMBOL})`}
+                        hint="Minimum a rider can withdraw at once"
+                        step="0.01"
+                        value={form.commission.minCashout}
+                        onChange={(minCashout) => update('commission', { minCashout })}
+                      />
+                    ) : null}
+                  </div>
+                </CardContent>
+              </Card>
+            </>
+          ) : null}
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Dispatch ranking weights</CardTitle>
-            <CardDescription>
-              Tune how offers are scored and which riders get notified first. Higher score = offered sooner.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-              {(
-                [
-                  ["fareWeight", "Fare weight"],
-                  ["earningsPerKmWeight", "Pay per km weight"],
-                  ["pickupPenaltyPerKm", "Pickup distance penalty"],
-                  ["urgencyWeight", "Urgency boost"],
-                  ["foodReadyBoost", "Food ready boost"],
-                  ["maxPickupKm", "Max pickup km"],
-                ] as const
-              ).map(([key, label]) => (
-                <div key={key} className="space-y-1">
-                  <Label htmlFor={key}>{label}</Label>
-                  <Input
-                    id={key}
-                    type="number"
-                    step="0.1"
-                    value={rankingWeights[key]}
-                    onChange={(e) =>
-                      setRankingWeights((w) => ({ ...w, [key]: e.target.value }))
-                    }
+          {tab === 'dispatch' ? (
+            <>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Which vehicles get store deliveries</CardTitle>
+                  <CardDescription>
+                    Motorcycles always get ride, parcel and store-delivery offers. Pragya and Comfort riders get store
+                    deliveries only when turned on here, and only if food is in their work mode on their driver page.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3 text-gray-900">
+                  <SettingsCheckboxOption
+                    id="pragyaFoodEnabled"
+                    checked={form.vehiclePolicy.pragyaFoodEnabled}
+                    onChange={(pragyaFoodEnabled) => update('vehiclePolicy', { pragyaFoodEnabled })}
+                    title="Pragya (tricycle) can deliver store orders"
+                    activeHint="Pragya riders with food in their work mode will get store-delivery offers."
                   />
-                </div>
-              ))}
-            </div>
-            <Button type="button" onClick={handleSaveRankingWeights} disabled={loading}>
-              {loading ? "Saving..." : <><Save className="w-4 h-4 mr-2" /> Save ranking weights</>}
-            </Button>
-          </CardContent>
-        </Card>
+                  <SettingsCheckboxOption
+                    id="comfortFoodEnabled"
+                    checked={form.vehiclePolicy.comfortFoodEnabled}
+                    onChange={(comfortFoodEnabled) => update('vehiclePolicy', { comfortFoodEnabled })}
+                    title="Comfort (car) can deliver store orders"
+                    activeHint="Car riders with food in their work mode will get store-delivery offers."
+                  />
+                </CardContent>
+              </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Service maintenance</CardTitle>
-            <CardDescription>
-              Pause offers platform-wide per service. Riders will not see matching offers while enabled.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3 text-gray-900">
-            <SettingsCheckboxOption
-              id="maintenance-ride"
-              checked={serviceMaintenance.RIDE}
-              onChange={(checked) =>
-                setServiceMaintenance((m) => ({ ...m, RIDE: checked }))
-              }
-              variant="warning"
-              title="Pause ride offers"
-              description="Stops new passenger ride requests from being offered to riders platform-wide."
-              activeHint="Ride service is in maintenance — no new ride offers will broadcast."
-            />
-            <SettingsCheckboxOption
-              id="maintenance-delivery"
-              checked={serviceMaintenance.DELIVERY}
-              onChange={(checked) =>
-                setServiceMaintenance((m) => ({ ...m, DELIVERY: checked }))
-              }
-              variant="warning"
-              title="Pause parcel / courier offers"
-              description="Stops parcel and non-food delivery trips from being offered to riders."
-              activeHint="Parcel service is in maintenance — no new DELIVERY offers will broadcast."
-            />
-            <SettingsCheckboxOption
-              id="maintenance-food"
-              checked={serviceMaintenance.FOOD}
-              onChange={(checked) =>
-                setServiceMaintenance((m) => ({ ...m, FOOD: checked }))
-              }
-              variant="warning"
-              title="Pause food delivery offers"
-              description="Stops food courier jobs from being offered to riders (restaurants may still receive orders)."
-              activeHint="Food courier service is in maintenance — no new FOOD offers will broadcast."
-            />
-            <Button type="button" onClick={handleSaveServiceMaintenance} disabled={loading} className="mt-2">
-              {loading ? 'Saving...' : <><Save className="w-4 h-4 mr-2" /> Save maintenance</>}
-            </Button>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Food service fee & delivery commission</CardTitle>
-            <CardDescription>
-              Service fee on subtotal (customer checkout). Rider delivery commission applies to the delivery fee at settlement (0 = rider keeps full delivery fee).
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="foodServiceFeeRate">Service fee (%)</Label>
-                <Input
-                  id="foodServiceFeeRate"
-                  name="foodServiceFeeRate"
-                  type="number"
-                  step="0.5"
-                  min="0"
-                  max="100"
-                  value={settings.foodServiceFeeRate}
-                  onChange={handleChange}
-                />
-                <p className="text-xs text-gray-500">Of the order subtotal</p>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="foodServiceFeeMin">Minimum ({CURRENCY_SYMBOL})</Label>
-                <Input
-                  id="foodServiceFeeMin"
-                  name="foodServiceFeeMin"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={settings.foodServiceFeeMin}
-                  onChange={handleChange}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="foodServiceFeeMax">Maximum ({CURRENCY_SYMBOL})</Label>
-                <Input
-                  id="foodServiceFeeMax"
-                  name="foodServiceFeeMax"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={settings.foodServiceFeeMax}
-                  onChange={handleChange}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="foodDeliveryCommissionRate">Rider delivery commission (%)</Label>
-                <Input
-                  id="foodDeliveryCommissionRate"
-                  name="foodDeliveryCommissionRate"
-                  type="number"
-                  step="0.5"
-                  min="0"
-                  max="100"
-                  value={settings.foodDeliveryCommissionRate}
-                  onChange={handleChange}
-                />
-                <p className="text-xs text-gray-500">0 = rider keeps the full delivery fee.</p>
-              </div>
-            </div>
-            <Button type="button" onClick={handleSaveFoodServiceFee} disabled={loading}>
-              {loading ? 'Saving...' : <><Save className="w-4 h-4 mr-2" /> Save Food Service Fee</>}
-            </Button>
-          </CardContent>
-        </Card>
-
-        <MenuCategoryLayoutsCard />
-
-        <FoodPromoBannersCard />
-
-        <GasPricesCard />
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Volume2 className="h-5 w-5 text-orange-500" />
-              Kitchen alert sound
-            </CardTitle>
-            <CardDescription>
-              Plays on loop in the merchant kitchen when a new order arrives (until the store accepts or
-              declines). Upload an mp3/wav or set a public URL path on this API server.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <SettingsAudioUpload
-              idPrefix="kitchen"
-              url={kitchenSoundUrl}
-              onUrlChange={setKitchenSoundUrl}
-              placeholder="/sounds/new-order.mp3"
-              helpText="Relative paths are served from this API (upload below → /sounds/new-order.mp3). You can also paste a full https:// URL."
-              uploading={uploadingSound}
-              saving={loading}
-              onUpload={handleUploadKitchenSound}
-              onSaveUrl={handleSaveKitchenSoundUrl}
-            />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Volume2 className="h-5 w-5 text-blue-500" />
-              Rider alert sound
-            </CardTitle>
-            <CardDescription>
-              Plays on loop in the rider app while ride, parcel, or food-delivery offers are waiting
-              (until accepted, dismissed, or the offer expires). Default file: rider.mp3 on this API server.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <SettingsAudioUpload
-              idPrefix="rider"
-              url={riderSoundUrl}
-              onUrlChange={setRiderSoundUrl}
-              placeholder="/sounds/rider.mp3"
-              helpText="Relative paths are served from this API (upload below → /sounds/rider.mp3). Plays while offers are waiting in the rider app."
-              uploading={uploadingRiderSound}
-              saving={loading}
-              onUpload={handleUploadRiderSound}
-              onSaveUrl={handleSaveRiderSoundUrl}
-            />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Fare by vehicle</CardTitle>
-            <CardDescription>Base fare, per km rate, and minimum fare for each vehicle type. Used for ride cost calculation.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSaveFareRates} className="space-y-6">
-              {(['motorcycle', 'pragya', 'comfort'] as const).map((vehicle) => (
-                <div key={vehicle} className="border rounded-lg p-4">
-                  <h4 className="font-medium text-gray-900 capitalize mb-3">{vehicle}</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="space-y-1">
-                      <Label>Base fare ({CURRENCY_SYMBOL})</Label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={fareRates[vehicle]?.baseFare ?? ''}
-                        onChange={(e) => handleFareChange(vehicle, 'baseFare', e.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label>Per km ({CURRENCY_SYMBOL})</Label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={fareRates[vehicle]?.perKmRate ?? ''}
-                        onChange={(e) => handleFareChange(vehicle, 'perKmRate', e.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label>Minimum fare ({CURRENCY_SYMBOL})</Label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={fareRates[vehicle]?.minimumFare ?? ''}
-                        onChange={(e) => handleFareChange(vehicle, 'minimumFare', e.target.value)}
-                      />
-                    </div>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Missed offers</CardTitle>
+                  <CardDescription>
+                    Letting an offer time out or dismissing it adds a strike. Too many strikes pauses the rider for that
+                    service; completing jobs removes strikes.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                    <Field
+                      id="strikesBeforePause"
+                      label="Strikes before a pause"
+                      min="1"
+                      value={form.reliability.strikesBeforePause}
+                      onChange={(strikesBeforePause) => update('reliability', { strikesBeforePause })}
+                    />
+                    <Field
+                      id="pauseDurationHours"
+                      label="Pause length (hours)"
+                      min="1"
+                      value={form.reliability.pauseDurationHours}
+                      onChange={(pauseDurationHours) => update('reliability', { pauseDurationHours })}
+                    />
+                    <Field
+                      id="strikeDecayOnCompletion"
+                      label="Strikes removed per completed job"
+                      value={form.reliability.strikeDecayOnCompletion}
+                      onChange={(strikeDecayOnCompletion) => update('reliability', { strikeDecayOnCompletion })}
+                    />
                   </div>
-                </div>
-              ))}
-              <Button type="submit" disabled={loading}>
-                {loading ? 'Saving...' : <><Save className="w-4 h-4 mr-2" /> Save fare rates</>}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Offer ranking</CardTitle>
+                  <CardDescription>
+                    How each job is scored for each rider; higher scores are offered first. Change these only if you
+                    know what they do.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
+                    {(
+                      [
+                        ['fareWeight', 'Fare weight'],
+                        ['earningsPerKmWeight', 'Pay per km weight'],
+                        ['pickupPenaltyPerKm', 'Pickup distance penalty'],
+                        ['urgencyWeight', 'Urgency boost'],
+                        ['foodReadyBoost', 'Order ready boost'],
+                        ['maxPickupKm', 'Furthest pickup (km)'],
+                      ] as const
+                    ).map(([key, label]) => (
+                      <Field
+                        key={key}
+                        id={key}
+                        label={label}
+                        step="0.1"
+                        min=""
+                        value={form.ranking[key]}
+                        onChange={(value) => update('ranking', { [key]: value })}
+                      />
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </>
+          ) : null}
+
+          {tab === 'pause' ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>Pause a service</CardTitle>
+                <CardDescription>
+                  For outages or bad weather. While a service is paused, riders get no new offers for it. Jobs already
+                  under way carry on.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3 text-gray-900">
+                <SettingsCheckboxOption
+                  id="maintenance-ride"
+                  checked={form.pause.RIDE}
+                  onChange={(RIDE) => update('pause', { RIDE })}
+                  variant="warning"
+                  title="Pause rides"
+                  description="No new passenger rides are offered to riders."
+                  activeHint="Rides are paused (once saved)."
+                />
+                <SettingsCheckboxOption
+                  id="maintenance-delivery"
+                  checked={form.pause.DELIVERY}
+                  onChange={(DELIVERY) => update('pause', { DELIVERY })}
+                  variant="warning"
+                  title="Pause parcels"
+                  description="No new parcel deliveries are offered to riders."
+                  activeHint="Parcels are paused (once saved)."
+                />
+                <SettingsCheckboxOption
+                  id="maintenance-food"
+                  checked={form.pause.FOOD}
+                  onChange={(FOOD) => update('pause', { FOOD })}
+                  variant="warning"
+                  title="Pause store deliveries"
+                  description="No new store-delivery jobs are offered to riders. Stores can still receive orders."
+                  activeHint="Store deliveries are paused (once saved)."
+                />
+              </CardContent>
+            </Card>
+          ) : null}
+
+          {tab === 'stores' ? (
+            <>
+              <FoodPromoBannersCard />
+              <MenuCategoryLayoutsCard />
+            </>
+          ) : null}
+
+          {tab === 'sounds' ? (
+            <>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Volume2 className="h-5 w-5 text-orange-500" />
+                    Store new-order sound
+                  </CardTitle>
+                  <CardDescription>
+                    Plays on loop on the store&apos;s orders screen when a new order arrives, until the store accepts or
+                    declines it.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <SettingsAudioUpload
+                    idPrefix="kitchen"
+                    url={kitchenSoundUrl}
+                    onUrlChange={setKitchenSoundUrl}
+                    placeholder="/sounds/new-order.mp3"
+                    helpText="Upload a file, or paste a path on this API (e.g. /sounds/new-order.mp3) or a full https:// link."
+                    uploading={uploadingSound}
+                    saving={saving}
+                    onUpload={(file) =>
+                      uploadSound(
+                        file,
+                        'kitchen-alert-sound',
+                        setKitchenSoundUrl,
+                        setUploadingSound,
+                        'Store sound uploaded. Every store will use it.'
+                      )
+                    }
+                    onSaveUrl={() => saveSoundUrl('kitchenAlertSoundUrl', kitchenSoundUrl, '/sounds/new-order.mp3')}
+                  />
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Volume2 className="h-5 w-5 text-blue-500" />
+                    Rider offer sound
+                  </CardTitle>
+                  <CardDescription>
+                    Plays on loop in the rider app while an offer is waiting, until it&apos;s accepted, dismissed or
+                    expires.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <SettingsAudioUpload
+                    idPrefix="rider"
+                    url={riderSoundUrl}
+                    onUrlChange={setRiderSoundUrl}
+                    placeholder="/sounds/rider.mp3"
+                    helpText="Upload a file, or paste a path on this API (e.g. /sounds/rider.mp3) or a full https:// link."
+                    uploading={uploadingRiderSound}
+                    saving={saving}
+                    onUpload={(file) =>
+                      uploadSound(
+                        file,
+                        'rider-alert-sound',
+                        setRiderSoundUrl,
+                        setUploadingRiderSound,
+                        'Rider sound uploaded. Every rider app will use it.'
+                      )
+                    }
+                    onSaveUrl={() => saveSoundUrl('riderAlertSoundUrl', riderSoundUrl, '/sounds/rider.mp3')}
+                  />
+                </CardContent>
+              </Card>
+            </>
+          ) : null}
+        </div>
+      )}
+
+      {form && tabHasForm ? (
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-gray-200 bg-white/95 backdrop-blur md:left-64">
+          <div className="flex max-w-5xl items-center gap-3 px-4 py-3 sm:px-6">
+            <p className={`mr-auto text-sm ${dirty ? 'font-medium text-amber-700' : 'text-gray-500'}`}>
+              {dirty ? 'Unsaved changes' : 'All changes saved'}
+            </p>
+            {dirty ? (
+              <Button variant="outline" onClick={discard} disabled={saving}>
+                <RotateCcw className="mr-2 h-4 w-4" /> Discard
               </Button>
-            </form>
-          </CardContent>
-        </Card>
-      </div>
+            ) : null}
+            <Button onClick={saveTab} disabled={!dirty || saving}>
+              {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+              Save changes
+            </Button>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function Field({
+  id,
+  label,
+  hint,
+  value,
+  onChange,
+  step = '1',
+  min = '0',
+  max,
+}: {
+  id: string;
+  label: string;
+  hint?: string;
+  value: string;
+  onChange: (value: string) => void;
+  step?: string;
+  min?: string;
+  max?: string;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor={id}>{label}</Label>
+      <Input id={id} type="number" step={step} min={min || undefined} max={max} value={value} onChange={(e) => onChange(e.target.value)} />
+      {hint ? <p className="text-xs text-gray-500">{hint}</p> : null}
     </div>
   );
 }

@@ -3,5 +3,6 @@
 export * from "./admin/dashboard.js";
 export * from "./admin/trips.js";
 export * from "./admin/finance.js";
+export * from "./admin/reports.js";
 export * from "./admin/settings.js";
 export * from "./admin/push.js";
