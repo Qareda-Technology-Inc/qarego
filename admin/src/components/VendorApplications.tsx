@@ -14,7 +14,7 @@ type Application = {
   contactName: string;
   phone: string;
   email?: string | null;
-  storeType: "FOOD" | "GROCERY" | "PHARMACY" | "GAS" | "OTHER";
+  storeType: "FOOD" | "GROCERY" | "PHARMACY" | "GAS" | "LAUNDRY" | "OTHER";
   area: string;
   message?: string;
   status: Status;
@@ -29,6 +29,7 @@ const TYPE_LABEL: Record<Application["storeType"], string> = {
   GROCERY: "Grocery",
   PHARMACY: "Pharmacy",
   GAS: "Gas station",
+  LAUNDRY: "Laundry",
   OTHER: "Other",
 };
 

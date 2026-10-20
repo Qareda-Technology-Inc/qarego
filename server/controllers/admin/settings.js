@@ -174,7 +174,7 @@ export const updateSettingsAdmin = async (req, res) => {
         .filter((row) => row.name);
     }
     if (Array.isArray(foodPromoBanners)) {
-      const verticals = new Set(["FOOD", "GROCERY", "PHARMACY", "ALL"]);
+      const verticals = new Set(["FOOD", "GROCERY", "PHARMACY", "LAUNDRY", "ALL"]);
       settings.foodPromoBanners = foodPromoBanners
         .map((row, i) => ({
           imageUrl: String(row?.imageUrl || "").trim(),

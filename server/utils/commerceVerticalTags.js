@@ -3,7 +3,7 @@
  * Seeded into CommerceStoreType for merchant store creation.
  */
 
-/** @typedef {{ name: string; emoji: string; vertical: 'FOOD'|'GROCERY'|'PHARMACY'|'GAS'; sortOrder: number; description?: string }} CommerceTag */
+/** @typedef {{ name: string; emoji: string; vertical: 'FOOD'|'GROCERY'|'PHARMACY'|'GAS'|'LAUNDRY'; sortOrder: number; description?: string }} CommerceTag */
 
 /** @type {CommerceTag[]} */
 export const FOOD_RESTAURANT_TAGS = [
@@ -48,9 +48,19 @@ export const GAS_STATION_TAGS = [
   { name: "Cylinder Exchange", emoji: "🔄", vertical: "GAS", sortOrder: 2, description: "Swap an empty cylinder for a full one" },
 ];
 
+/** @type {CommerceTag[]} */
+export const LAUNDRY_TAGS = [
+  { name: "Wash & Fold", emoji: "🧺", vertical: "LAUNDRY", sortOrder: 1, description: "Everyday clothes washed, dried and folded" },
+  { name: "Wash & Iron", emoji: "👔", vertical: "LAUNDRY", sortOrder: 2, description: "Washed and pressed: shirts, trousers, uniforms" },
+  { name: "Dry Cleaning", emoji: "🧥", vertical: "LAUNDRY", sortOrder: 3, description: "Suits, kaba and slit, delicate fabrics" },
+  { name: "Ironing Only", emoji: "♨️", vertical: "LAUNDRY", sortOrder: 4, description: "Clean clothes pressed and folded" },
+  { name: "Bedding & Curtains", emoji: "🛏️", vertical: "LAUNDRY", sortOrder: 5, description: "Duvets, bedsheets, curtains, towels" },
+];
+
 export const ALL_COMMERCE_VERTICAL_TAGS = [
   ...FOOD_RESTAURANT_TAGS,
   ...GROCERY_SUPERMARKET_TAGS,
   ...PHARMACY_HEALTH_TAGS,
   ...GAS_STATION_TAGS,
+  ...LAUNDRY_TAGS,
 ];

@@ -53,7 +53,7 @@ const rideSchema = new Schema(
     gasLeg: { type: String, enum: ["COLLECT", "RETURN", "DELIVER", null], default: null },
     storeVertical: {
       type: String,
-      enum: ["FOOD", "GROCERY", "PHARMACY", "GAS"],
+      enum: ["FOOD", "GROCERY", "PHARMACY", "GAS", "LAUNDRY"],
       default: null,
     },
     foodOrderSummary: { type: String, default: null },

@@ -35,6 +35,7 @@ const VERTICAL_LABELS: Record<string, string> = {
   GROCERY: "Groceries",
   PHARMACY: "Pharmacy",
   GAS: "Cooking gas",
+  LAUNDRY: "Laundry",
 };
 
 /** "2026-10" → "October 2026" */

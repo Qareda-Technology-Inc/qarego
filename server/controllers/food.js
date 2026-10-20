@@ -14,7 +14,7 @@ import { getSettings } from "../utils/tripSettlement.js";
 import { computeFoodOrderSplit } from "../utils/foodOrderSettlement.js";
 import { computeFoodServiceFee } from "../utils/foodServiceFee.js";
 import { assertServiceAvailableAt } from "../utils/serviceZones.js";
-import { applyRestaurantAction } from "../utils/foodOrderFlow.js";
+import { applyLaundryCustomerDecision, applyRestaurantAction } from "../utils/foodOrderFlow.js";
 import { computeOpenState } from "../utils/storeHours.js";
 import { inferVerticalFromCategoryName } from "../utils/commerceStoreTypes.js";
 import { buildMenuPayload } from "../utils/menuResponse.js";
@@ -32,6 +32,7 @@ import {
 import { isDuplicateKeyError, readClientRequestId } from "../utils/idempotency.js";
 import { listAssignableRiders } from "./merchant/orders.js";
 import { availableNowFilter } from "../utils/menuAvailability.js";
+import { countItems } from "../utils/laundryOrders.js";
 /** Attach computed open/closed metadata to a plain restaurant object. */
 const withOpenState = (restaurant, now = new Date()) => {
   const state = computeOpenState(restaurant, now);
@@ -150,6 +151,11 @@ export const createFoodOrder = async (req, res) => {
   if (fulfillmentType === "PICKUP" && !restaurant.allowsPickup) {
     throw new BadRequestError(`${restaurant.name} does not offer pickup`);
   }
+  // Laundry is collected from the customer and brought back (see utils/laundryOrders.js).
+  const isLaundry = restaurant.vertical === "LAUNDRY";
+  if (isLaundry && fulfillmentType !== "DELIVERY") {
+    throw new BadRequestError("Laundry is collected from you and brought back, so choose delivery");
+  }
 
   let deliveryAddress;
   let deliveryLat;
@@ -261,8 +267,10 @@ export const createFoodOrder = async (req, res) => {
     } catch (err) {
       throw new BadRequestError(err?.message || "Invalid delivery location");
     }
-    driverFee = quote.deliveryFee;
-    deliveryFee = quote.deliveryFee;
+    // Laundry: one fee covers both trips (collect and return), paid to the courier once.
+    const trips = isLaundry ? 2 : 1;
+    driverFee = Math.round(quote.deliveryFee * trips * 100) / 100;
+    deliveryFee = driverFee;
     deliveryDistanceKm = quote.distanceKm;
   }
   const serviceFee = computeFoodServiceFee(subtotal, settings);
@@ -273,12 +281,9 @@ export const createFoodOrder = async (req, res) => {
     settings
   );
 
-  const zoneService =
-    restaurant.vertical === "GROCERY"
-      ? "GROCERY"
-      : restaurant.vertical === "PHARMACY"
-        ? "PHARMACY"
-        : "FOOD";
+  const zoneService = ["GROCERY", "PHARMACY", "LAUNDRY"].includes(restaurant.vertical)
+    ? restaurant.vertical
+    : "FOOD";
   await assertServiceAvailableAt(deliveryLat, deliveryLon, zoneService);
 
   const prescriptionUrls = restaurant.vertical === "PHARMACY"
@@ -322,6 +327,9 @@ export const createFoodOrder = async (req, res) => {
     fulfillmentType,
     scheduledFor: scheduledForDate,
     status: "PLACED",
+    laundry: isLaundry
+      ? { estimatedSubtotal: subtotal, estimatedItemCount: countItems(orderItems) }
+      : null,
   });
   } catch (err) {
     // Two copies of the same checkout arrived together: answer with the first.
@@ -403,6 +411,14 @@ export const getFoodDeliveryQuote = async (req, res) => {
       parseCoord(longitude, "longitude"),
       settings.fareRates || undefined
     );
+    // Laundry is collected and brought back: two trips.
+    if (restaurant.vertical === "LAUNDRY") {
+      return res.status(StatusCodes.OK).json({
+        ...quote,
+        deliveryFee: Math.round(quote.deliveryFee * 2 * 100) / 100,
+        roundTrip: true,
+      });
+    }
     res.status(StatusCodes.OK).json(quote);
   } catch (err) {
     throw new BadRequestError(err?.message || "Could not quote delivery fee");
@@ -664,4 +680,13 @@ export const adminRestaurantOrderAction = async (req, res) => {
   if (result.error) throw new BadRequestError(result.error);
 
   res.status(StatusCodes.OK).json({ message: `Order ${action}`, order: result.order });
+};
+
+/** POST /food/orders/:id/laundry-price { decision: approve | decline } — answer the shop's count. */
+export const answerLaundryPrice = async (req, res) => {
+  const result = await applyLaundryCustomerDecision(req.params.id, req.user.id, req.body?.decision, req.app.get("io"));
+  if (result.error === "not_found") throw new NotFoundError("Order not found");
+  if (result.error === "bad_decision") throw new BadRequestError("decision must be approve or decline");
+  if (result.error) throw new BadRequestError(result.message || "This order isn't waiting for your answer");
+  res.status(StatusCodes.OK).json({ order: result.order });
 };

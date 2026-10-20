@@ -3,7 +3,7 @@ import MenuItem from "../models/MenuItem.js";
 
 export const MIN_ITEMS_WITH_PHOTOS = 3;
 
-/** Stores that sell regulated goods must show their licence. */
+/** Stores that sell regulated goods must show their licence (laundries don't need one). */
 export function licenceLabel(vertical) {
   if (vertical === "PHARMACY") return "Pharmacy licence (Pharmacy Council)";
   if (vertical === "GAS") return "LPG retail licence (NPA)";
@@ -38,7 +38,15 @@ export function buildReadiness(restaurant, itemsWithPhotos = 0) {
       hint: "Set the days and times you take orders.",
     },
   ];
-  if (r.vertical !== "GAS") {
+  if (r.vertical === "LAUNDRY") {
+    // A laundry's price list is services (shirt, trousers, duvet…): prices matter, photos don't.
+    items.push({
+      key: "menu",
+      label: `At least ${MIN_ITEMS_WITH_PHOTOS} items on your price list`,
+      done: itemsWithPhotos >= MIN_ITEMS_WITH_PHOTOS,
+      hint: `You have ${itemsWithPhotos}.`,
+    });
+  } else if (r.vertical !== "GAS") {
     items.push({
       key: "menu",
       label: `At least ${MIN_ITEMS_WITH_PHOTOS} items with photos`,
@@ -58,14 +66,17 @@ export function buildReadiness(restaurant, itemsWithPhotos = 0) {
   return { items, ready: items.every((i) => i.done) };
 }
 
-/** Available items with a photo, per store id. */
+/**
+ * Available items that count towards the checklist, per store id: items with a photo, or for
+ * laundry shops (whose price list doesn't need photos) every available item.
+ */
 export async function countItemsWithPhotos(restaurantIds) {
   const rows = await MenuItem.aggregate([
+    { $match: { restaurant: { $in: restaurantIds }, isAvailable: true } },
+    { $lookup: { from: "restaurants", localField: "restaurant", foreignField: "_id", as: "store" } },
     {
       $match: {
-        restaurant: { $in: restaurantIds },
-        isAvailable: true,
-        imageUrl: { $nin: [null, ""] },
+        $or: [{ imageUrl: { $nin: [null, ""] } }, { "store.vertical": "LAUNDRY" }],
       },
     },
     { $group: { _id: "$restaurant", count: { $sum: 1 } } },

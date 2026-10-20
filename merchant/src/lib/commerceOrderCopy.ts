@@ -1,4 +1,4 @@
-export type StoreVertical = "FOOD" | "GROCERY" | "PHARMACY" | "GAS";
+export type StoreVertical = "FOOD" | "GROCERY" | "PHARMACY" | "GAS" | "LAUNDRY";
 
 export type CommerceOrderCopy = {
   ordersTab: string;
@@ -168,11 +168,44 @@ const COPY: Record<StoreVertical, CommerceOrderCopy> = {
     staffRole: "staff member",
     categoryExamples: "Cylinders, Accessories",
   },
+  LAUNDRY: {
+    ordersTab: "Orders",
+    ordersTitle: "Laundry orders",
+    inProgressStat: "In progress",
+    activeFilter: "In progress",
+    menuNav: "Price list",
+    menuAddLabel: "Add item",
+    cooksNav: "Staff",
+    cooksDescription:
+      "Staff can view and manage the order queue, count items and mark laundry ready. They cannot change prices or manage staff.",
+    cooksEmpty: "No staff yet. Add someone to share the workload.",
+    openOrders: "Open orders",
+    staffWorkload: "wash queue",
+    productCountLabel: "items on the price list",
+    backToOrders: "Back to orders",
+    dashboardInKitchen: "in progress",
+    dashboardTakingYou: "Taking you to orders…",
+    menuSubtitle: "What you charge per item. Customers pick from this list; you confirm the count when the bag arrives.",
+    settingsNotFound: "Laundry not found.",
+    settingsOffline: "Your laundry is currently offline platform-wide. Contact the admin.",
+    loginSubtitle: "Manage your laundry's orders and prices",
+    enableAlertsTitle: "Enable order alerts",
+    enableAlertsBody: "Tap once so new orders play a sound and show notifications.",
+    mapPickupTitle: "Laundry",
+    boardSubtitle: "Accept new orders, count each bag when it arrives, wash, then mark it ready for the return trip.",
+    preparingColumn: "In progress",
+    preparingEmpty: "No laundry in progress",
+    readyButton: "Clean & ready",
+    itemsHeading: "Price list",
+    itemSingular: "item",
+    staffRole: "staff member",
+    categoryExamples: "Wash & Iron, Dry Cleaning, Bedding",
+  },
 };
 
 export function normalizeVertical(value?: string | null): StoreVertical {
   const v = String(value ?? "FOOD").toUpperCase();
-  if (v === "GROCERY" || v === "PHARMACY" || v === "GAS") return v;
+  if (v === "GROCERY" || v === "PHARMACY" || v === "GAS" || v === "LAUNDRY") return v;
   return "FOOD";
 }
 

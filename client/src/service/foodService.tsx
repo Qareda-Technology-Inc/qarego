@@ -99,6 +99,15 @@ export type FoodOrder = {
   gasMode?: "REFILL" | "EXCHANGE" | null;
   gasStage?: "TO_STATION" | "AT_STATION" | null;
   gasSizeKg?: number | null;
+  /** Laundry orders: collected first, counted at the shop, then returned. */
+  laundry?: {
+    estimatedSubtotal: number;
+    estimatedItemCount: number;
+    priceStatus: "estimate" | "awaiting_customer" | "approved" | "declined";
+    countedAt?: string | null;
+    countedItemCount?: number | null;
+    previousSubtotal?: number | null;
+  } | null;
   deliveryCode?: string | null;
   fulfillmentType?: "DELIVERY" | "PICKUP" | "SCHEDULED";
   restaurantRating?: number | null;
@@ -227,6 +236,15 @@ export const rateFoodOrder = async (orderId: string, rating: number, review?: st
 /** Customer cancels while the store hasn't accepted yet (status PLACED). */
 export const cancelFoodOrder = async (orderId: string): Promise<FoodOrder | null> => {
   const res = await appAxios.post(`/food/orders/${orderId}/cancel`);
+  return res.data?.order ?? null;
+};
+
+/** Laundry: approve the shop's count, or decline and have it returned unwashed. */
+export const answerLaundryPrice = async (
+  orderId: string,
+  decision: "approve" | "decline"
+): Promise<FoodOrder | null> => {
+  const res = await appAxios.post(`/food/orders/${orderId}/laundry-price`, { decision });
   return res.data?.order ?? null;
 };
 

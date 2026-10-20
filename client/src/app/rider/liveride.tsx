@@ -299,12 +299,20 @@ const LiveRide = () => {
           return;
         }
         if (result.ride) setRideData(result.ride);
+        const laundry = (current as { storeVertical?: string }).storeVertical === "LAUNDRY";
         if (next === "ARRIVED") {
-          Alert.alert("Empty collected", "Check the cylinder, then take it to the gas station.");
+          Alert.alert(
+            laundry ? "Bag collected" : "Empty collected",
+            laundry
+              ? "Take the bag to the laundry. Don't open it: they count the items."
+              : "Check the cylinder, then take it to the gas station."
+          );
         } else if (next === "COMPLETED") {
           Alert.alert(
-            "Handed to the station",
-            "Stay nearby. When the station has filled it, the return trip comes straight to you."
+            laundry ? "Handed to the laundry" : "Handed to the station",
+            laundry
+              ? "Thanks. You'll be paid for this trip when the clean laundry is returned to the customer."
+              : "Stay nearby. When the station has filled it, the return trip comes straight to you."
           );
           resetAndNavigate("/rider/home");
         }

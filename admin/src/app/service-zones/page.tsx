@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/Label";
 import ServiceZoneMapPicker, { type ZoneCenter } from "@/components/ServiceZoneMapPicker";
 import { MapPinned, Pencil, Plus, Power, Trash2 } from "lucide-react";
 
-type ServiceType = "RIDE" | "PARCEL" | "FOOD" | "GROCERY" | "PHARMACY" | "GAS";
+type ServiceType = "RIDE" | "PARCEL" | "FOOD" | "GROCERY" | "PHARMACY" | "GAS" | "LAUNDRY";
 
 interface ServiceZone {
   _id: string;
@@ -31,6 +31,7 @@ const ALL_SERVICES: { key: ServiceType; label: string }[] = [
   { key: "GROCERY", label: "Grocery" },
   { key: "PHARMACY", label: "Pharmacy" },
   { key: "GAS", label: "Cooking gas" },
+  { key: "LAUNDRY", label: "Laundry" },
 ];
 
 const EMPTY_FORM = {

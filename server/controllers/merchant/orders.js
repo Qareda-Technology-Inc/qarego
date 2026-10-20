@@ -3,7 +3,7 @@ import User from "../../models/User.js";
 import FoodOrder from "../../models/FoodOrder.js";
 import { StatusCodes } from "http-status-codes";
 import { BadRequestError, NotFoundError } from "../../errors/index.js";
-import { applyRestaurantAction } from "../../utils/foodOrderFlow.js";
+import { applyLaundryCountAction, applyRestaurantAction } from "../../utils/foodOrderFlow.js";
 
 const KITCHEN_STATUSES = ["PLACED", "PREPARING", "READY_FOR_PICKUP", "PICKED_UP"];
 const ACTIVE_KITCHEN_STATUSES = ["PREPARING", "READY_FOR_PICKUP", "PICKED_UP"];
@@ -162,6 +162,21 @@ export const listAssignableRiders = async (req, res) => {
 };
 
 /** PATCH /merchant/orders/:id — accept, reject, mark ready, or assign rider */
+/**
+ * POST /merchant/orders/:id/laundry-count { items: [{ menuItemId, quantity }] } — the shop's count
+ * once a laundry bag arrives. Costs more than the estimate → the customer approves first.
+ */
+export const countMyLaundryOrder = async (req, res) => {
+  const order = await FoodOrder.findOne({ _id: req.params.id, restaurant: req.restaurantId }).select("_id");
+  if (!order) throw new NotFoundError("Order not found");
+  const result = await applyLaundryCountAction(req.params.id, req.body?.items, req.app.get("io"));
+  if (result.error === "not_found") throw new NotFoundError("Order not found");
+  if (result.error === "laundry_not_at_shop") throw new BadRequestError("The laundry hasn't reached your shop yet");
+  if (result.error === "bad_count") throw new BadRequestError(result.message);
+  if (result.error) throw new BadRequestError("This order can't be counted now");
+  res.status(StatusCodes.OK).json({ order: result.order, priceRaised: result.priceRaised });
+};
+
 export const myOrderAction = async (req, res) => {
   const { action, cancelReason, driverId } = req.body;
   if (!["accept", "reject", "ready", "assign_rider", "empty_returned", "collected"].includes(action)) {
@@ -191,11 +206,20 @@ export const myOrderAction = async (req, res) => {
   }
   if (result.error === "gas_in_custody") {
     throw new BadRequestError(
-      "The customer's cylinder is with the courier or station. Return it before cancelling."
+      "The customer's cylinder or laundry is with the courier or your shop. Return it before cancelling."
     );
   }
   if (result.error === "gas_not_at_station") {
     throw new BadRequestError("The customer's empty cylinder hasn't reached the station yet");
+  }
+  if (result.error === "laundry_not_at_shop") {
+    throw new BadRequestError("The laundry hasn't reached your shop yet");
+  }
+  if (result.error === "laundry_not_counted") {
+    throw new BadRequestError("Count the items and confirm the price first");
+  }
+  if (result.error === "laundry_awaiting_customer") {
+    throw new BadRequestError("Waiting for the customer to approve the new price");
   }
   if (result.error === "already_settled") {
     throw new BadRequestError("This order has already been paid out and can no longer be cancelled");

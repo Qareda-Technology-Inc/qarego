@@ -16,6 +16,10 @@ const TRANSACTION_TYPES = [
   'MANUAL_CREDIT',
   'MANUAL_DEBIT',
   'CANCELLATION_CREDIT',
+  // Laundry trips done by two riders: half the delivery pay moves from the returning rider
+  // (who took the customer's cash) to the one who collected the bag.
+  'TRIP_SHARE_CREDIT',
+  'TRIP_SHARE_DEBIT',
 ];
 
 const transactionSchema = new Schema(

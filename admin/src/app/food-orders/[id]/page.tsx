@@ -93,6 +93,7 @@ const VERTICAL_LABEL: Record<string, string> = {
   GROCERY: "Grocery",
   PHARMACY: "Pharmacy",
   GAS: "Gas station",
+  LAUNDRY: "Laundry",
 };
 
 function gapLabel(fromIso: string, toIso: string) {

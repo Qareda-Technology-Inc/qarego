@@ -48,6 +48,7 @@ const VERTICAL_LABEL: Record<string, string> = {
   GROCERY: "Groceries",
   PHARMACY: "Pharmacy",
   GAS: "Cooking gas",
+  LAUNDRY: "Laundry",
 };
 
 const STATUS_BADGE: Record<ReviewStatus, { label: string; className: string }> = {

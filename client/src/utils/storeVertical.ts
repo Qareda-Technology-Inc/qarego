@@ -1,7 +1,7 @@
 import type { Restaurant } from "@/service/foodService";
 import { cuisineHeroBg } from "@/styles/foodStyles";
 
-export type StoreVertical = "FOOD" | "GROCERY" | "PHARMACY" | "GAS";
+export type StoreVertical = "FOOD" | "GROCERY" | "PHARMACY" | "GAS" | "LAUNDRY";
 
 /** Store type filter on the Stores tab. ALL = every type. */
 export type StoreTypeFilter = "ALL" | StoreVertical;
@@ -106,6 +106,24 @@ export const STORE_VERTICAL_CONFIG: Record<StoreVertical, StoreVerticalConfig> =
     storeLabel: "station",
     menuSectionLabel: "Gas",
   },
+  LAUNDRY: {
+    title: "Laundry",
+    filterLabel: "Laundry",
+    allTitle: "Laundries near you",
+    searchPlaceholder: "Search laundries and dry cleaners",
+    subtitle: "Collected from your door, washed and brought back",
+    emptyDescription: "No laundry is available yet in your area.",
+    discoverTitle: "Popular laundries",
+    discoverSubtitle: "Top rated near you",
+    quickTitle: "Quick turnaround",
+    newTitle: "New on QareGO",
+    accent: "#0891b2",
+    accentDark: "#0e7490",
+    heroBg: "#0e7490",
+    defaultEmoji: "🧺",
+    storeLabel: "laundry",
+    menuSectionLabel: "Price list",
+  },
 };
 
 /** Type chips for Stores / Search (horizontal row). */
@@ -115,7 +133,7 @@ export const STORE_TYPE_FILTERS: {
   accent: string;
 }[] = [
   { key: "ALL", label: "All stores", accent: "#6366f1" },
-  ...(["FOOD", "GROCERY", "PHARMACY"] as StoreVertical[]).map((key) => ({
+  ...(["FOOD", "GROCERY", "PHARMACY", "LAUNDRY"] as StoreVertical[]).map((key) => ({
     key,
     label: STORE_VERTICAL_CONFIG[key].filterLabel,
     accent: STORE_VERTICAL_CONFIG[key].accent,
@@ -125,21 +143,21 @@ export const STORE_TYPE_FILTERS: {
 export const normalizeStoreVertical = (value?: string | string[]): StoreVertical => {
   const raw = Array.isArray(value) ? value[0] : value;
   const upper = String(raw ?? "FOOD").toUpperCase();
-  if (upper === "GROCERY" || upper === "PHARMACY" || upper === "FOOD" || upper === "GAS") return upper;
+  if (upper === "GROCERY" || upper === "PHARMACY" || upper === "FOOD" || upper === "GAS" || upper === "LAUNDRY") return upper;
   return "FOOD";
 };
 
 export const normalizeStoreTypeFilter = (value?: string | string[]): StoreTypeFilter => {
   const raw = Array.isArray(value) ? value[0] : value;
   const upper = String(raw ?? "ALL").toUpperCase();
-  if (upper === "FOOD" || upper === "GROCERY" || upper === "PHARMACY") return upper;
+  if (upper === "FOOD" || upper === "GROCERY" || upper === "PHARMACY" || upper === "LAUNDRY") return upper;
   return "ALL";
 };
 
 /** @deprecated use normalizeStoreTypeFilter */
 export const normalizeRetailVertical = (value?: string | string[]): RetailVerticalFilter => {
   const filter = normalizeStoreTypeFilter(value);
-  if (filter === "FOOD" || filter === "GAS") return "ALL";
+  if (filter === "FOOD" || filter === "GAS" || filter === "LAUNDRY") return "ALL";
   return filter;
 };
 
@@ -152,6 +170,7 @@ export const resolveStoreVertical = (restaurant: Restaurant): StoreVertical => {
     .toLowerCase();
   if (/(pharmacy|pharma|drug|medicine|chemist)/i.test(haystack)) return "PHARMACY";
   if (/(grocery|grocer|mart|supermarket|provision|market)/i.test(haystack)) return "GROCERY";
+  if (/(laundry|laundromat|dry ?clean)/i.test(haystack)) return "LAUNDRY";
   return "FOOD";
 };
 

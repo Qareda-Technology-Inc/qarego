@@ -18,6 +18,7 @@ import {
   updateMyRestaurant,
   submitMyStoreForReview,
   changeMyPassword,
+  countMyLaundryOrder,
   setAcceptingOrders,
   getMyStats,
   listMyMenuCategories,
@@ -96,6 +97,7 @@ router.delete("/menu/:itemId", loadMerchantContext, requireOwner, deleteMyMenuIt
 router.get("/orders", loadMerchantContext, listMyOrders);
 router.get("/riders", loadMerchantContext, listAssignableRiders);
 router.patch("/orders/:id", loadMerchantContext, myOrderAction);
+router.post("/orders/:id/laundry-count", loadMerchantContext, countMyLaundryOrder);
 
 // Cooks (staff) — owner only
 router.get("/cooks", loadMerchantContext, requireOwner, listMyCooks);

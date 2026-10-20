@@ -45,11 +45,20 @@ export const GAS_STATION_TAGS: VerticalTag[] = [
   { name: "Cylinder Exchange", emoji: "🔄", description: "Swap an empty cylinder for a full one" },
 ];
 
+export const LAUNDRY_TAGS: VerticalTag[] = [
+  { name: "Wash & Fold", emoji: "🧺", description: "Everyday clothes washed, dried and folded" },
+  { name: "Wash & Iron", emoji: "👔", description: "Washed and pressed: shirts, trousers, uniforms" },
+  { name: "Dry Cleaning", emoji: "🧥", description: "Suits, kaba and slit, delicate fabrics" },
+  { name: "Ironing Only", emoji: "♨️", description: "Clean clothes pressed and folded" },
+  { name: "Bedding & Curtains", emoji: "🛏️", description: "Duvets, bedsheets, curtains, towels" },
+];
+
 export const COMMERCE_VERTICAL_TAGS: Record<StoreVertical, VerticalTag[]> = {
   FOOD: FOOD_RESTAURANT_TAGS,
   GROCERY: GROCERY_SUPERMARKET_TAGS,
   PHARMACY: PHARMACY_HEALTH_TAGS,
   GAS: GAS_STATION_TAGS,
+  LAUNDRY: LAUNDRY_TAGS,
 };
 
 const emojiByName = new Map<string, string>();
@@ -88,7 +97,14 @@ export const storeMatchesSearchQuery = (store: StoreTagSource, q: string): boole
 
 export const verticalTagEmoji = (name: string, vertical: StoreVertical): string => {
   if (name === "All") {
-    return vertical === "FOOD" ? "🍽️" : vertical === "GROCERY" ? "🛒" : "💊";
+    const allEmoji: Record<StoreVertical, string> = {
+      FOOD: "🍽️",
+      GROCERY: "🛒",
+      PHARMACY: "💊",
+      GAS: "🔥",
+      LAUNDRY: "🧺",
+    };
+    return allEmoji[vertical] ?? "🍽️";
   }
   return emojiByName.get(name) ?? COMMERCE_VERTICAL_TAGS[vertical][0]?.emoji ?? "🏷️";
 };

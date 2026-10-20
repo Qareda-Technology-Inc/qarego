@@ -47,6 +47,7 @@ import {
   ensureUserDeliveryLocation,
   hasValidDeliveryCoords,
 } from "@/utils/ensureDeliveryLocation";
+import { formatLongDuration } from "@/styles/foodStyles";
 
 const NAV_H = 48;
 // Scales with screen height like CustomText (RFValue), so the name, status and tagline
@@ -567,7 +568,9 @@ const RestaurantMenu = () => {
                   restaurant.rating && restaurant.ratingCount
                     ? `★ ${restaurant.rating.toFixed(1)} (${restaurant.ratingCount})`
                     : null,
-                  `${restaurant.estimatedPrepMinutes ?? 25} min prep`,
+                  (restaurant.estimatedPrepMinutes ?? 25) >= 120
+                    ? `${formatLongDuration(restaurant.estimatedPrepMinutes ?? 0)} turnaround`
+                    : `${restaurant.estimatedPrepMinutes ?? 25} min prep`,
                 ]
                   .filter(Boolean)
                   .join(" · ")}

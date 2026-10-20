@@ -10,7 +10,7 @@ export const adminListStoreTypes = async (req, res) => {
   await ensureDefaultStoreTypes();
   const { vertical } = req.query;
   const query = {};
-  if (vertical && ["FOOD", "GROCERY", "PHARMACY", "GAS"].includes(String(vertical).toUpperCase())) {
+  if (vertical && ["FOOD", "GROCERY", "PHARMACY", "GAS", "LAUNDRY"].includes(String(vertical).toUpperCase())) {
     query.vertical = String(vertical).toUpperCase();
   }
   const storeTypes = await CommerceStoreType.find(query).sort({ vertical: 1, sortOrder: 1, name: 1 }).lean();
@@ -22,7 +22,7 @@ export const adminCreateStoreType = async (req, res) => {
   const name = req.body.name?.trim();
   const vertical = String(req.body.vertical || "").toUpperCase();
   if (!name) throw new BadRequestError("Name is required");
-  if (!["FOOD", "GROCERY", "PHARMACY", "GAS"].includes(vertical)) {
+  if (!["FOOD", "GROCERY", "PHARMACY", "GAS", "LAUNDRY"].includes(vertical)) {
     throw new BadRequestError("Vertical must be FOOD, GROCERY, PHARMACY or GAS");
   }
   const existing = await CommerceStoreType.findOne({ name, vertical });
@@ -49,7 +49,7 @@ export const adminUpdateStoreType = async (req, res) => {
   }
   if (req.body.vertical !== undefined) {
     const vertical = String(req.body.vertical).toUpperCase();
-    if (!["FOOD", "GROCERY", "PHARMACY", "GAS"].includes(vertical)) {
+    if (!["FOOD", "GROCERY", "PHARMACY", "GAS", "LAUNDRY"].includes(vertical)) {
       throw new BadRequestError("Vertical must be FOOD, GROCERY, PHARMACY or GAS");
     }
     storeType.vertical = vertical;

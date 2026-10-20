@@ -55,6 +55,7 @@ const VERTICAL_LABELS: Record<string, string> = {
   GROCERY: "Groceries",
   PHARMACY: "Pharmacy",
   GAS: "Cooking gas",
+  LAUNDRY: "Laundry",
 };
 
 // Ghana is on UTC all year, so UTC dates are local dates.

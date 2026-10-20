@@ -1,4 +1,4 @@
-/** Vertical-aware customer / merchant / rider copy for commerce orders (food, grocery, pharmacy). */
+/** Vertical-aware customer / merchant / rider copy for commerce orders (food, grocery, pharmacy, gas, laundry). */
 
 const COPY = {
   FOOD: {
@@ -21,11 +21,16 @@ const COPY = {
     pushEnjoyDelivered: "Your gas from",
     smsOpenOrders: "Open orders",
   },
+  LAUNDRY: {
+    pushPreparing: "accepted your laundry. A rider is coming to collect it",
+    pushEnjoyDelivered: "Your clean laundry from",
+    smsOpenOrders: "Open orders",
+  },
 };
 
 export function normalizeCommerceVertical(value) {
   const v = String(value ?? "FOOD").toUpperCase();
-  if (v === "GROCERY" || v === "PHARMACY" || v === "GAS") return v;
+  if (v === "GROCERY" || v === "PHARMACY" || v === "GAS" || v === "LAUNDRY") return v;
   return "FOOD";
 }
 

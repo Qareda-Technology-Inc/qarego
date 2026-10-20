@@ -114,13 +114,48 @@ const foodOrderSchema = new Schema(
     /** Cooking gas orders (vertical GAS) */
     gasMode: { type: String, enum: ["REFILL", "EXCHANGE", null], default: null },
     gasSizeKg: { type: Number, default: null },
-    /** REFILL progress: courier taking the empty to the station, then cylinder at the station. */
+    /**
+     * Collect-first orders (gas REFILL, laundry): courier taking it to the store, then at the store.
+     * The gas* names predate laundry; they're kept so existing apps keep reading them.
+     */
     gasStage: { type: String, enum: ["TO_STATION", "AT_STATION", null], default: null },
     /** Courier who collected the empty (REFILL); the return leg goes back to them. */
     gasCourier: { type: Schema.Types.ObjectId, ref: "User", default: null },
     collectionRide: { type: Schema.Types.ObjectId, ref: "Ride", default: null },
     /** EXCHANGE: station confirms the customer's empty cylinder came back. */
     gasEmptyReturnedAt: { type: Date, default: null },
+    /**
+     * Laundry orders (vertical LAUNDRY). Like a gas refill they are collected first: a courier
+     * brings the bag to the shop (gasStage/gasCourier/collectionRide track that leg), the shop
+     * counts the items and confirms the price, washes, then a courier returns it.
+     * Null for every other order.
+     */
+    laundry: {
+      type: new Schema(
+        {
+          /** What the customer chose at checkout, before the shop counted. */
+          estimatedSubtotal: { type: Number, required: true },
+          estimatedItemCount: { type: Number, required: true },
+          /**
+           * estimate: not counted yet · approved: counted, ready to wash (auto when the count
+           * isn't dearer) · awaiting_customer: counted dearer, customer must approve ·
+           * declined: customer said no, it comes back unwashed and they pay delivery only.
+           */
+          priceStatus: {
+            type: String,
+            enum: ["estimate", "awaiting_customer", "approved", "declined"],
+            default: "estimate",
+          },
+          countedAt: { type: Date, default: null },
+          countedItemCount: { type: Number, default: null },
+          /** Subtotal before the shop's count, kept when the count changed it. */
+          previousSubtotal: { type: Number, default: null },
+          decidedAt: { type: Date, default: null },
+        },
+        { _id: false }
+      ),
+      default: null,
+    },
     cancelledBy: {
       type: String,
       enum: ["CUSTOMER", "RESTAURANT", "ADMIN", null],

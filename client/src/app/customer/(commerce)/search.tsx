@@ -227,7 +227,11 @@ const CustomerSearch = () => {
             <TextInput
               ref={inputRef}
               style={styles.searchInput}
-              placeholder={COMMERCE_SEARCH_HINT}
+              placeholder={
+                typeFilter === "ALL"
+                  ? COMMERCE_SEARCH_HINT
+                  : STORE_VERTICAL_CONFIG[typeFilter as StoreVertical].searchPlaceholder
+              }
               placeholderTextColor={FOOD_THEME.searchHint}
               value={query}
               onChangeText={setQuery}
@@ -243,11 +247,13 @@ const CustomerSearch = () => {
           </View>
         </View>
 
-        <StoreTypeFilterRow
-          value={typeFilter}
-          onChange={applyTypeFilter}
-          style={styles.typeFilterScroll}
-        />
+        {typeFilter === "LAUNDRY" ? null : (
+          <StoreTypeFilterRow
+            value={typeFilter}
+            onChange={applyTypeFilter}
+            style={styles.typeFilterScroll}
+          />
+        )}
       </View>
 
       {loading ? (

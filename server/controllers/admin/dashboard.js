@@ -182,6 +182,7 @@ async function dayTotals(start, end) {
     grocery: byVertical.GROCERY || 0,
     pharmacy: byVertical.PHARMACY || 0,
     gas: byVertical.GAS || 0,
+    laundry: byVertical.LAUNDRY || 0,
     bookings: round2((trips?.gross || 0) + ordersGross),
   };
 }

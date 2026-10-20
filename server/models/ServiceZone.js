@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 
 const { Schema } = mongoose;
 
-export const SERVICE_ZONE_TYPES = ["RIDE", "PARCEL", "FOOD", "GROCERY", "PHARMACY", "GAS"];
+export const SERVICE_ZONE_TYPES = ["RIDE", "PARCEL", "FOOD", "GROCERY", "PHARMACY", "GAS", "LAUNDRY"];
 
 /**
  * Geographic coverage zone: center point + radius (km).

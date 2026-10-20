@@ -269,6 +269,62 @@ async function applyCashSettlement(order, ride, settings) {
   return { success: true, method: "cash", amount: platformNet, balanceAfter: balance };
 }
 
+/**
+ * Laundry is collected by one rider and often returned by another (it can take a day). The
+ * returning rider is settled for the whole delivery fee, so move half of the rider's share to
+ * whoever collected the bag. Once per order.
+ */
+async function shareCollectFirstPay(order, returnRide, settings) {
+  if (!order.laundry || !order.collectionRide) return;
+  const collection = await Ride.findById(order.collectionRide).select("rider status");
+  const collectorId = collection?.rider ? String(collection.rider) : null;
+  const returnerId = returnRide?.rider?._id ? String(returnRide.rider._id) : returnRide?.rider ? String(returnRide.rider) : null;
+  if (!collectorId || !returnerId || collectorId === returnerId || collection.status !== "COMPLETED") return;
+
+  const amount = roundMoney((order.riderNet ?? 0) / 2);
+  if (amount <= 0) return;
+  if (await Transaction.exists({ ride: collection._id, type: "TRIP_SHARE_CREDIT" })) return;
+
+  const [collector, returner] = await Promise.all([
+    User.findById(collectorId).select("balance driverDetails.status"),
+    User.findById(returnerId).select("balance driverDetails.status"),
+  ]);
+  if (!collector || !returner) return;
+
+  const collectorBalance = roundMoney(Number(collector.balance ?? 0) + amount);
+  const returnerBalance = roundMoney(Number(returner.balance ?? 0) - amount);
+  await Transaction.create([
+    {
+      ride: collection._id,
+      driver: collector._id,
+      amount,
+      type: "TRIP_SHARE_CREDIT",
+      note: "Laundry collection: your half of the delivery pay",
+      balanceAfter: collectorBalance,
+    },
+    {
+      ride: returnRide._id || order.ride,
+      driver: returner._id,
+      amount: -amount,
+      type: "TRIP_SHARE_DEBIT",
+      note: "Laundry return: half of the delivery pay goes to the rider who collected it",
+      balanceAfter: returnerBalance,
+    },
+  ]);
+
+  const collectorUpdate = { balance: collectorBalance };
+  // Same rule as a top-up: clearing the debt lifts a debt suspension.
+  if (collector.driverDetails?.status === "suspended_debt" && collectorBalance >= 0) {
+    collectorUpdate["driverDetails.status"] = "active";
+  }
+  const returnerUpdate = { balance: returnerBalance };
+  if (returnerBalance < (settings?.debtLimit ?? -100)) returnerUpdate["driverDetails.status"] = "suspended_debt";
+  await Promise.all([
+    User.updateOne({ _id: collector._id }, { $set: collectorUpdate }),
+    User.updateOne({ _id: returner._id }, { $set: returnerUpdate }),
+  ]);
+}
+
 async function applyMomoSettlement(order, restaurant, ride) {
   if (order.paymentStatus !== "PAID") {
     return {
@@ -487,6 +543,14 @@ export async function settleFoodOrderOnDelivery(orderId) {
   }
 
   await order.save();
+
+  if (["settled", "processing"].includes(order.settlementStatus)) {
+    try {
+      await shareCollectFirstPay(order, ride, settings);
+    } catch (err) {
+      console.error("[food-settlement] trip share failed for order", order._id, err);
+    }
+  }
 
   if (order.settlementStatus === "failed" || order.settlementError) {
     console.error("[food-settlement] order", order._id, {

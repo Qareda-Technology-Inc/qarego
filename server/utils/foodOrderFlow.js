@@ -8,10 +8,18 @@ import { resolveFoodCourierRidePricing } from "./deliveryFare.js";
 import { emitRideOfferToEligibleRiders } from "./rideOfferBroadcast.js";
 import {
   notifyCustomerFoodOrderPush,
+  sendPushToUserId,
   notifyRiderAssignedFoodDelivery,
 } from "./pushNotifications.js";
 import { cancelCourierRideForOrder } from "./releaseCourierRide.js";
 import { compensateCourierForCancel } from "./courierCancelPay.js";
+import {
+  applyLaundryCount,
+  applyLaundryDecision,
+  isCollectFirstOrder,
+  isLaundryOrder,
+  laundryCourierSummary,
+} from "./laundryOrders.js";
 import {
   buildCourierCashCollection,
   settleFoodOrderOnDelivery,
@@ -63,7 +71,7 @@ export function scheduleCourierBroadcast(foodOrder, restaurant) {
   foodOrder.courierBroadcastSent = false;
 }
 
-export async function emitFoodOrderUpdated(io, orderId) {
+export async function emitFoodOrderUpdated(io, orderId, { push = true } = {}) {
   const populated = await FoodOrder.findById(orderId)
     .populate(
       "restaurant",
@@ -82,9 +90,10 @@ export async function emitFoodOrderUpdated(io, orderId) {
     );
   }
 
-  const customerId =
-    populated.customer?._id?.toString?.() || String(populated.customer);
-  notifyCustomerFoodOrderPush(customerId, populated);
+  if (push) {
+    const customerId = populated.customer?._id?.toString?.() || String(populated.customer);
+    notifyCustomerFoodOrderPush(customerId, populated);
+  }
   return populated;
 }
 
@@ -117,6 +126,7 @@ export async function notifyAssignedRider(io, ride, driverId) {
  */
 /** What the courier is told they're carrying. Medicines are health data: give a count only. */
 export function courierItemSummary(foodOrder, restaurant) {
+  if (isLaundryOrder(foodOrder)) return laundryCourierSummary(foodOrder);
   if (restaurant?.vertical === "PHARMACY") {
     const count = foodOrder.items.reduce((n, i) => n + (Number(i.quantity) || 0), 0);
     return `Pharmacy order · ${count} item${count === 1 ? "" : "s"}`;
@@ -127,11 +137,14 @@ export function courierItemSummary(foodOrder, restaurant) {
 export async function createCourierRideForOrder(foodOrder, restaurant, io, options = {}) {
   const { broadcast = true, driverId = null } = options;
   // Gas: EXCHANGE delivers a full cylinder; REFILL's second leg returns the filled one.
+  // Laundry's second leg returns the clean laundry.
   const gasLeg = foodOrder.gasMode
     ? foodOrder.gasMode === "REFILL"
       ? "RETURN"
       : "DELIVER"
-    : null;
+    : isLaundryOrder(foodOrder)
+      ? "RETURN"
+      : null;
 
   if (foodOrder.ride) {
     const existing = await Ride.findById(foodOrder.ride);
@@ -236,12 +249,12 @@ export async function createCourierRideForOrder(foodOrder, restaurant, io, optio
 }
 
 /**
- * Gas REFILL, first leg: a courier collects the customer's empty cylinder and takes it to
- * the station. Pays the full round-trip fee (settled once, when the filled cylinder is
- * delivered); no cash changes hands on this leg.
+ * Collect-first orders, first leg (gas REFILL: the empty cylinder; laundry: the bag): a courier
+ * collects from the customer and takes it to the store. Pays the full round-trip fee (settled
+ * once, when it comes back); no cash changes hands on this leg.
  */
-async function createGasCollectionRide(foodOrder, restaurant, io) {
-  const itemSummary = foodOrder.items.map((i) => `${i.quantity}x ${i.name}`).join(", ");
+async function createCollectionRide(foodOrder, restaurant, io) {
+  const itemSummary = courierItemSummary(foodOrder, restaurant);
   const ride = await Ride.create({
     serviceType: "FOOD",
     vehicle: "motorcycle",
@@ -262,7 +275,7 @@ async function createGasCollectionRide(foodOrder, restaurant, io) {
     paymentMethod: foodOrder.paymentMethod,
     foodOrder: foodOrder._id,
     restaurantName: restaurant.name,
-    storeVertical: "GAS",
+    storeVertical: restaurant.vertical || "GAS",
     foodOrderSummary: itemSummary,
     cashCollection: null,
     gasLeg: "COLLECT",
@@ -293,11 +306,11 @@ export async function applyRestaurantAction(orderId, action, io, options = {}) {
         };
       }
       foodOrder.status = "PREPARING";
-      if (foodOrder.gasMode === "REFILL") {
-        // Nothing to prepare until the empty arrives: send a courier to collect it now.
+      if (isCollectFirstOrder(foodOrder)) {
+        // Nothing to prepare until it arrives: send a courier to collect it now.
         foodOrder.preparingStartedAt = new Date();
         foodOrder.courierBroadcastSent = true;
-        await createGasCollectionRide(foodOrder, restaurant, io);
+        await createCollectionRide(foodOrder, restaurant, io);
       } else {
         scheduleCourierBroadcast(foodOrder, restaurant);
       }
@@ -313,8 +326,8 @@ export async function applyRestaurantAction(orderId, action, io, options = {}) {
       if (!allowed.includes(foodOrder.status)) {
         return { error: "invalid_transition" };
       }
-      // A customer's own cylinder is with the courier or the station: it has to go back first.
-      if (foodOrder.gasMode === "REFILL" && foodOrder.gasStage) {
+      // The customer's own cylinder or laundry is with the courier or the store: it has to go back first.
+      if (isCollectFirstOrder(foodOrder) && foodOrder.gasStage) {
         return { error: "gas_in_custody" };
       }
       // Pickup orders settle when marked ready; never cancel money that has already moved.
@@ -352,18 +365,29 @@ export async function applyRestaurantAction(orderId, action, io, options = {}) {
       if (!["PREPARING", "CONFIRMED"].includes(foodOrder.status)) {
         return { error: "invalid_transition" };
       }
-      if (foodOrder.gasMode === "REFILL") {
-        if (foodOrder.gasStage !== "AT_STATION") return { error: "gas_not_at_station" };
+      if (isCollectFirstOrder(foodOrder)) {
+        if (foodOrder.gasStage !== "AT_STATION") {
+          return { error: isLaundryOrder(foodOrder) ? "laundry_not_at_shop" : "gas_not_at_station" };
+        }
+        // Laundry goes back only once the price is settled: counted and accepted, or declined.
+        if (isLaundryOrder(foodOrder) && !["approved", "declined"].includes(foodOrder.laundry.priceStatus)) {
+          return {
+            error: foodOrder.laundry.priceStatus === "awaiting_customer" ? "laundry_awaiting_customer" : "laundry_not_counted",
+          };
+        }
         foodOrder.status = "READY_FOR_PICKUP";
         foodOrder.ride = null;
-        // Same courier brings it back (they know the customer); anyone else if they can't.
+        // Gas: the same courier brings it back (they know the customer, and it's minutes later);
+        // anyone else if they can't. Laundry can take a day, so offer the return to every
+        // nearby rider rather than whoever collected it.
+        const preferCollector = !!foodOrder.gasCourier && !isLaundryOrder(foodOrder);
         try {
           await createCourierRideForOrder(foodOrder, restaurant, io, {
-            driverId: foodOrder.gasCourier ? String(foodOrder.gasCourier) : null,
-            broadcast: !foodOrder.gasCourier,
+            driverId: preferCollector ? String(foodOrder.gasCourier) : null,
+            broadcast: !preferCollector,
           });
         } catch (err) {
-          console.warn("[gas] return leg not assigned to collector, broadcasting:", err?.message);
+          console.warn("[collect-first] return leg not assigned to collector, broadcasting:", err?.message);
           const ride = await Ride.findById(foodOrder.ride);
           if (ride) await broadcastRideToDrivers(io, ride);
         }
@@ -444,4 +468,50 @@ export async function applyRestaurantAction(orderId, action, io, options = {}) {
   }
 
   return { order: populated };
+}
+
+/** Shop counts a laundry bag once it arrives (see applyLaundryCount for the rules). */
+export async function applyLaundryCountAction(orderId, lines, io) {
+  const foodOrder = await FoodOrder.findById(orderId);
+  if (!foodOrder || !isLaundryOrder(foodOrder)) return { error: "not_found" };
+  if (foodOrder.status !== "PREPARING" || foodOrder.gasStage !== "AT_STATION") {
+    return { error: "laundry_not_at_shop" };
+  }
+  if (!["estimate", "awaiting_customer", "approved"].includes(foodOrder.laundry.priceStatus)) {
+    return { error: "invalid_transition" };
+  }
+  let result;
+  try {
+    result = await applyLaundryCount(foodOrder, lines, await getSettings());
+  } catch (err) {
+    return { error: "bad_count", message: err.message };
+  }
+  await foodOrder.save();
+  const populated = await emitFoodOrderUpdated(io, orderId, { push: false });
+  if (result.priceRaised) {
+    void sendPushToUserId(foodOrder.customer, {
+      title: "Confirm your laundry price",
+      body: `${foodOrder.restaurantName} counted your items: GH₵${foodOrder.total.toFixed(2)} in total. Tap to approve.`,
+      data: { type: "food_order", orderId: String(foodOrder._id), status: "LAUNDRY_PRICE" },
+    }).catch(() => {});
+  }
+  return { order: populated, priceRaised: result.priceRaised };
+}
+
+/**
+ * Customer approves or declines a higher laundry count. Declining sends the bag straight back
+ * unwashed (the shop is told on its board).
+ */
+export async function applyLaundryCustomerDecision(orderId, customerId, decision, io) {
+  const foodOrder = await FoodOrder.findOne({ _id: orderId, customer: customerId });
+  if (!foodOrder || !isLaundryOrder(foodOrder)) return { error: "not_found" };
+  if (!["approve", "decline"].includes(decision)) return { error: "bad_decision" };
+  try {
+    applyLaundryDecision(foodOrder, decision, await getSettings());
+  } catch (err) {
+    return { error: "invalid_transition", message: err.message };
+  }
+  await foodOrder.save();
+  if (decision === "decline") return applyRestaurantAction(orderId, "ready", io);
+  return { order: await emitFoodOrderUpdated(io, orderId, { push: false }) };
 }

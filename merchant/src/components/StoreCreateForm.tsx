@@ -64,7 +64,7 @@ export default function StoreCreateForm({
   const vertical = resolveFormVertical(form, storeTypes);
   const meta = getVerticalMeta(vertical);
   const hasTags = form.storeTypeIds.length > 0;
-  const moduleOptions: StoreVertical[] = ["FOOD", "GROCERY", "PHARMACY"];
+  const moduleOptions: StoreVertical[] = ["FOOD", "GROCERY", "PHARMACY", "LAUNDRY"];
   const activeModule = form.moduleVertical || vertical;
   const moduleTags = activeModule
     ? storeTypes.filter((t) => t.vertical === activeModule)

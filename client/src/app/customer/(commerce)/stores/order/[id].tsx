@@ -47,6 +47,7 @@ import {
   getCourierRating,
 } from "@/utils/foodOrderTracking";
 import DeliveryCodeCard from "@/components/customer/food/DeliveryCodeCard";
+import LaundryPriceCard from "@/components/customer/food/LaundryPriceCard";
 import FoodOrderCourierCard from "@/components/customer/food/FoodOrderCourierCard";
 import RestaurantRatingModal from "@/components/customer/food/RestaurantRatingModal";
 import { isFoodOrderRateable, withDeliveredFoodOrderStatus } from "@/utils/ratingFlow";
@@ -189,9 +190,9 @@ const FoodOrderTracking = () => {
     const handler = (updated: FoodOrder) => {
       if (String(updated?._id) !== String(id)) return;
       setOrder((prev) => {
-        // Gas refill: the collection trip ended and the server cleared it; don't keep the old
+        // Gas refill / laundry: the collection trip ended and the server cleared it; don't keep the old
         // (completed) ride around, or the screen would think the order was delivered.
-        const rideCleared = updated.ride == null && updated.gasMode === "REFILL";
+        const rideCleared = updated.ride == null && (updated.gasMode === "REFILL" || !!updated.laundry);
         const mergedRide = rideCleared
           ? null
           : prev?.ride || updated.ride
@@ -753,6 +754,12 @@ const FoodOrderTracking = () => {
               />
             ) : null}
 
+            <LaundryPriceCard
+              order={order}
+              onAnswered={(updated) => setOrder((prev) => (prev ? { ...prev, ...updated } : updated))}
+              onError={(message) => showToast({ title: "Couldn't send", message, type: "error" })}
+            />
+
             {showDeliveryCode ? (
               <DeliveryCodeCard
                 code={deliveryCode!}
@@ -777,7 +784,7 @@ const FoodOrderTracking = () => {
             <View style={styles.orderSummary}>
               <View style={styles.orderSummaryTop}>
                 <CustomText fontFamily="SemiBold" fontSize={15}>
-                  Your order
+                  {order.laundry && !order.laundry.countedItemCount ? "Your order (estimate)" : "Your order"}
                 </CustomText>
                 <CustomText fontFamily="Bold" fontSize={16} color={FOOD_THEME.text}>
                   {formatCurrency(order.total)}
@@ -835,7 +842,7 @@ const FoodOrderTracking = () => {
               {order.fulfillmentType !== "PICKUP" ? (
                 <View style={styles.lineRow}>
                   <CustomText fontSize={13} color={FOOD_THEME.textMuted}>
-                    Delivery fee
+                    {order.laundry ? "Collection & return" : "Delivery fee"}
                   </CustomText>
                   <CustomText fontSize={13}>{deliveryFeeLabel}</CustomText>
                 </View>

@@ -9,6 +9,7 @@ import {
   getActiveFoodOrder,
   rateFoodOrder,
   cancelMyFoodOrder,
+  answerLaundryPrice,
   getFoodCheckoutSettings,
   getFoodDeliveryQuote,
   adminListFoodOrders,
@@ -38,6 +39,7 @@ router.get("/orders/active", getActiveFoodOrder);
 router.get("/orders/:id", getFoodOrder);
 router.post("/orders/:id/rate", rateFoodOrder);
 router.post("/orders/:id/cancel", cancelMyFoodOrder);
+router.post("/orders/:id/laundry-price", answerLaundryPrice);
 
 /** Restaurant console (admin token) */
 router.get("/admin/orders", adminListFoodOrders);

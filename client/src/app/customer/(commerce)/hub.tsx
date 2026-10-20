@@ -90,7 +90,7 @@ const CommerceHome = () => {
   useEffect(() => {
     const raw = Array.isArray(params.storeType) ? params.storeType[0] : params.storeType;
     const type = String(raw ?? "").toUpperCase();
-    if (type === "GROCERY" || type === "PHARMACY") {
+    if (type === "GROCERY" || type === "PHARMACY" || type === "LAUNDRY") {
       router.replace({ pathname: "/customer/stores", params: { type } });
     }
   }, [params.storeType]);

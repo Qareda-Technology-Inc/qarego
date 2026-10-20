@@ -16,6 +16,7 @@ import { AssignRiderModal } from "@/components/AssignRiderModal";
 import { PrescriptionAttachments } from "@/components/PrescriptionAttachments";
 import { OrderPayoutNote } from "@/components/OrderPayoutNote";
 import { VerticalIcon } from "@/components/VerticalIcon";
+import { LaundryCountModal } from "@/components/LaundryCountModal";
 import {
   Bell,
   CheckCircle,
@@ -32,6 +33,8 @@ import {
   ShoppingBag,
   Phone,
   PackageCheck,
+  ClipboardCheck,
+  Shirt,
 } from "lucide-react";
 
 type RestaurantLoc = {
@@ -111,6 +114,7 @@ export default function OrdersPage() {
   const [live, setLive] = useState(false);
   const [mobileColumn, setMobileColumn] = useState<ColumnKey>("new");
   const [assignTarget, setAssignTarget] = useState<{ orderId: string; label: string } | null>(null);
+  const [countOrder, setCountOrder] = useState<FoodOrderRow | null>(null);
 
   const loadStats = useCallback(async () => {
     try {
@@ -376,6 +380,7 @@ export default function OrdersPage() {
                         onAssign={() =>
                           setAssignTarget({ orderId: order._id, label: order.customer?.name || "this order" })
                         }
+                        onCount={() => setCountOrder(order)}
                       />
                     ))}
                   </div>
@@ -385,6 +390,16 @@ export default function OrdersPage() {
           })}
         </div>
       )}
+
+      <LaundryCountModal
+        order={countOrder}
+        onClose={() => setCountOrder(null)}
+        onCounted={() => {
+          setCountOrder(null);
+          load();
+          loadStats();
+        }}
+      />
 
       <AssignRiderModal
         open={!!assignTarget}
@@ -410,6 +425,7 @@ function OrderCard({
   onToggleMap,
   onAct,
   onAssign,
+  onCount,
 }: {
   order: FoodOrderRow;
   column: ColumnKey;
@@ -421,6 +437,7 @@ function OrderCard({
   onToggleMap: () => void;
   onAct: (action: Action) => void;
   onAssign: () => void;
+  onCount: () => void;
 }) {
   const mins = minutesSince(columnSince(order), now);
   const [warn, late] = LATE_AFTER[column];
@@ -432,10 +449,14 @@ function OrderCard({
         : "bg-slate-100 text-slate-600";
   const isNew = order.status === "PLACED";
   const isPickup = order.fulfillmentType === "PICKUP";
-  const refillWaiting = order.status === "PREPARING" && order.gasMode === "REFILL" && order.gasStage !== "AT_STATION";
+  const laundry = order.laundry ?? null;
+  // Gas refills and laundry are collected from the customer before the store can start.
+  const collectFirst = order.gasMode === "REFILL" || !!laundry;
+  const refillWaiting = order.status === "PREPARING" && collectFirst && order.gasStage !== "AT_STATION";
+  const laundryAtShop = !!laundry && order.status === "PREPARING" && order.gasStage === "AT_STATION";
   const canCancel =
-    (order.status === "PREPARING" && !(order.gasMode === "REFILL" && order.gasStage)) ||
-    order.status === "READY_FOR_PICKUP";
+    (order.status === "PREPARING" && !(collectFirst && order.gasStage)) ||
+    (order.status === "READY_FOR_PICKUP" && !laundry);
 
   return (
     <article
@@ -460,6 +481,18 @@ function OrderCard({
           {isPickup ? <ShoppingBag className="h-3 w-3" /> : <Bike className="h-3 w-3" />}
           {isPickup ? "Pickup" : "Delivery"}
         </span>
+        {laundry ? (
+          <span className="inline-flex items-center gap-1 rounded-full bg-cyan-100 px-2 py-0.5 text-xs font-medium text-cyan-800">
+            <Shirt className="h-3 w-3" />
+            {laundry.countedItemCount ?? laundry.estimatedItemCount} items
+            {laundry.countedAt ? " · counted" : " · estimate"}
+          </span>
+        ) : null}
+        {laundry?.priceStatus === "declined" ? (
+          <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800">
+            Return unwashed
+          </span>
+        ) : null}
         {order.gasMode ? (
           <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-800">
             {order.gasMode === "REFILL" ? "Refill" : "Exchange"}
@@ -488,7 +521,7 @@ function OrderCard({
       <PrescriptionAttachments urls={order.prescriptionUrls} />
 
       <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
-        <span className="text-sm text-muted">Order total</span>
+        <span className="text-sm text-muted">{laundry && !laundry.countedAt ? "Customer's estimate" : "Order total"}</span>
         <span className="font-bold text-foreground">{formatCurrency(order.subtotal)}</span>
       </div>
       <OrderPayoutNote order={order} />
@@ -560,17 +593,48 @@ function OrderCard({
         {refillWaiting ? (
           <p className="flex items-center gap-1 text-sm text-gray-600">
             <Bike className="h-4 w-4" />
-            {order.gasStage === "TO_STATION"
-              ? "Courier is bringing the empty cylinder"
-              : "Courier collecting the customer's empty"}
+            {laundry
+              ? order.gasStage === "TO_STATION"
+                ? "Rider is bringing the laundry to you"
+                : "Rider collecting the laundry from the customer"
+              : order.gasStage === "TO_STATION"
+                ? "Courier is bringing the empty cylinder"
+                : "Courier collecting the customer's empty"}
           </p>
         ) : null}
-        {order.status === "PREPARING" && !refillWaiting ? (
+
+        {laundryAtShop && (laundry?.priceStatus === "estimate" || !laundry?.countedAt) ? (
+          <Button disabled={busy} onClick={onCount} className="h-11">
+            <ClipboardCheck className="mr-1 inline h-4 w-4" /> Count items
+          </Button>
+        ) : null}
+        {laundryAtShop && laundry?.priceStatus === "awaiting_customer" ? (
+          <div className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            <p className="flex items-center gap-1 font-medium">
+              <Clock className="h-4 w-4" /> Waiting for the customer to approve {formatCurrency(order.subtotal)}
+            </p>
+            <p className="mt-0.5 text-xs">
+              Estimate was {formatCurrency(laundry.estimatedSubtotal)}. Don&apos;t wash until they approve.
+            </p>
+            <button onClick={onCount} className="mt-1 text-xs font-medium text-brand hover:underline">
+              Recount
+            </button>
+          </div>
+        ) : null}
+        {laundryAtShop && laundry?.priceStatus === "approved" ? (
+          <p className="flex items-center gap-1 text-sm text-gray-600">
+            <Shirt className="h-4 w-4" /> Counted. Wash, then mark it ready.
+            <button onClick={onCount} className="ml-auto text-xs font-medium text-brand hover:underline">
+              Recount
+            </button>
+          </p>
+        ) : null}
+        {order.status === "PREPARING" && !refillWaiting && (!laundry || laundry.priceStatus === "approved") ? (
           <Button disabled={busy} onClick={() => onAct("ready")} className="h-11">
             <PackageCheck className="mr-1 inline h-4 w-4" /> {copy.readyButton}
           </Button>
         ) : null}
-        {order.status === "PREPARING" && order.gasMode !== "REFILL" && !isPickup ? (
+        {order.status === "PREPARING" && !collectFirst && !isPickup ? (
           <Button disabled={busy} variant="outline" onClick={onAssign}>
             <Bike className="mr-1 inline h-4 w-4" /> Assign rider
           </Button>

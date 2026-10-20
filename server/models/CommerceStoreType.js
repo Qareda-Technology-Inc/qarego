@@ -12,7 +12,7 @@ const commerceStoreTypeSchema = new Schema(
     name: { type: String, required: true, trim: true },
     vertical: {
       type: String,
-      enum: ["FOOD", "GROCERY", "PHARMACY", "GAS"],
+      enum: ["FOOD", "GROCERY", "PHARMACY", "GAS", "LAUNDRY"],
       required: true,
     },
     emoji: { type: String, default: "🍽️", trim: true },

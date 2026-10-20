@@ -1,4 +1,4 @@
-export type StoreVertical = "FOOD" | "GROCERY" | "PHARMACY" | "GAS";
+export type StoreVertical = "FOOD" | "GROCERY" | "PHARMACY" | "GAS" | "LAUNDRY";
 
 export interface StoreTypeOption {
   _id: string;
@@ -64,6 +64,12 @@ export const VERTICAL_META: Record<
     prepLabel: "Average fill time (minutes)",
     prepDefault: "15",
     namePlaceholder: "e.g. Tarkwa LPG Station",
+  },
+  LAUNDRY: {
+    label: "Laundry & dry cleaning",
+    prepLabel: "Usual turnaround in minutes (1440 = 1 day)",
+    prepDefault: "1440",
+    namePlaceholder: "e.g. Fresh Fold Laundry — Dzorwulu",
   },
 };
 

@@ -10,7 +10,7 @@ import { router } from "expo-router";
 import { openCommerceModule } from "@/utils/commerceNavigation";
 import { useUserStore } from "@/store/userStore";
 
-export type ServiceType = "RIDE" | "PARCEL" | "FOOD" | "GROCERY" | "PHARMACY" | "GAS";
+export type ServiceType = "RIDE" | "PARCEL" | "FOOD" | "GROCERY" | "PHARMACY" | "GAS" | "LAUNDRY";
 
 type Service = {
   type: ServiceType;
@@ -72,11 +72,20 @@ const SERVICES: Record<ServiceType, Service> = {
   GAS: {
     type: "GAS",
     label: "Cooking gas",
-    description: "Refill or exchange at your door",
+    description: "Refill or swap",
     ioniconName: "flame",
     themeColor: "#c2410c",
     ink: "#7c2d12",
     tint: "#ffedd5",
+  },
+  LAUNDRY: {
+    type: "LAUNDRY",
+    label: "Laundry",
+    description: "Wash & return",
+    ioniconName: "shirt",
+    themeColor: "#0e7490",
+    ink: "#164e63",
+    tint: "#cffafe",
   },
 };
 
@@ -93,7 +102,7 @@ type Props = {
 
 /**
  * Service module picker — bento grid. Food leads as the large tile, Ride and Parcel
- * stack beside it, Grocery and Pharmacy sit below as compact tiles.
+ * stack beside it, then Grocery and Pharmacy, then Cooking gas and Laundry as compact tiles.
  * Services not allowed in the current zone are greyed out with a lock.
  */
 const CircularServiceSelector = ({ goToHomeOnSelect = false }: Props) => {
@@ -169,9 +178,20 @@ const CircularServiceSelector = ({ goToHomeOnSelect = false }: Props) => {
           <CompactTile {...tileProps("PHARMACY")} />
         </Animated.View>
       </View>
-      <Animated.View entering={FadeInUp.delay(355).duration(380).springify().damping(18)}>
-        <CompactTile {...tileProps("GAS")} />
-      </Animated.View>
+      <View style={styles.bottomRow}>
+        <Animated.View
+          style={styles.flex}
+          entering={FadeInUp.delay(355).duration(380).springify().damping(18)}
+        >
+          <CompactTile {...tileProps("GAS")} />
+        </Animated.View>
+        <Animated.View
+          style={styles.flex}
+          entering={FadeInUp.delay(410).duration(380).springify().damping(18)}
+        >
+          <CompactTile {...tileProps("LAUNDRY")} />
+        </Animated.View>
+      </View>
     </View>
   );
 };

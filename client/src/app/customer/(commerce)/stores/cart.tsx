@@ -115,6 +115,8 @@ const FoodCart = () => {
   });
 
   const isPharmacy = selectedVertical === "PHARMACY";
+  // Laundry is collected from the customer and brought back; the shop confirms the price.
+  const isLaundry = selectedVertical === "LAUNDRY";
   const requiresPrescription = useMemo(() => {
     if (!isPharmacy) return false;
     const byId = new Map(menuItems.map((item) => [item._id, item]));
@@ -311,10 +313,10 @@ const FoodCart = () => {
 
   /** Always-visible fee summary so the total is never unexplained. */
   const footerBreakdown = [
-    `Items ${formatCurrency(subtotal)}`,
+    `${isLaundry ? "Items (estimate)" : "Items"} ${formatCurrency(subtotal)}`,
     `Service ${formatCurrency(serviceFee)}`,
     needsDeliveryAddress
-      ? `Delivery ${deliveryQuote ? formatCurrency(deliveryQuote.fee) : "—"}`
+      ? `${isLaundry ? "Both trips" : "Delivery"} ${deliveryQuote ? formatCurrency(deliveryQuote.fee) : "—"}`
       : "Pickup free",
   ].join(" · ");
 
@@ -514,6 +516,22 @@ const FoodCart = () => {
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+        {isLaundry ? (
+          <SurfaceCard style={styles.laundryInfo}>
+            <View style={styles.laundryInfoRow}>
+              <Ionicons name="repeat-outline" size={20} color={accent} />
+              <CustomText fontFamily="SemiBold" fontSize={14} style={{ marginLeft: 8, flex: 1 }}>
+                We collect it and bring it back
+              </CustomText>
+            </View>
+            <CustomText fontSize={12} color="#555" style={{ marginTop: 6 }}>
+              A rider picks up your laundry, the laundry counts your items and confirms the price, then a
+              rider returns it clean. If the count costs more than this estimate, you&apos;ll be asked to
+              approve first. You pay when it comes back.
+            </CustomText>
+          </SurfaceCard>
+        ) : (
+        <>
         <CustomText fontFamily="SemiBold" fontSize={15} style={styles.sectionHeading}>
           How do you want it?
         </CustomText>
@@ -591,11 +609,13 @@ const FoodCart = () => {
             </CustomText>
           </TouchableOpacity>
         </View>
+        </>
+        )}
 
         {needsDeliveryAddress ? (
           <>
             <CustomText fontFamily="SemiBold" fontSize={15} style={styles.sectionHeading}>
-              Deliver to
+              {isLaundry ? "Collect from and return to" : "Deliver to"}
             </CustomText>
             {resolvingLocation ? (
               <View style={styles.locLoading}>
@@ -621,7 +641,9 @@ const FoodCart = () => {
                   {location?.address || "Your location"}
                 </CustomText>
                 <CustomText fontSize={12} color="#888" style={{ marginTop: 4, marginBottom: 8 }}>
-                  Tap the map to adjust the pin. Delivery fee is based on distance to the store.
+                  {isLaundry
+                    ? "Tap the map to adjust the pin. The fee covers both trips and is based on distance to the laundry."
+                    : "Tap the map to adjust the pin. Delivery fee is based on distance to the store."}
                 </CustomText>
                 <FoodCartMiniMap
                   latitude={location!.latitude}
@@ -831,7 +853,7 @@ const FoodCart = () => {
 
         <SurfaceCard style={styles.totalsCard}>
           <View style={styles.summaryRow}>
-            <CustomText fontSize={14}>Subtotal</CustomText>
+            <CustomText fontSize={14}>{isLaundry ? "Items (estimate)" : "Subtotal"}</CustomText>
             <CustomText fontFamily="SemiBold" fontSize={14}>
               {formatCurrency(subtotal)}
             </CustomText>
@@ -843,10 +865,10 @@ const FoodCart = () => {
           {needsDeliveryAddress ? (
             <View style={styles.summaryRow}>
               <View style={{ flex: 1, paddingRight: 8 }}>
-                <CustomText fontSize={14}>Delivery fee</CustomText>
+                <CustomText fontSize={14}>{isLaundry ? "Collection & return" : "Delivery fee"}</CustomText>
                 {deliveryQuote ? (
                   <CustomText fontSize={11} color="#888">
-                    {deliveryQuote.km.toFixed(1)} km from store
+                    {deliveryQuote.km.toFixed(1)} km from {isLaundry ? "the laundry, both ways" : "store"}
                   </CustomText>
                 ) : null}
               </View>
@@ -857,7 +879,7 @@ const FoodCart = () => {
           ) : null}
           <View style={[styles.summaryRow, styles.totalRow]}>
             <CustomText fontFamily="SemiBold" fontSize={16}>
-              Total
+              {isLaundry ? "Estimated total" : "Total"}
             </CustomText>
             <CustomText fontFamily="SemiBold" fontSize={16} style={{ color: accent }}>
               {totalLabel}
@@ -881,7 +903,7 @@ const FoodCart = () => {
       <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
         <View style={styles.footerTotal}>
           <CustomText fontSize={13} color="#666">
-            Total
+            {isLaundry ? "Estimated total" : "Total"}
           </CustomText>
           <CustomText fontFamily="SemiBold" fontSize={22} style={{ color: accent }}>
             {totalLabel}
@@ -1024,6 +1046,8 @@ const styles = StyleSheet.create({
   },
   sectionHeading: { marginTop: 16, marginBottom: 10 },
   fulfillmentRow: { flexDirection: "row", gap: 8, marginBottom: 8 },
+  laundryInfo: { padding: 14, marginBottom: 12 },
+  laundryInfoRow: { flexDirection: "row", alignItems: "center" },
   fulfillmentOpt: {
     flex: 1,
     alignItems: "center",

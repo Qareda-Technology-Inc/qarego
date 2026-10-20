@@ -165,8 +165,9 @@ export const createMyMenuItem = async (req, res) => {
   if (!name || (price == null && originalPrice == null)) {
     throw new BadRequestError("Menu item name and price are required");
   }
-  // Every new item needs a real photo, so customers see what they're ordering.
-  if (!sanitizeImageUrl(imageUrl)) {
+  // Every new item needs a real photo, so customers see what they're ordering. A laundry's
+  // price list (shirt, trousers, duvet…) is services, so a photo is optional there.
+  if (!sanitizeImageUrl(imageUrl) && req.restaurant?.vertical !== "LAUNDRY") {
     throw new BadRequestError("Add a photo of this item before saving it");
   }
 

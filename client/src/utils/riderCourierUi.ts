@@ -15,6 +15,9 @@ type CourierRide = {
   restaurantName?: string;
 };
 
+/** Collect-first trips: the customer's laundry bag, or their empty gas cylinder. */
+const isLaundryTrip = (ride?: CourierRide | null) => ride?.storeVertical === "LAUNDRY";
+
 export type RiderCourierUi = {
   meetLabel: string;
   /** Person the rider should meet/call at this step (matches contactPhone). */
@@ -44,12 +47,21 @@ export function getRiderCourierUi(ride?: CourierRide | null): RiderCourierUi {
 
   if (ride?.gasLeg === "COLLECT") {
     const atCustomer = status === "START";
+    const laundry = isLaundryTrip(ride);
     return {
-      meetLabel: atCustomer ? "Collect the empty cylinder" : "Hand it to the station",
-      contactName: atCustomer ? ride?.customer?.name || "Customer" : ride?.restaurantName || "Gas station",
+      meetLabel: atCustomer
+        ? laundry
+          ? "Collect the laundry bag"
+          : "Collect the empty cylinder"
+        : laundry
+          ? "Hand it to the laundry"
+          : "Hand it to the station",
+      contactName: atCustomer
+        ? ride?.customer?.name || "Customer"
+        : ride?.restaurantName || (laundry ? "Laundry" : "Gas station"),
       contactPhone: ride?.customer?.phone,
-      pickupLabel: "Customer (empty cylinder)",
-      dropLabel: "Gas station",
+      pickupLabel: laundry ? "Customer (laundry bag)" : "Customer (empty cylinder)",
+      dropLabel: laundry ? "Laundry" : "Gas station",
     };
   }
 
@@ -122,9 +134,10 @@ export function getRiderSwipeTitle(ride?: CourierRide | null): string {
   const isParcel = ride?.serviceType === "DELIVERY";
 
   if (ride?.gasLeg === "COLLECT") {
-    if (status === "START") return "Collected the empty";
-    if (status === "ARRIVED") return "Heading to the station";
-    if (status === "IN_PROGRESS") return "Handed to the station";
+    const laundry = isLaundryTrip(ride);
+    if (status === "START") return laundry ? "Collected the bag" : "Collected the empty";
+    if (status === "ARRIVED") return laundry ? "Heading to the laundry" : "Heading to the station";
+    if (status === "IN_PROGRESS") return laundry ? "Handed to the laundry" : "Handed to the station";
   }
   if (status === "START") {
     if (isFood) return "Confirm pickup";
@@ -160,6 +173,21 @@ export function getRiderDeliveryPhase(ride?: CourierRide | null): RiderDeliveryP
 
   if (ride?.gasLeg === "COLLECT") {
     const step = status === "START" ? 1 : status === "ARRIVED" ? 2 : 3;
+    if (isLaundryTrip(ride)) {
+      return {
+        step,
+        totalSteps: 3,
+        phaseLabel: step === 1 ? "Collect the laundry" : step === 2 ? "Go to the laundry" : "Hand to the laundry",
+        phaseHint:
+          step === 1
+            ? "Go to the customer and collect their laundry bag. Don't open it: the laundry counts the items."
+            : step === 2
+              ? `Take the bag to ${ride?.restaurantName || "the laundry"}`
+              : "Give the bag to the laundry staff",
+        accentColor: "#0e7490",
+        swipeColor: "#0e7490",
+      };
+    }
     return {
       step,
       totalSteps: 3,
@@ -179,14 +207,18 @@ export function getRiderDeliveryPhase(ride?: CourierRide | null): RiderDeliveryP
     return {
       step: 1,
       totalSteps: 3,
-      phaseLabel: ride?.gasLeg
+      phaseLabel: isLaundryTrip(ride)
+        ? "Collect the clean laundry"
+        : ride?.gasLeg
         ? "Collect the gas"
         : isFood
           ? "Collect order"
           : isParcel
             ? "Collect parcel"
             : "Go to pickup",
-      phaseHint: ride?.gasLeg
+      phaseHint: isLaundryTrip(ride)
+        ? `Head to ${ride?.restaurantName || "the laundry"} and confirm when you have the bag`
+        : ride?.gasLeg
         ? `Head to ${ride?.restaurantName || "the gas station"} and confirm when you have the cylinder`
         : isFood
           ? "Head to the restaurant and confirm when you have the order"

@@ -1,3 +1,4 @@
+import { formatLongDuration } from "@/styles/foodStyles";
 import { formatCurrency } from "./Constants";
 import {
   getCommerceOrderCopy,
@@ -54,6 +55,10 @@ type CancelInfo = {
   refundStatus?: "NONE" | "DUE" | "REFUNDED";
   gasMode?: "REFILL" | "EXCHANGE" | null;
   gasStage?: "TO_STATION" | "AT_STATION" | null;
+  laundry?: {
+    priceStatus?: "estimate" | "awaiting_customer" | "approved" | "declined";
+    countedItemCount?: number | null;
+  } | null;
   restaurantName?: string;
   fulfillmentType?: "DELIVERY" | "PICKUP" | "SCHEDULED";
   total?: number;
@@ -151,6 +156,97 @@ function gasRefillHero(orderStatus: FoodOrderStatus, ride: GasRide, info: Cancel
   return { title: "Gas filled", subtitle: "The courier is collecting it from the station" };
 }
 
+/**
+ * Laundry runs like a gas refill (collected first), with the shop's count in the middle: if it
+ * costs more than the estimate the customer approves it before anything is washed.
+ */
+function laundryStepIndex(orderStatus: FoodOrderStatus, ride: GasRide, info: CancelInfo) {
+  if (orderStatus === "DELIVERED") return 7;
+  if (orderStatus === "READY_FOR_PICKUP" || orderStatus === "PICKED_UP") return 6;
+  if (info.gasStage === "AT_STATION") return info.laundry?.priceStatus === "approved" ? 5 : 4;
+  if (info.gasStage === "TO_STATION" || (ride?.gasLeg === "COLLECT" && ride.status === "IN_PROGRESS")) {
+    return 3;
+  }
+  if (orderStatus === "PREPARING") return 2;
+  return 0;
+}
+
+function buildLaundrySteps(orderStatus: FoodOrderStatus, ride: GasRide, info: CancelInfo): TrackingStep[] {
+  const shop = info.restaurantName || "the laundry";
+  const searching = ride?.gasLeg === "COLLECT" && ride.status === "SEARCHING_FOR_RIDER";
+  const status = info.laundry?.priceStatus;
+  const declined = status === "declined";
+  const defs = [
+    { id: "placed", label: "Request sent", subtitle: `Sent to ${shop}` },
+    { id: "accepted", label: "Laundry accepted", subtitle: "A rider will come for your bag" },
+    {
+      id: "collect",
+      label: searching ? "Finding a rider" : "Rider collecting your laundry",
+      subtitle: "Have your bag ready",
+    },
+    { id: "to_shop", label: "Taking it to the laundry", subtitle: shop },
+    {
+      id: "count",
+      label: status === "awaiting_customer" ? "Approve the new price" : "Counting your items",
+      subtitle:
+        status === "awaiting_customer"
+          ? "The count came to more than your estimate"
+          : "They confirm the price before washing",
+    },
+    declined
+      ? { id: "wash", label: "Not washed", subtitle: "You declined the new price" }
+      : { id: "wash", label: "Washing", subtitle: "Washed, dried and folded" },
+    {
+      id: "returning",
+      label: declined ? "Bringing it back unwashed" : "Bringing it back",
+      subtitle: "Pay cash and share your code",
+    },
+    { id: "done", label: "Laundry returned", subtitle: declined ? "You paid the delivery only" : "Enjoy your fresh clothes" },
+  ];
+  const current = laundryStepIndex(orderStatus, ride, info);
+  return defs.map((step, index) => ({
+    ...step,
+    state: index < current ? "done" : index === current ? "active" : "pending",
+  }));
+}
+
+function laundryHero(orderStatus: FoodOrderStatus, ride: GasRide, info: CancelInfo) {
+  const shop = info.restaurantName || "The laundry";
+  if (orderStatus === "PLACED" || orderStatus === "CONFIRMED") {
+    return { title: "Confirming request", subtitle: "Waiting for the laundry to accept" };
+  }
+  if (ride?.gasLeg === "COLLECT") {
+    if (ride.status === "SEARCHING_FOR_RIDER") {
+      return { title: "Finding a rider", subtitle: "They'll collect your laundry" };
+    }
+    if (ride.status === "START") return { title: "Rider on the way", subtitle: "Have your bag ready" };
+    if (ride.status === "ARRIVED") return { title: "Rider has arrived", subtitle: "Hand over your laundry" };
+    if (ride.status === "IN_PROGRESS") {
+      return { title: "On the way to the laundry", subtitle: "Your bag is with the rider" };
+    }
+  }
+  if (orderStatus === "PREPARING") {
+    const status = info.laundry?.priceStatus;
+    if (status === "awaiting_customer") {
+      return { title: "Approve the new price", subtitle: `${shop} counted your items` };
+    }
+    if (status === "approved") return { title: "Washing your clothes", subtitle: `${shop} is on it` };
+    return { title: "At the laundry", subtitle: "They're counting your items" };
+  }
+  const declined = info.laundry?.priceStatus === "declined";
+  if (ride?.status === "IN_PROGRESS") {
+    return {
+      title: declined ? "Bringing it back unwashed" : "Bringing your laundry back",
+      subtitle: "Pay cash and share your code on arrival",
+    };
+  }
+  const subtitle =
+    !ride || ride.status === "SEARCHING_FOR_RIDER"
+      ? "Finding a rider to bring it back"
+      : "A rider is collecting it from the laundry";
+  return { title: declined ? "Coming back unwashed" : "Your laundry is clean", subtitle };
+}
+
 /** Why the order was cancelled, from the customer's point of view. */
 function cancelledSubtitle(c: ReturnType<typeof getCommerceOrderCopy>, info?: CancelInfo | null) {
   if (info?.cancelledBy === "CUSTOMER") return "You cancelled this order";
@@ -185,6 +281,9 @@ export function buildFoodTrackingSteps(
   }
   if (cancelInfo?.gasMode === "REFILL") {
     return buildGasRefillSteps(orderStatus, ride as GasRide, cancelInfo);
+  }
+  if (cancelInfo?.laundry) {
+    return buildLaundrySteps(orderStatus, ride as GasRide, cancelInfo);
   }
   if (cancelInfo?.fulfillmentType === "PICKUP") {
     return buildPickupSteps(orderStatus, cancelInfo);
@@ -266,7 +365,9 @@ export function getHeroStatusLabel(
   if (orderStatus === "CANCELLED") {
     return { title: "Order cancelled", subtitle: cancelledMoneyNote(order) };
   }
-  if (orderStatus === "DELIVERED" || (ride?.status === "COMPLETED" && order?.gasMode !== "REFILL")) {
+  // A finished collection trip (gas refill, laundry) isn't the delivery.
+  const collectFirst = order?.gasMode === "REFILL" || !!order?.laundry;
+  if (orderStatus === "DELIVERED" || (ride?.status === "COMPLETED" && !collectFirst)) {
     return {
       title: order?.fulfillmentType === "PICKUP" ? "Collected" : "Delivered",
       subtitle: c.customerEnjoyDelivered,
@@ -274,6 +375,9 @@ export function getHeroStatusLabel(
   }
   if (order?.gasMode === "REFILL") {
     return gasRefillHero(orderStatus, ride as GasRide, order);
+  }
+  if (order?.laundry) {
+    return laundryHero(orderStatus, ride as GasRide, order);
   }
   if (order?.fulfillmentType === "PICKUP") {
     if (orderStatus === "READY_FOR_PICKUP") {
@@ -397,13 +501,20 @@ export function getFoodOrderEtaWindow(order: {
   status: FoodOrderStatus;
   restaurant?: { estimatedPrepMinutes?: number } | null;
   ride?: { status?: string; gasLeg?: string | null } | null;
+  laundry?: { priceStatus?: string } | null;
 }): string | null {
   if (order.status === "DELIVERED" || order.status === "CANCELLED") return null;
-  // Gas refill collection runs the other way: customer first, then the station.
+  const laundry = !!order.laundry;
+  // Collect-first trips (gas refill, laundry) run the other way: customer first, then the store.
   if (order.ride?.gasLeg === "COLLECT") {
-    if (order.ride.status === "START") return "Courier on the way";
-    if (order.ride.status === "ARRIVED") return "Courier at your door";
-    if (order.ride.status === "IN_PROGRESS") return "To the station";
+    if (order.ride.status === "START") return laundry ? "Rider on the way" : "Courier on the way";
+    if (order.ride.status === "ARRIVED") return laundry ? "Rider at your door" : "Courier at your door";
+    if (order.ride.status === "IN_PROGRESS") return laundry ? "To the laundry" : "To the station";
+  }
+  if (laundry && order.status === "PREPARING") {
+    if (order.laundry?.priceStatus === "awaiting_customer") return "Waiting for you";
+    const prep = order.restaurant?.estimatedPrepMinutes;
+    return prep && prep >= 120 ? `Ready in ${formatLongDuration(prep).toLowerCase()}` : "At the laundry";
   }
   if (order.ride?.status === "IN_PROGRESS") return "Arriving soon";
   if (order.ride?.status === "START" || order.ride?.status === "ARRIVED") {

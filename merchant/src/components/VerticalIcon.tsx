@@ -1,4 +1,4 @@
-import { ChefHat, Flame, Pill, ShoppingBasket, type LucideProps } from "lucide-react";
+import { ChefHat, Flame, Pill, Shirt, ShoppingBasket, type LucideProps } from "lucide-react";
 import { normalizeVertical } from "@/lib/commerceOrderCopy";
 
 /** The store type's own icon: a chef's hat only for restaurants. */
@@ -10,6 +10,8 @@ export function VerticalIcon({ vertical, ...props }: { vertical?: string | null 
       return <Pill {...props} />;
     case "GAS":
       return <Flame {...props} />;
+    case "LAUNDRY":
+      return <Shirt {...props} />;
     default:
       return <ChefHat {...props} />;
   }

@@ -10,7 +10,17 @@ export type FoodOrderRow = {
   gasStage?: "TO_STATION" | "AT_STATION" | null;
   gasSizeKg?: number | null;
   gasEmptyReturnedAt?: string | null;
+  /** Laundry orders: the customer's estimate, then the shop's count. */
+  laundry?: {
+    estimatedSubtotal: number;
+    estimatedItemCount: number;
+    priceStatus: "estimate" | "awaiting_customer" | "approved" | "declined";
+    countedAt?: string | null;
+    countedItemCount?: number | null;
+    previousSubtotal?: number | null;
+  } | null;
   items: {
+    menuItem?: string;
     name: string;
     quantity: number;
     price: number;

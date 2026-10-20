@@ -401,7 +401,7 @@ export const updateRideStatus = async (req, res) => {
     }
 
     const isFood = ride.serviceType === "FOOD";
-    // Gas REFILL first leg: courier hands the empty to the station (no customer code there).
+    // Collect-first leg (gas refill, laundry): courier hands it to the store (no customer code there).
     const isGasCollect = ride.gasLeg === "COLLECT";
     const isParcel = ride.serviceType === "DELIVERY";
     const current = ride.status;
@@ -455,12 +455,25 @@ export const updateRideStatus = async (req, res) => {
         await FoodOrder.findByIdAndUpdate(ride.foodOrder, { gasStage: "TO_STATION" });
       }
       if (status === "COMPLETED") {
-        // Empty is at the station; the station fills it and marks it ready for the return leg.
+        // It's at the store (empty cylinder or laundry bag); the store marks it ready for the return leg.
         await FoodOrder.findByIdAndUpdate(ride.foodOrder, {
           gasStage: "AT_STATION",
           gasCourier: ride.rider?._id || ride.rider,
           ride: null,
         });
+      }
+      // Live update for the store board and the customer's tracking (no push: the order's
+      // status hasn't changed, only where their item is).
+      if (req.io && (status === "IN_PROGRESS" || status === "COMPLETED")) {
+        const order = await FoodOrder.findById(ride.foodOrder)
+          .populate("restaurant", "name cuisine imageEmoji address latitude longitude vertical estimatedPrepMinutes")
+          .populate("ride")
+          .lean();
+        if (order) {
+          req.io.to(`food_order_${order._id}`).emit("foodOrderUpdated", order);
+          req.io.to(`customer_${order.customer}`).emit("foodOrderUpdated", order);
+          req.io.to(`restaurant_${order.restaurant?._id || order.restaurant}`).emit("foodOrderUpdated", order);
+        }
       }
     } else if (ride.foodOrder) {
       if (status === "IN_PROGRESS") {

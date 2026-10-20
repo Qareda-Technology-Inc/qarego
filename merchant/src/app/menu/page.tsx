@@ -77,6 +77,8 @@ type BulkMode = "percent" | "amount" | "set";
 export default function MenuPage() {
   const { isOwner, activeRestaurant } = useAuth();
   const copy = getCommerceOrderCopy(activeRestaurant?.vertical);
+  // A laundry's price list is services (shirt, trousers…): photos are optional there.
+  const photosRequired = activeRestaurant?.vertical !== "LAUNDRY";
   const [items, setItems] = useState<MenuItem[]>([]);
   const [categories, setCategories] = useState<MenuCategory[]>([]);
   const [loading, setLoading] = useState(true);
@@ -158,7 +160,7 @@ export default function MenuPage() {
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editing && !form.imageUrl) {
+    if (!editing && !form.imageUrl && photosRequired) {
       alert(`Add a photo of this ${copy.itemSingular} so customers can see what they're ordering.`);
       return;
     }
@@ -338,7 +340,7 @@ export default function MenuPage() {
         </p>
       )}
 
-      {isOwner && noPhotoCount > 0 ? (
+      {isOwner && photosRequired && noPhotoCount > 0 ? (
         <div className="mb-4 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           <ImageOff className="mt-0.5 h-4 w-4 shrink-0" />
           <span>
@@ -569,7 +571,11 @@ export default function MenuPage() {
           </div>
           <ImageUploadField
             label="Photo"
-            hint={editing ? "JPG or PNG, max 500 KB." : "Required. A clear photo of this exact item. JPG or PNG, max 500 KB."}
+            hint={
+              editing || !photosRequired
+                ? "Optional. JPG or PNG, max 500 KB."
+                : "Required. A clear photo of this exact item. JPG or PNG, max 500 KB."
+            }
             folder="menu"
             value={form.imageUrl}
             onChange={(imageUrl) => setForm({ ...form, imageUrl })}

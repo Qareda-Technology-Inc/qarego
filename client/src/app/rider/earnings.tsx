@@ -92,19 +92,22 @@ function getTxLabel(type: string, note?: string): string {
     PAYOUT: note?.toLowerCase().includes("cash out") ? "Cash out" : "Payout",
     MANUAL_DEBIT: "Debit",
     CANCELLATION_CREDIT: "Cancellation pay",
+    TRIP_SHARE_CREDIT: "Trip share",
+    TRIP_SHARE_DEBIT: "Trip share (other rider)",
   };
   return labels[type] ?? type;
 }
 
 function getTxIcon(type: string): keyof typeof Ionicons.glyphMap {
-  if (type === "COMMISSION_DEBIT" || type === "MANUAL_DEBIT" || type === "PAYOUT") {
+  if (type === "COMMISSION_DEBIT" || type === "MANUAL_DEBIT" || type === "PAYOUT" || type === "TRIP_SHARE_DEBIT") {
     return "remove-circle-outline";
   }
   if (
     type === "DIGITAL_EARNING" ||
     type === "TOP_UP" ||
     type === "MANUAL_CREDIT" ||
-    type === "CANCELLATION_CREDIT"
+    type === "CANCELLATION_CREDIT" ||
+    type === "TRIP_SHARE_CREDIT"
   ) {
     return "add-circle-outline";
   }

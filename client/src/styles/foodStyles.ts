@@ -93,7 +93,18 @@ export function cuisineHeroBg(cuisine?: string): string {
 }
 
 /** Delivery ETA range e.g. 30–55 min */
+/** Long turnarounds (laundry: often a day) read as hours or days, e.g. "About 1 day". */
+export function formatLongDuration(minutes: number): string {
+  if (minutes >= 1440) {
+    const days = Math.round(minutes / 1440);
+    return `About ${days} day${days === 1 ? "" : "s"}`;
+  }
+  const hours = Math.round(minutes / 60);
+  return `About ${hours} hour${hours === 1 ? "" : "s"}`;
+}
+
 export function formatPrepWindow(prepMinutes?: number): string {
+  if (prepMinutes != null && prepMinutes >= 120) return formatLongDuration(prepMinutes);
   const base = Math.max(15, prepMinutes ?? 30);
   const high = base + 25;
   return `${base}–${high} min`;

@@ -31,6 +31,7 @@ export function inferVerticalFromCategoryName(category) {
   if (/(grocery|grocer|mart|supermarket|provision|market)/i.test(hay)) return "GROCERY";
   if (/(pharmacy|pharma|drug|medicine|chemist|health)/i.test(hay)) return "PHARMACY";
   if (/(\bgas\b|lpg|cylinder|filling)/i.test(hay)) return "GAS";
+  if (/(laundry|laundromat|dry ?clean|wash ?(&|and)? ?(fold|iron)|ironing)/i.test(hay)) return "LAUNDRY";
   return "FOOD";
 }
 

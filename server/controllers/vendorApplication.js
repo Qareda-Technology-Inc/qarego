@@ -7,7 +7,7 @@ import { BadRequestError, NotFoundError } from "../errors/index.js";
 import { normalizePhone } from "../utils/phone.js";
 import { inviteVendor } from "../utils/vendorLogin.js";
 
-const STORE_TYPES = ["FOOD", "GROCERY", "PHARMACY", "GAS", "OTHER"];
+const STORE_TYPES = ["FOOD", "GROCERY", "PHARMACY", "GAS", "LAUNDRY", "OTHER"];
 const LIMIT_PER_HOUR = 5;
 const recentByIp = new Map();
 

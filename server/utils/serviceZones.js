@@ -135,3 +135,17 @@ export async function ensureGasInExistingZones() {
   await Settings.updateOne({ key: "global" }, { $addToSet: { appliedMigrations: GAS_ZONE_MIGRATION } });
   console.log(`[service-zones] added gas to ${result.modifiedCount} existing area(s)`);
 }
+
+const LAUNDRY_ZONE_MIGRATION = "laundry-service-zones";
+
+/** Same as gas: areas saved with an explicit service list get laundry once, then it can be switched off. */
+export async function ensureLaundryInExistingZones() {
+  const settings = await Settings.findOne({ key: "global" }).select("appliedMigrations");
+  if (!settings || settings.appliedMigrations?.includes(LAUNDRY_ZONE_MIGRATION)) return;
+  const result = await ServiceZone.updateMany(
+    { "serviceTypes.0": { $exists: true }, serviceTypes: { $ne: "LAUNDRY" } },
+    { $addToSet: { serviceTypes: "LAUNDRY" } }
+  );
+  await Settings.updateOne({ key: "global" }, { $addToSet: { appliedMigrations: LAUNDRY_ZONE_MIGRATION } });
+  console.log(`[service-zones] added laundry to ${result.modifiedCount} existing area(s)`);
+}

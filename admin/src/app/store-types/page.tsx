@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 
-type Vertical = "FOOD" | "GROCERY" | "PHARMACY" | "GAS";
+type Vertical = "FOOD" | "GROCERY" | "PHARMACY" | "GAS" | "LAUNDRY";
 
 interface StoreType {
   _id: string;
@@ -25,6 +25,7 @@ const VERTICALS: { key: Vertical; label: string; hint: string }[] = [
   { key: "GROCERY", label: "Groceries & Supermarket", hint: "Store departments — Produce, Butchery, Pantry, etc." },
   { key: "PHARMACY", label: "Pharmacy", hint: "Medical categories — OTC, POM, Vitamins, First Aid, etc." },
   { key: "GAS", label: "Cooking gas", hint: "Gas station services — LPG Refill, Cylinder Exchange, etc." },
+  { key: "LAUNDRY", label: "Laundry", hint: "Laundry services — Wash & Fold, Dry Cleaning, Ironing, etc." },
 ];
 
 const EMPTY = { name: "", vertical: "FOOD" as Vertical, emoji: "🍽️", sortOrder: "0" };
@@ -54,7 +55,7 @@ export default function StoreTypesPage() {
   }, []);
 
   const grouped = useMemo(() => {
-    const map: Record<Vertical, StoreType[]> = { FOOD: [], GROCERY: [], PHARMACY: [], GAS: [] };
+    const map: Record<Vertical, StoreType[]> = { FOOD: [], GROCERY: [], PHARMACY: [], GAS: [], LAUNDRY: [] };
     storeTypes.forEach((t) => map[t.vertical]?.push(t));
     return map;
   }, [storeTypes]);
@@ -65,7 +66,7 @@ export default function StoreTypesPage() {
       ...EMPTY,
       vertical,
       emoji:
-        vertical === "GROCERY" ? "🛒" : vertical === "PHARMACY" ? "💊" : vertical === "GAS" ? "🔥" : "🍽️",
+        vertical === "GROCERY" ? "🛒" : vertical === "PHARMACY" ? "💊" : vertical === "GAS" ? "🔥" : vertical === "LAUNDRY" ? "🧺" : "🍽️",
     });
     setModalOpen(true);
   };
@@ -192,6 +193,7 @@ export default function StoreTypesPage() {
               <option value="GROCERY">Grocery</option>
               <option value="PHARMACY">Pharmacy</option>
               <option value="GAS">Cooking gas</option>
+              <option value="LAUNDRY">Laundry</option>
             </select>
           </div>
           <div>

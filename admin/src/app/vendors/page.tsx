@@ -51,7 +51,7 @@ interface Restaurant {
   address: string;
   owner?: OwnerRef | null;
   menuItemCount?: number;
-  vertical?: "FOOD" | "GROCERY" | "PHARMACY" | "GAS";
+  vertical?: "FOOD" | "GROCERY" | "PHARMACY" | "GAS" | "LAUNDRY";
 }
 
 const VERTICAL_BADGE: Record<string, string> = {
@@ -59,6 +59,7 @@ const VERTICAL_BADGE: Record<string, string> = {
   GROCERY: "Grocery",
   PHARMACY: "Pharmacy",
   GAS: "Gas station",
+  LAUNDRY: "Laundry",
 };
 
 const EMPTY_VENDOR = { name: "", phone: "", username: "" };

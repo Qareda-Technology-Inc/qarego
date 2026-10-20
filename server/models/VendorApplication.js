@@ -9,7 +9,7 @@ const vendorApplicationSchema = new Schema(
     contactName: { type: String, required: true, trim: true, maxlength: 80 },
     phone: { type: String, required: true, trim: true },
     email: { type: String, default: null, trim: true, lowercase: true, maxlength: 120 },
-    storeType: { type: String, enum: ["FOOD", "GROCERY", "PHARMACY", "GAS", "OTHER"], required: true },
+    storeType: { type: String, enum: ["FOOD", "GROCERY", "PHARMACY", "GAS", "LAUNDRY", "OTHER"], required: true },
     area: { type: String, required: true, trim: true, maxlength: 120 },
     message: { type: String, default: "", trim: true, maxlength: 1000 },
     /** new → contacted → invited (vendor account created) | declined */

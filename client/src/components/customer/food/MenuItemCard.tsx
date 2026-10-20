@@ -211,6 +211,15 @@ function ListRowBody({ item, accent, rx }: { item: MenuItem; accent: string; rx?
 export default function MenuItemCard({ item, accent, isClosed, layout, onAdd, showRxBadge }: Props) {
   const rx = !!showRxBadge && isPomMenuItem(item);
   if (layout === "column") {
+    // No photo (e.g. a laundry price list): just the add button, not an empty grey box.
+    if (!resolveMediaUrl(item.imageUrl)) {
+      return (
+        <View style={listStyles.card}>
+          <ListRowBody item={item} accent={accent} rx={rx} />
+          <AddButton onAdd={onAdd} isClosed={isClosed} />
+        </View>
+      );
+    }
     return (
       <View style={listStyles.card}>
         <ListRowBody item={item} accent={accent} rx={rx} />

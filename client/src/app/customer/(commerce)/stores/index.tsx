@@ -24,9 +24,7 @@ import {
 import { useFoodCartStore } from "@/store/foodCartStore";
 import { useUserStore } from "@/store/userStore";
 import RestaurantCard from "@/components/customer/food/RestaurantCard";
-import StoreTypeFilterRow, {
-  STORE_TYPE_FILTERS,
-} from "@/components/customer/food/StoreTypeFilterRow";
+import { STORE_TYPE_FILTERS } from "@/components/customer/food/StoreTypeFilterRow";
 import DeliverToBar from "@/components/customer/food/DeliverToBar";
 import CuisineCarousel from "@/components/customer/food/CuisineCarousel";
 import { COMMERCE_SEARCH_HINT, FOOD_THEME, GRID_CARD_WIDTH, GRID_H_PAD } from "@/styles/foodStyles";
@@ -36,7 +34,6 @@ import EmptyStateCard from "@/components/shared/EmptyStateCard";
 import { DS } from "@/theme/designSystem";
 import {
   STORE_VERTICAL_CONFIG,
-  StoreTypeFilter,
   StoreVertical,
   resolveStoreVertical,
   matchesStoreTypeFilter,
@@ -73,12 +70,19 @@ const AllStoresBrowse = () => {
     typeFilter === "FOOD" || typeFilter === "GROCERY" || typeFilter === "PHARMACY"
       ? typeFilter
       : "NONE";
+  // Laundry is its own service, not one of the shops: no cross-links to food, groceries or pharmacy.
+  const standalone = typeFilter === "LAUNDRY";
+  const searchHint =
+    typeFilter === "ALL" ? COMMERCE_SEARCH_HINT : STORE_VERTICAL_CONFIG[typeFilter as StoreVertical].searchPlaceholder;
 
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [categoryFilter, setCategoryFilter] = useState("All");
+  // The chosen category belongs to one store type; switching type starts again from "All".
+  const [category, setCategory] = useState({ type: typeFilter, name: "All" });
+  const categoryFilter = category.type === typeFilter ? category.name : "All";
+  const setCategoryFilter = useCallback((name: string) => setCategory({ type: typeFilter, name }), [typeFilter]);
   const [activeOrder, setActiveOrder] = useState<FoodOrder | null>(null);
   const [fareRates, setFareRates] = useState<
     Record<string, { baseFare: number; perKmRate: number; minimumFare: number }> | null
@@ -131,14 +135,6 @@ const AllStoresBrowse = () => {
       return categoryFilter === "All" || storeMatchesBrowseTag(r, categoryFilter);
     });
   }, [typeStores, categoryFilter]);
-
-  const setTypeFilter = (type: StoreTypeFilter) => {
-    setCategoryFilter("All");
-    router.navigate({
-      pathname: "/customer/stores",
-      params: type === "ALL" ? {} : { type },
-    });
-  };
 
   const openStore = (item: Restaurant) => {
     const vertical = resolveStoreVertical(item);
@@ -194,7 +190,7 @@ const AllStoresBrowse = () => {
         }
       >
         <Ionicons name="search" size={18} color={FOOD_THEME.text} />
-        <Text style={styles.searchCtaText}>{COMMERCE_SEARCH_HINT}</Text>
+        <Text style={styles.searchCtaText}>{searchHint}</Text>
         <Ionicons name="chevron-forward" size={18} color="#cbd5e1" />
       </TouchableOpacity>
 
@@ -209,25 +205,6 @@ const AllStoresBrowse = () => {
         }
       />
 
-      <View style={styles.exploreSection}>
-        <View style={styles.allHeader}>
-          <View style={{ flex: 1 }}>
-            <CustomText fontFamily="Bold" fontSize={19} style={styles.allTitle}>
-              {categoryFilter === "All" ? "Explore all stores" : "Filtered stores"}
-            </CustomText>
-            <CustomText fontSize={13} color={FOOD_THEME.textLight} style={{ marginTop: 2 }}>
-              {typeFilter === "ALL"
-                ? "Food & restaurants, groceries & supermarket, and pharmacy near you"
-                : STORE_VERTICAL_CONFIG[typeFilter as StoreVertical].subtitle}
-            </CustomText>
-          </View>
-          <View style={[styles.countPill, { borderColor: accent }]}>
-            <CustomText fontFamily="SemiBold" fontSize={12} style={{ color: accent }}>
-              {filtered.length}
-            </CustomText>
-          </View>
-        </View>
-      </View>
     </View>
   );
 
@@ -238,8 +215,7 @@ const AllStoresBrowse = () => {
       <View style={[styles.headerBlock, { paddingTop: insets.top }]}>
         <CommerceTopBar title={screenTitle} accent={accent} itemCount={itemCount} />
         <DeliverToBar accentColor={accent} />
-        <CommerceModuleLinks active={moduleActive} />
-        <StoreTypeFilterRow value={typeFilter} onChange={setTypeFilter} style={styles.typeFilterScroll} />
+        {standalone ? null : <CommerceModuleLinks active={moduleActive} />}
       </View>
 
       {loading ? (
@@ -281,7 +257,13 @@ const AllStoresBrowse = () => {
           ListEmptyComponent={
             <View style={styles.empty}>
               <EmptyStateCard
-                icon={loadError ? "⚠️" : "🛒"}
+                icon={
+                  loadError
+                    ? "⚠️"
+                    : typeFilter === "ALL"
+                    ? "🛒"
+                    : STORE_VERTICAL_CONFIG[typeFilter as StoreVertical].defaultEmoji
+                }
                 title={loadError ? "Could not load stores" : "No stores in this category"}
                 description={
                   loadError
@@ -314,9 +296,6 @@ const styles = StyleSheet.create({
     borderBottomColor: FOOD_THEME.divider,
     paddingBottom: 8,
   },
-  typeFilterScroll: {
-    marginTop: 4,
-  },
   activeOrderBanner: {
     flexDirection: "row",
     alignItems: "center",
@@ -345,31 +324,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: FOOD_THEME.searchHint,
     fontWeight: "400",
-  },
-  exploreSection: {
-    marginTop: 4,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: FOOD_THEME.divider,
-    backgroundColor: FOOD_THEME.searchBg,
-  },
-  allHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    marginBottom: 14,
-  },
-  allTitle: { color: FOOD_THEME.text },
-  countPill: {
-    minWidth: 36,
-    height: 32,
-    borderRadius: 16,
-    borderWidth: 1.5,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 10,
-    backgroundColor: "#fff",
   },
   loadingWrap: { flex: 1, alignItems: "center", justifyContent: "center" },
   gridRow: { justifyContent: "space-between", marginBottom: 14 },

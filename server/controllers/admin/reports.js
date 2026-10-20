@@ -288,11 +288,11 @@ export const getReport = async (req, res) => {
       };
     })
     .concat(
-      ['FOOD', 'GROCERY', 'PHARMACY', 'GAS'].map((key) => {
+      ['FOOD', 'GROCERY', 'PHARMACY', 'GAS', 'LAUNDRY'].map((key) => {
         const s = orderServices.find((v) => v._id === key);
         return {
           key,
-          label: { FOOD: 'Food', GROCERY: 'Groceries', PHARMACY: 'Pharmacy', GAS: 'Cooking gas' }[key],
+          label: { FOOD: 'Food', GROCERY: 'Groceries', PHARMACY: 'Pharmacy', GAS: 'Cooking gas', LAUNDRY: 'Laundry' }[key],
           count: s?.count || 0,
           cancelled: s?.cancelled || 0,
           bookings: money(s?.gross),

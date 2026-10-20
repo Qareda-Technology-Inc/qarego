@@ -217,6 +217,22 @@ function foodOrderData(order) {
 /** Customer push for food order lifecycle (socket + FCM). */
 export async function buildFoodOrderCustomerPush(order) {
   const status = order?.status;
+
+  // Laundry: "ready" means it's clean (or coming back unwashed after a declined price).
+  if (order?.laundry && status === "READY_FOR_PICKUP") {
+    const name = order?.restaurantName || order?.restaurant?.name || "The laundry";
+    return order.laundry.priceStatus === "declined"
+      ? {
+          title: "Laundry on its way back",
+          body: `${name} is returning your items unwashed. You only pay the delivery fee.`,
+          data: foodOrderData(order),
+        }
+      : {
+          title: "Your laundry is ready",
+          body: `${name} has finished. A rider will bring it back to you.`,
+          data: foodOrderData(order),
+        };
+  }
   let key = FOOD_STATUS_TEMPLATE_KEY[status];
 
   if (status === "READY_FOR_PICKUP") {

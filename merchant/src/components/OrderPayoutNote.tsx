@@ -10,8 +10,9 @@ import type { FoodOrderRow } from "@/lib/orderTypes";
 export function OrderPayoutNote({ order }: { order: FoodOrderRow }) {
   const net = order.restaurantNet;
   if (net == null || !(net >= 0)) return null;
-  // Nothing is paid out for a cancelled order.
-  if (order.status === "CANCELLED") return null;
+  // Nothing is paid out for a cancelled order, or for laundry the customer declined (it goes
+  // back unwashed and the store isn't paid).
+  if (order.status === "CANCELLED" || order.laundry?.priceStatus === "declined") return null;
   const delivered = order.status === "DELIVERED";
 
   const commission = Math.max(0, Math.round((order.subtotal - net) * 100) / 100);
@@ -44,7 +45,7 @@ export function OrderPayoutNote({ order }: { order: FoodOrderRow }) {
       </span>
       {commission > 0 ? (
         <span className="text-xs text-emerald-800/80">
-          {order.gasMode ? "Gas" : "Food"} {formatCurrency(order.subtotal)} − {formatCurrency(commission)} QareGO commission
+          {order.gasMode ? "Gas" : order.laundry ? "Laundry" : "Food"} {formatCurrency(order.subtotal)} − {formatCurrency(commission)} QareGO commission
         </span>
       ) : null}
     </div>

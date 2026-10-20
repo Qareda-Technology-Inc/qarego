@@ -1,6 +1,6 @@
 import { appAxios } from "./apiInterceptors";
 
-export type ServiceZoneType = "RIDE" | "PARCEL" | "FOOD" | "GROCERY" | "PHARMACY" | "GAS";
+export type ServiceZoneType = "RIDE" | "PARCEL" | "FOOD" | "GROCERY" | "PHARMACY" | "GAS" | "LAUNDRY";
 
 export type ServiceCoverage = {
   inServiceArea: boolean;

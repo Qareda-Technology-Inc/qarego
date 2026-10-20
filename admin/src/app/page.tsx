@@ -10,6 +10,7 @@ import {
   ChevronRight,
   Clock,
   Flame,
+  Shirt,
   Loader2,
   Package,
   Pill,
@@ -36,6 +37,7 @@ type DayTotals = {
   grocery: number;
   pharmacy: number;
   gas: number;
+  laundry: number;
   bookings: number;
 };
 
@@ -62,6 +64,7 @@ const SERVICES: { key: keyof Omit<DayTotals, "bookings">; label: string; icon: L
   { key: "grocery", label: "Groceries", icon: ShoppingBasket, tint: "bg-lime-50 text-lime-700" },
   { key: "pharmacy", label: "Pharmacy", icon: Pill, tint: "bg-rose-50 text-rose-700" },
   { key: "gas", label: "Cooking gas", icon: Flame, tint: "bg-amber-50 text-amber-700" },
+  { key: "laundry", label: "Laundry", icon: Shirt, tint: "bg-cyan-50 text-cyan-700" },
 ];
 
 /** "+3 vs yesterday" / "−20%" style comparison. */
