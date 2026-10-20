@@ -62,7 +62,7 @@ export default function RiderReliabilityScreen() {
     <View style={commonStyles.page}>
       <SafeAreaView edges={["top"]} style={{ backgroundColor: "#fff" }} />
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+        <TouchableOpacity onPress={() => (router.canGoBack() ? router.back() : router.replace("/rider/account"))} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={24} color={Colors.text} />
         </TouchableOpacity>
         <CustomText variant="h5" fontFamily="SemiBold">

@@ -573,8 +573,8 @@ export default function MenuPage() {
             label="Photo"
             hint={
               editing || !photosRequired
-                ? "Optional. JPG or PNG, max 500 KB."
-                : "Required. A clear photo of this exact item. JPG or PNG, max 500 KB."
+                ? "Optional. You can crop it to a square; we resize it for you."
+                : "Required. A clear photo of this exact item. You can crop it to a square; we resize it for you."
             }
             folder="menu"
             value={form.imageUrl}

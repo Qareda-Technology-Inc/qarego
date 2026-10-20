@@ -497,7 +497,7 @@ export default function SettingsPage() {
             folder="licences"
             value={licence.url}
             onChange={(url) => setLicence((l) => ({ ...l, url }))}
-            aspect="wide"
+            aspect="document"
           />
           <div>
             <Label htmlFor="licenceNumber">Licence number</Label>
@@ -605,7 +605,7 @@ export default function SettingsPage() {
 
         <ImageUploadField
           label="Store cover photo"
-          hint="Customers see this on the store page. JPG or PNG, max 500 KB."
+          hint="Customers see this on the store page. Any photo works; you can crop it and we resize it for you."
           folder="stores"
           value={form.imageUrl}
           onChange={(imageUrl) => setForm((f) => ({ ...f, imageUrl }))}

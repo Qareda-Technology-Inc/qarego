@@ -80,7 +80,7 @@ const RiderRides = () => {
     <View style={commonStyles.page}>
       <SafeAreaView edges={["top"]} style={styles.safeArea} />
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+        <TouchableOpacity onPress={() => (router.canGoBack() ? router.back() : router.replace("/rider/home"))} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={24} color={Colors.text} />
         </TouchableOpacity>
         <CustomText variant="h5" fontFamily="SemiBold">

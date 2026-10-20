@@ -138,7 +138,8 @@ const MessagePopup: FC<MessagePopupProps> = ({
                   {message}
                 </CustomText>
               ) : null}
-              <View style={styles.buttons}>
+              {/* Three or more choices don't fit side by side: stack them. */}
+              <View style={[styles.buttons, effectiveButtons.length > 2 && styles.buttonsStacked]}>
                 {effectiveButtons.map((btn, i) => {
                   const isDestructive = btn.style === "destructive";
                   const isCancel = btn.style === "cancel";
@@ -148,6 +149,7 @@ const MessagePopup: FC<MessagePopupProps> = ({
                       onPress={() => handleButtonPress(btn)}
                       style={({ pressed }) => [
                         styles.btn,
+                        effectiveButtons.length > 2 ? styles.btnStacked : styles.btnInRow,
                         isDestructive && styles.btnDestructive,
                         isCancel && styles.btnCancel,
                         pressed && styles.btnPressed,
@@ -252,6 +254,16 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: Colors.primary,
     alignItems: "center",
+  },
+  buttonsStacked: {
+    flexDirection: "column",
+    gap: 10,
+  },
+  btnInRow: {
+    flexShrink: 1,
+  },
+  btnStacked: {
+    alignSelf: "stretch",
   },
   btnCancel: {
     backgroundColor: Colors.secondary,

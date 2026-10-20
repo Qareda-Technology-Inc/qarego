@@ -83,7 +83,7 @@ Rooms: `onDuty`, `rider_<id>`, `ride_<id>`, `food_order_<id>`, `customer_<id>`, 
 - Merchant sockets and uploads connect directly to `NEXT_PUBLIC_SOCKET_URL` / `NEXT_PUBLIC_API_BASE_URL`. Use the LAN IP for kitchen tablets. `NEXT_PUBLIC_*` values are fixed at build time, so redeploy after changing them on Vercel.
 
 ### Logic duplicated across apps
-Some helpers exist in both `server/utils/*.js` and `client/src/utils/*.ts`, and some also in `admin/src/lib`: `offerRanking`, `earningsBreakdown`, `commerceOrderCopy`, `commerceVerticalTags`, `menuModifiers`, `mediaLimits`, `prescription`, `reviewLogin`, `parcelMode`, `currency`. They are not shared packages. When you change rules in one, check the copies.
+Some helpers exist in both `server/utils/*.js` and `client/src/utils/*.ts`, and some also in `admin/src/lib`: `offerRanking`, `earningsBreakdown`, `commerceOrderCopy`, `commerceVerticalTags`, `menuModifiers`, `mediaLimits`, `prepareImage` (merchant + admin: crop/shrink before upload), `prescription`, `reviewLogin`, `parcelMode`, `currency`. They are not shared packages. When you change rules in one, check the copies.
 
 ## Deployment & config
 API on Render (`https://qarego.onrender.com`), admin and merchant on Vercel, mobile via EAS (`client/eas.json`; Firebase files uploaded with `npm run eas:firebase-env`). Each app has a `.env.example`. More setup docs: `FIREBASE_PUSH_SETUP.md`, `server/HUBTEL_SETUP.md`, `server/ARKASEL_SETUP.md`.

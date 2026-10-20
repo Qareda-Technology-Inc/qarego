@@ -181,7 +181,7 @@ export default function StoreCreateForm({
         </div>
         <ImageUploadField
           label="Store cover photo"
-          hint="Shown to customers in the food app. JPG or PNG, max 500 KB."
+          hint="Shown to customers in the app. Any photo works; you can crop it and we resize it for you."
           folder="stores"
           value={form.imageUrl}
           onChange={(imageUrl) => setForm((f) => ({ ...f, imageUrl }))}

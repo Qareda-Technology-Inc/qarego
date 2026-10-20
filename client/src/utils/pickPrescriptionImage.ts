@@ -1,8 +1,6 @@
 import { Alert, Platform } from "react-native";
-import {
-  assertImageBytesUnderLimit,
-  imageSizeErrorMessage,
-} from "@/utils/mediaLimits";
+import { imageSizeErrorMessage } from "@/utils/mediaLimits";
+import { SHRINK_MAX_EDGE, shrinkPickedImage } from "@/utils/shrinkImage";
 
 let ImagePicker: typeof import("expo-image-picker") | null = null;
 try {
@@ -11,24 +9,36 @@ try {
   /* native rebuild required */
 }
 
-async function takeFromAsset(
-  asset: { uri: string; fileSize?: number | null }
-): Promise<string | null> {
-  if (asset.fileSize != null) {
-    try {
-      assertImageBytesUnderLimit(asset.fileSize);
-    } catch (err) {
-      Alert.alert(
-        "Image too large",
-        err instanceof Error ? err.message : imageSizeErrorMessage()
-      );
-      return null;
-    }
+async function takeFromAsset(asset: {
+  uri: string;
+  width?: number;
+  height?: number;
+  fileSize?: number | null;
+}): Promise<string | null> {
+  try {
+    return await shrinkPickedImage(asset, SHRINK_MAX_EDGE.document);
+  } catch (err) {
+    Alert.alert(
+      "Image too large",
+      err instanceof Error ? err.message : imageSizeErrorMessage()
+    );
+    return null;
   }
-  return asset.uri;
 }
 
-export async function pickPrescriptionImage(): Promise<string | null> {
+type DocumentPickCopy = {
+  title: string;
+  message: string;
+  /** e.g. "photograph your prescription" */
+  cameraReason: string;
+  /** e.g. "attach your prescription" */
+  libraryReason: string;
+};
+
+/**
+ * Photo of a document (prescription, licence, ID…): camera or library, any shape, kept readable.
+ */
+export async function pickDocumentImage(copy: DocumentPickCopy): Promise<string | null> {
   if (!ImagePicker) {
     Alert.alert(
       "Feature unavailable",
@@ -38,20 +48,20 @@ export async function pickPrescriptionImage(): Promise<string | null> {
   }
 
   return new Promise((resolve) => {
-    Alert.alert("Prescription photo", "Choose how to add your prescription.", [
+    Alert.alert(copy.title, copy.message, [
       {
         text: "Take photo",
         onPress: async () => {
           const cam = await ImagePicker!.requestCameraPermissionsAsync();
           if (!cam.granted) {
-            Alert.alert("Permission needed", "Allow camera access to photograph your prescription.");
+            Alert.alert("Permission needed", `Allow camera access to ${copy.cameraReason}.`);
             resolve(null);
             return;
           }
           const result = await ImagePicker!.launchCameraAsync({
             mediaTypes: ImagePicker!.MediaTypeOptions.Images,
             allowsEditing: true,
-            quality: 0.5,
+            quality: 0.8,
           });
           if (result.canceled || !result.assets?.[0]) {
             resolve(null);
@@ -66,7 +76,7 @@ export async function pickPrescriptionImage(): Promise<string | null> {
           if (Platform.OS === "ios") {
             const library = await ImagePicker!.requestMediaLibraryPermissionsAsync();
             if (!library.granted) {
-              Alert.alert("Permission needed", "Allow photo access to attach your prescription.");
+              Alert.alert("Permission needed", `Allow photo access to ${copy.libraryReason}.`);
               resolve(null);
               return;
             }
@@ -74,7 +84,7 @@ export async function pickPrescriptionImage(): Promise<string | null> {
           const result = await ImagePicker!.launchImageLibraryAsync({
             mediaTypes: ImagePicker!.MediaTypeOptions.Images,
             allowsEditing: true,
-            quality: 0.5,
+            quality: 0.8,
           });
           if (result.canceled || !result.assets?.[0]) {
             resolve(null);
@@ -85,5 +95,14 @@ export async function pickPrescriptionImage(): Promise<string | null> {
       },
       { text: "Cancel", style: "cancel", onPress: () => resolve(null) },
     ]);
+  });
+}
+
+export function pickPrescriptionImage(): Promise<string | null> {
+  return pickDocumentImage({
+    title: "Prescription photo",
+    message: "Choose how to add your prescription.",
+    cameraReason: "photograph your prescription",
+    libraryReason: "attach your prescription",
   });
 }

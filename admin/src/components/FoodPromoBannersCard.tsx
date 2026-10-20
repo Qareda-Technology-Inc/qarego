@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/Button";
 import { Label } from "@/components/ui/Label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Loader2, Plus, Save, Trash2, Upload } from "lucide-react";
-import { MAX_IMAGE_SIZE_LABEL } from "@/lib/mediaLimits";
+import { ImageCropModal } from "@/components/ImageCropModal";
+import { IMAGE_SHAPES, loadImage, prepareImage, type PixelArea } from "@/lib/prepareImage";
 
 type BannerRow = {
   imageUrl: string;
@@ -34,6 +35,10 @@ export function FoodPromoBannersCard() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploadingIdx, setUploadingIdx] = useState<number | null>(null);
+  // Picked photo waiting in the crop window, for banner row `idx`.
+  const [cropping, setCropping] = useState<{ idx: number; img: HTMLImageElement; src: string; name: string } | null>(
+    null
+  );
   const fileRefs = useRef<Record<number, HTMLInputElement | null>>({});
 
   useEffect(() => {
@@ -53,6 +58,28 @@ export function FoodPromoBannersCard() {
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
+
+  const pickForRow = async (idx: number, file: File) => {
+    try {
+      const img = await loadImage(file);
+      setCropping({ idx, img, src: URL.createObjectURL(file), name: file.name });
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Couldn't open that image");
+    }
+  };
+
+  const onCropped = async (area: PixelArea) => {
+    if (!cropping) return;
+    const { idx, img, src, name } = cropping;
+    try {
+      setUploadingIdx(idx);
+      const file = await prepareImage(img, IMAGE_SHAPES.promoBanner, area, name);
+      await uploadForRow(idx, file);
+    } finally {
+      URL.revokeObjectURL(src);
+      setCropping(null);
+    }
+  };
 
   const uploadForRow = async (idx: number, file: File) => {
     setUploadingIdx(idx);
@@ -99,9 +126,9 @@ export function FoodPromoBannersCard() {
       <CardHeader>
         <CardTitle>Food home promos</CardTitle>
         <CardDescription>
-          Upload banner images only — put all text and offers in the image itself. JPG or PNG (max{" "}
-          {MAX_IMAGE_SIZE_LABEL}). Recommended size: <strong>{PROMO_BANNER_ASPECT} px</strong>{" "}
-          (landscape, ~2.4:1). Slides auto-rotate every 5.5 seconds; customers can also swipe.
+          Upload banner images only — put all text and offers in the image itself. Any photo works: you crop it to
+          the banner shape and it&apos;s resized to <strong>{PROMO_BANNER_ASPECT} px</strong> for you. Slides
+          auto-rotate every 5.5 seconds; customers can also swipe.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -150,8 +177,8 @@ export function FoodPromoBannersCard() {
                   </div>
                   <div className="space-y-3 min-w-[180px] flex-1">
                     <p className="text-xs text-gray-600 leading-relaxed">
-                      Design at <strong>{PROMO_BANNER_ASPECT} px</strong> (or same 2.4:1 ratio). The
-                      preview matches the customer app — no extra text is added on top.
+                      Best designed at <strong>{PROMO_BANNER_ASPECT} px</strong>; anything else can be cropped to
+                      fit. The preview matches the customer app — no extra text is added on top.
                     </p>
                     <input
                       ref={(el) => {
@@ -163,7 +190,7 @@ export function FoodPromoBannersCard() {
                       onChange={(e) => {
                         const f = e.target.files?.[0];
                         e.target.value = "";
-                        if (f) uploadForRow(i, f);
+                        if (f) pickForRow(i, f);
                       }}
                     />
                     <Button
@@ -235,6 +262,19 @@ export function FoodPromoBannersCard() {
           </>
         )}
       </CardContent>
+      {cropping ? (
+        <ImageCropModal
+          imageSrc={cropping.src}
+          aspect={IMAGE_SHAPES.promoBanner.aspect}
+          shapeLabel="home-screen banner"
+          busy={uploadingIdx === cropping.idx}
+          onCancel={() => {
+            URL.revokeObjectURL(cropping.src);
+            setCropping(null);
+          }}
+          onConfirm={onCropped}
+        />
+      ) : null}
     </Card>
   );
 }

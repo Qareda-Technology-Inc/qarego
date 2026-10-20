@@ -1,4 +1,13 @@
 import { uploadMediaFile } from "./uploadMedia";
+import { isImageFile } from "./mediaLimits";
+import { IMAGE_SHAPES, loadImage, prepareImage } from "./prepareImage";
+
+/** Shrink photos (never PDFs) so phone-camera shots fit the upload limit. Documents keep the whole page. */
+async function uploadShrunk(file: File, folder: string) {
+  if (!isImageFile(file) || file.type === "application/pdf") return uploadMediaFile(file, folder);
+  const shape = folder === "drivers/profile" ? IMAGE_SHAPES.profile : IMAGE_SHAPES.document;
+  return uploadMediaFile(await prepareImage(await loadImage(file), shape, undefined, file.name), folder);
+}
 
 const SINGLE_FILE_FIELDS = [
   { input: "profileImage", urlKey: "profileImageUrl", folder: "drivers/profile" },
@@ -17,7 +26,7 @@ async function uploadIfPresent(
 ): Promise<string | undefined> {
   const file = formData.get(inputName);
   if (file instanceof File && file.size > 0) {
-    const { url } = await uploadMediaFile(file, folder);
+    const { url } = await uploadShrunk(file, folder);
     return url;
   }
   return undefined;
@@ -47,10 +56,10 @@ export async function buildDriverPayloadFromForm(
     .getAll("license")
     .filter((f): f is File => f instanceof File && f.size > 0);
   if (licenseFiles[0] && !payload.licenseFrontUrl) {
-    payload.licenseFrontUrl = (await uploadMediaFile(licenseFiles[0], "drivers/license")).url;
+    payload.licenseFrontUrl = (await uploadShrunk(licenseFiles[0], "drivers/license")).url;
   }
   if (licenseFiles[1] && !payload.licenseBackUrl) {
-    payload.licenseBackUrl = (await uploadMediaFile(licenseFiles[1], "drivers/license")).url;
+    payload.licenseBackUrl = (await uploadShrunk(licenseFiles[1], "drivers/license")).url;
   }
 
   return payload;

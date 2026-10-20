@@ -8,6 +8,7 @@ import {
   Alert,
   ScrollView,
   InteractionManager,
+  Image,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import CustomText from "./CustomText";
@@ -16,10 +17,10 @@ import { router, type Href } from "expo-router";
 import { logout } from "@/service/authService";
 import { useWS } from "@/service/WSProvider";
 import { useUserStore } from "@/store/userStore";
-import { onboardingUserId, useOnboardingStore } from "@/store/onboardingStore";
 import { useRiderStore } from "@/store/riderStore";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { appAxios } from "@/service/apiInterceptors";
+import { resolveMediaUrl } from "@/service/mediaUpload";
 
 const width = Dimensions.get("window").width;
 const DRAWER_WIDTH = width * 0.78;
@@ -49,7 +50,11 @@ const SideDrawer: FC<SideDrawerProps> = ({ visible, onClose, role }) => {
   const riderStore = useRiderStore();
 
   const user = role === "customer" ? userStore.user : riderStore.user;
-  const resetOnboarding = useOnboardingStore((s) => s.reset);
+  const avatarUri = resolveMediaUrl(
+    role === "customer"
+      ? (user as { profileImage?: string } | null)?.profileImage
+      : (user as { driverDetails?: { profileImage?: string } } | null)?.driverDetails?.profileImage
+  );
   const [activeTripCount, setActiveTripCount] = useState(0);
   const [pendingOfferCount, setPendingOfferCount] = useState(0);
   const [hasDebt, setHasDebt] = useState(false);
@@ -112,6 +117,9 @@ const SideDrawer: FC<SideDrawerProps> = ({ visible, onClose, role }) => {
       label: "Dashboard",
       library: Ionicons,
       href: "/rider/home",
+      // Offers arrive on the dashboard, so their count shows here.
+      badgeText: pendingOfferCount > 0 ? `${pendingOfferCount} offer${pendingOfferCount === 1 ? "" : "s"}` : null,
+      badgeTone: "danger",
     },
     {
       icon: "history",
@@ -129,30 +137,7 @@ const SideDrawer: FC<SideDrawerProps> = ({ visible, onClose, role }) => {
       badgeText: hasDebt ? "Debt" : null,
       badgeTone: "warning",
     },
-    {
-      icon: "person-outline",
-      label: "Profile & Documents",
-      library: Ionicons,
-      href: "/rider/profile",
-    },
-    {
-      icon: "notifications-outline",
-      label: "Pending Offers",
-      library: Ionicons,
-      href: "/rider/home",
-      badgeText: pendingOfferCount > 0 ? String(pendingOfferCount) : null,
-      badgeTone: pendingOfferCount > 0 ? "danger" : "neutral",
-    },
-    {
-      icon: "compass-outline",
-      label: "Show me around",
-      library: Ionicons,
-      href: "/rider/home",
-      action: () => {
-        resetOnboarding(onboardingUserId(user));
-        router.navigate("/rider/home");
-      },
-    },
+    // Profile, documents, work mode, the app tour and log out live on My Account.
     {
       icon: "shield-checkmark-outline",
       label: "Safety",
@@ -257,9 +242,19 @@ const SideDrawer: FC<SideDrawerProps> = ({ visible, onClose, role }) => {
               <Ionicons name="close" size={24} color={Colors.text} />
             </Pressable>
 
+            {/* The whole card opens My Account. */}
+            <Pressable
+              onPress={() => navigate(accountHref)}
+              accessibilityRole="button"
+              accessibilityLabel="Open my account"
+            >
             <View style={styles.userInfo}>
               <View style={styles.avatarContainer}>
-                <Ionicons name="person" size={30} color={Colors.text} />
+                {avatarUri ? (
+                  <Image source={{ uri: avatarUri }} style={styles.avatarImage} />
+                ) : (
+                  <Ionicons name="person" size={30} color={Colors.text} />
+                )}
               </View>
               <View style={{ flex: 1 }}>
                 <CustomText fontFamily="Bold" fontSize={18} numberOfLines={1}>
@@ -274,11 +269,12 @@ const SideDrawer: FC<SideDrawerProps> = ({ visible, onClose, role }) => {
               </View>
             </View>
 
-            <Pressable style={styles.accountBtn} onPress={() => navigate(accountHref)}>
+            <View style={styles.accountBtn}>
               <CustomText fontFamily="Medium" fontSize={12} style={{ color: Colors.text }}>
-                My Account
+                {role === "rider" ? "My account · profile & settings" : "My Account"}
               </CustomText>
               <Ionicons name="chevron-forward" size={16} color={Colors.text} />
+            </View>
             </Pressable>
           </View>
 
@@ -333,6 +329,7 @@ const SideDrawer: FC<SideDrawerProps> = ({ visible, onClose, role }) => {
             })}
           </ScrollView>
 
+          {role === "rider" ? null : (
           <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
             <View style={styles.footerDivider} />
             <Pressable
@@ -352,6 +349,7 @@ const SideDrawer: FC<SideDrawerProps> = ({ visible, onClose, role }) => {
               </CustomText>
             </Pressable>
           </View>
+          )}
         </View>
       </View>
     </Modal>
@@ -404,6 +402,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginRight: 15,
+    overflow: "hidden",
+  },
+  avatarImage: {
+    width: 50,
+    height: 50,
   },
   ratingContainer: {
     flexDirection: "row",

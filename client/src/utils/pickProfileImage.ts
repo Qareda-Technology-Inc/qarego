@@ -1,8 +1,6 @@
 import { Alert, Platform } from "react-native";
-import {
-  assertImageBytesUnderLimit,
-  imageSizeErrorMessage,
-} from "@/utils/mediaLimits";
+import { imageSizeErrorMessage } from "@/utils/mediaLimits";
+import { SHRINK_MAX_EDGE, shrinkPickedImage } from "@/utils/shrinkImage";
 
 let ImagePicker: typeof import("expo-image-picker") | null = null;
 try {
@@ -36,23 +34,18 @@ export async function pickProfileImage(): Promise<string | null> {
     mediaTypes: ImagePicker.MediaTypeOptions.Images,
     allowsEditing: true,
     aspect: [1, 1],
-    quality: 0.35,
+    quality: 0.8,
   });
 
   if (result.canceled || !result.assets?.[0]) return null;
 
-  const asset = result.assets[0];
-  if (asset.fileSize != null) {
-    try {
-      assertImageBytesUnderLimit(asset.fileSize);
-    } catch (err) {
-      Alert.alert(
-        "Image too large",
-        err instanceof Error ? err.message : imageSizeErrorMessage()
-      );
-      return null;
-    }
+  try {
+    return await shrinkPickedImage(result.assets[0], SHRINK_MAX_EDGE.profile);
+  } catch (err) {
+    Alert.alert(
+      "Image too large",
+      err instanceof Error ? err.message : imageSizeErrorMessage()
+    );
+    return null;
   }
-
-  return asset.uri;
 }

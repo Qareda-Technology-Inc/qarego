@@ -3,6 +3,9 @@
 import React, { useEffect, useRef } from "react";
 import { X } from "lucide-react";
 
+/** Open modals, newest last, so stacked windows behave. */
+const openModals: symbol[] = [];
+
 interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -21,21 +24,29 @@ export const Modal: React.FC<ModalProps> = ({
 }) => {
   const modalRef = useRef<HTMLDivElement>(null);
 
+  // Latest onClose without re-registering: re-registering would move this modal back on top.
+  const onCloseRef = useRef(onClose);
   useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
-    if (isOpen) {
-      document.addEventListener("keydown", handleEscape);
-      document.body.style.overflow = "hidden";
-    }
+  useEffect(() => {
+    if (!isOpen) return;
+    const id = Symbol("modal");
+    openModals.push(id);
+    const handleEscape = (e: KeyboardEvent) => {
+      // Only the window on top closes (e.g. the crop window over the product form).
+      if (e.key === "Escape" && openModals[openModals.length - 1] === id) onCloseRef.current();
+    };
+    document.addEventListener("keydown", handleEscape);
+    document.body.style.overflow = "hidden";
 
     return () => {
       document.removeEventListener("keydown", handleEscape);
-      document.body.style.overflow = "unset";
+      openModals.splice(openModals.indexOf(id), 1);
+      if (openModals.length === 0) document.body.style.overflow = "unset";
     };
-  }, [isOpen, onClose]);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
