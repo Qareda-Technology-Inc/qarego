@@ -151,6 +151,8 @@ const foodOrderSchema = new Schema(
           /** Subtotal before the shop's count, kept when the count changed it. */
           previousSubtotal: { type: Number, default: null },
           decidedAt: { type: Date, default: null },
+          /** Start of the booked 2-hour collection window; null = collect as soon as accepted. */
+          pickupAt: { type: Date, default: null },
         },
         { _id: false }
       ),

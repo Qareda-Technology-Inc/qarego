@@ -158,6 +158,9 @@ const MessagePopup: FC<MessagePopupProps> = ({
                       <CustomText
                         fontFamily="SemiBold"
                         fontSize={14}
+                        numberOfLines={1}
+                        adjustsFontSizeToFit
+                        minimumFontScale={0.8}
                         style={[
                           styles.btnText,
                           isDestructive && styles.btnTextDestructive,
@@ -259,8 +262,11 @@ const styles = StyleSheet.create({
     flexDirection: "column",
     gap: 10,
   },
+  // Two buttons share the row equally, so longer labels like "Keep order" stay on one line.
   btnInRow: {
-    flexShrink: 1,
+    flex: 1,
+    minWidth: 0,
+    paddingHorizontal: 12,
   },
   btnStacked: {
     alignSelf: "stretch",

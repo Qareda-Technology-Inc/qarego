@@ -16,6 +16,7 @@ import { AssignRiderModal } from "@/components/AssignRiderModal";
 import { PrescriptionAttachments } from "@/components/PrescriptionAttachments";
 import { OrderPayoutNote } from "@/components/OrderPayoutNote";
 import { VerticalIcon } from "@/components/VerticalIcon";
+import { formatPickupWindow } from "@/lib/laundryPickup";
 import { LaundryCountModal } from "@/components/LaundryCountModal";
 import {
   Bell,
@@ -35,6 +36,7 @@ import {
   PackageCheck,
   ClipboardCheck,
   Shirt,
+  CalendarClock,
 } from "lucide-react";
 
 type RestaurantLoc = {
@@ -454,6 +456,9 @@ function OrderCard({
   const collectFirst = order.gasMode === "REFILL" || !!laundry;
   const refillWaiting = order.status === "PREPARING" && collectFirst && order.gasStage !== "AT_STATION";
   const laundryAtShop = !!laundry && order.status === "PREPARING" && order.gasStage === "AT_STATION";
+  // Booked for later and no rider sent yet: the board shows when the pickup is.
+  const pickupBooked =
+    !!laundry?.pickupAt && !order.ride && !order.gasStage && (order.status === "PLACED" || order.status === "PREPARING");
   const canCancel =
     (order.status === "PREPARING" && !(collectFirst && order.gasStage)) ||
     (order.status === "READY_FOR_PICKUP" && !laundry);
@@ -469,10 +474,13 @@ function OrderCard({
           <p className="truncate font-semibold text-foreground">{order.customer?.name || "Customer"}</p>
           <p className="text-xs text-muted">#{order._id.slice(-6).toUpperCase()}</p>
         </div>
-        <span className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold ${timerClass}`}>
-          <Clock className="h-3 w-3" />
-          {mins < 1 ? "now" : `${mins} min`}
-        </span>
+        {/* An accepted pickup waiting for its booked slot isn't late. */}
+        {pickupBooked && order.status === "PREPARING" ? null : (
+          <span className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold ${timerClass}`}>
+            <Clock className="h-3 w-3" />
+            {mins < 1 ? "now" : `${mins} min`}
+          </span>
+        )}
       </div>
 
       <div className="mt-2 flex flex-wrap gap-1.5">
@@ -486,6 +494,12 @@ function OrderCard({
             <Shirt className="h-3 w-3" />
             {laundry.countedItemCount ?? laundry.estimatedItemCount} items
             {laundry.countedAt ? " · counted" : " · estimate"}
+          </span>
+        ) : null}
+        {pickupBooked ? (
+          <span className="inline-flex items-center gap-1 rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-800">
+            <CalendarClock className="h-3 w-3" />
+            Pickup {formatPickupWindow(laundry!.pickupAt!)}
           </span>
         ) : null}
         {laundry?.priceStatus === "declined" ? (
@@ -590,7 +604,12 @@ function OrderCard({
           </div>
         ) : null}
 
-        {refillWaiting ? (
+        {refillWaiting && pickupBooked ? (
+          <p className="flex items-center gap-1 text-sm text-gray-600">
+            <CalendarClock className="h-4 w-4" /> Pickup booked for {formatPickupWindow(laundry!.pickupAt!)}. A rider is
+            sent 15 minutes before.
+          </p>
+        ) : refillWaiting ? (
           <p className="flex items-center gap-1 text-sm text-gray-600">
             <Bike className="h-4 w-4" />
             {laundry

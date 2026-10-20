@@ -22,6 +22,9 @@ type CustomTextProps = {
   fontFamily?: "SemiBold" | "Regular" | "Bold" | "Medium" | "Light";
   numberOfLines?: number;
   ellipsizeMode?: "head" | "middle" | "tail" | "clip";
+  /** Shrink the text (down to minimumFontScale) instead of wrapping or cutting it off. */
+  adjustsFontSizeToFit?: boolean;
+  minimumFontScale?: number;
   /** Text colour; an explicit `style.color` still wins. */
   color?: string;
 };
@@ -50,6 +53,8 @@ const CustomText: FC<CustomTextProps> = ({
   children,
   color,
   ellipsizeMode,
+  adjustsFontSizeToFit,
+  minimumFontScale,
 }) => {
   const scaledSize = RFValue(fontSize ? fontSize : fontSizes[variant]);
   return (
@@ -66,6 +71,8 @@ const CustomText: FC<CustomTextProps> = ({
       ]}
       numberOfLines={numberOfLines ? numberOfLines : undefined}
       ellipsizeMode={ellipsizeMode}
+      adjustsFontSizeToFit={adjustsFontSizeToFit}
+      minimumFontScale={minimumFontScale}
     >
       {children}
     </Text>

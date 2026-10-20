@@ -107,6 +107,8 @@ export type FoodOrder = {
     countedAt?: string | null;
     countedItemCount?: number | null;
     previousSubtotal?: number | null;
+    /** Start of the booked 2-hour collection window; null = as soon as the shop accepts. */
+    pickupAt?: string | null;
   } | null;
   deliveryCode?: string | null;
   fulfillmentType?: "DELIVERY" | "PICKUP" | "SCHEDULED";
@@ -163,6 +165,8 @@ export const createFoodOrder = async (payload: {
   scheduledFor?: string;
   promoCode?: string;
   prescriptionUrls?: string[];
+  /** Laundry: start of the chosen collection window (omit for as soon as possible). */
+  laundryPickupAt?: string;
   /** Same id on a retry → the server returns the first order instead of a duplicate. */
   clientRequestId?: string;
 }) => {
@@ -179,6 +183,18 @@ export const createFoodOrder = async (payload: {
     Alert.alert("Order failed", message);
     throw error;
   }
+};
+
+export type LaundryPickupSlots = {
+  asapAvailable: boolean;
+  windowMinutes: number;
+  slots: { start: string; end: string }[];
+};
+
+/** Bookable collection windows for a laundry (follows its opening hours). */
+export const fetchLaundryPickupSlots = async (restaurantId: string): Promise<LaundryPickupSlots> => {
+  const res = await appAxios.get(`/food/restaurants/${restaurantId}/laundry-pickup-slots`);
+  return res.data;
 };
 
 export type FoodOrderPaymentInit = {

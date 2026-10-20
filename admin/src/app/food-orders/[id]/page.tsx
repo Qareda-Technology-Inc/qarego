@@ -20,6 +20,7 @@ import { formatCurrency } from "@/lib/currency";
 import { resolveMediaUrl } from "@/lib/mediaUrl";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
+import { formatPickupWindow } from "@/lib/laundryPickup";
 
 type Person = { _id?: string; name?: string; phone?: string };
 type OrderDetail = {
@@ -47,6 +48,7 @@ type OrderDetail = {
     countedItemCount?: number | null;
     previousSubtotal?: number | null;
     decidedAt?: string | null;
+    pickupAt?: string | null;
   } | null;
   tripShare?: { type: "TRIP_SHARE_CREDIT" | "TRIP_SHARE_DEBIT"; amount: number; driver?: Person | null }[];
   items: { name: string; quantity: number; price: number; modifiers?: { optionName: string }[] }[];
@@ -359,12 +361,18 @@ export default function StoreOrderDetailPage() {
                       ? "Bag is at the shop"
                       : order.gasStage === "TO_STATION"
                         ? "Bag is with the collecting rider"
-                        : order.status === "PLACED"
-                          ? "Not collected yet"
+                        : order.status === "PLACED" || !order.collectionRide
+                          ? laundry.pickupAt
+                            ? "Waiting for the booked pickup"
+                            : "Not collected yet"
                           : "Bag has left the shop"}
                   </span>
                 </div>
                 <dl className="grid grid-cols-2 gap-x-6 gap-y-1.5">
+                  <dt className="text-gray-500">Pickup</dt>
+                  <dd className="text-right">
+                    {laundry.pickupAt ? formatPickupWindow(laundry.pickupAt) : "As soon as accepted"}
+                  </dd>
                   <dt className="text-gray-500">Customer estimate</dt>
                   <dd className="text-right">
                     {laundry.estimatedItemCount} items · {formatCurrency(laundry.estimatedSubtotal)}

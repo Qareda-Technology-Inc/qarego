@@ -40,6 +40,7 @@ import {
   resolveFoodOrderMapPoints,
   shouldShowFoodOrderMap,
   getFoodOrderEtaWindow,
+  isLaundryPickupBooked,
   isLiveFoodCourierTracking,
   getOrderDeliveryDistanceKm,
   resolveCourierVehicle,
@@ -235,9 +236,13 @@ const FoodOrderTracking = () => {
   }, [paymentInfo?.orderPaymentStatus, order?.paymentStatus, loadPaymentStatus]);
 
   const [cancelling, setCancelling] = useState(false);
+  const pickupBooked = !!order && isLaundryPickupBooked(order);
   const handleCancelOrder = useCallback(() => {
     if (!order?._id) return;
-    Alert.alert("Cancel this order?", "The store hasn't started on it yet.", [
+    Alert.alert(
+      "Cancel this order?",
+      pickupBooked ? "No rider has been sent for your laundry yet." : "The store hasn't started on it yet.",
+      [
       { text: "Keep order", style: "cancel" },
       {
         text: "Cancel order",
@@ -728,7 +733,7 @@ const FoodOrderTracking = () => {
               </View>
             ) : null}
 
-            {order.status === "PLACED" ? (
+            {order.status === "PLACED" || pickupBooked ? (
               <TouchableOpacity
                 onPress={handleCancelOrder}
                 disabled={cancelling}

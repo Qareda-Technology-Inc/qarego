@@ -47,6 +47,7 @@ import { uploadMediaUri } from "@/service/mediaUpload";
 
 import { isNoResponseError, lostConnectionMessage, useConnectivity } from "@/service/connectivity";
 import { useRequestId } from "@/utils/useRequestId";
+import LaundryPickupPicker from "@/components/customer/food/LaundryPickupPicker";
 type FulfillmentMode = "DELIVERY" | "PICKUP" | "SCHEDULED";
 
 /** Promo entry stays hidden until codes are validated server-side. */
@@ -117,6 +118,9 @@ const FoodCart = () => {
   const isPharmacy = selectedVertical === "PHARMACY";
   // Laundry is collected from the customer and brought back; the shop confirms the price.
   const isLaundry = selectedVertical === "LAUNDRY";
+  // Laundry collection time: null = as soon as the shop accepts, otherwise a booked window start.
+  const [laundryPickupAt, setLaundryPickupAt] = useState<string | null>(null);
+  const [laundryPickupReady, setLaundryPickupReady] = useState(false);
   const requiresPrescription = useMemo(() => {
     if (!isPharmacy) return false;
     const byId = new Map(menuItems.map((item) => [item._id, item]));
@@ -332,6 +336,7 @@ const FoodCart = () => {
         !quoteError &&
         deliveryQuote != null) &&
     (fulfillmentMode !== "SCHEDULED" || scheduledFor != null) &&
+    (!isLaundry || laundryPickupReady) &&
     prescriptionReady;
 
   const online = useConnectivity((st) => st.online);
@@ -342,6 +347,7 @@ const FoodCart = () => {
       items.map((i) => [i.menuItemId, i.quantity, toOrderModifierPayload(i.modifiers)]),
       fulfillmentMode,
       scheduledFor?.toISOString() ?? null,
+      laundryPickupAt,
       paymentMethod,
       location?.latitude,
       location?.longitude,
@@ -390,6 +396,7 @@ const FoodCart = () => {
         scheduledFor: scheduledFor?.toISOString(),
         promoCode: promoCode.trim() || undefined,
         prescriptionUrls: isPharmacy ? prescriptionUrls : undefined,
+        laundryPickupAt: isLaundry && laundryPickupAt ? laundryPickupAt : undefined,
         clientRequestId,
       });
       const orderId = response?.order?._id as string | undefined;
@@ -611,6 +618,23 @@ const FoodCart = () => {
         </View>
         </>
         )}
+
+        {isLaundry && restaurantId ? (
+          <>
+            <CustomText fontFamily="SemiBold" fontSize={15} style={styles.sectionHeading}>
+              When should we collect it?
+            </CustomText>
+            <SurfaceCard style={{ padding: 14, marginBottom: 12 }}>
+              <LaundryPickupPicker
+                restaurantId={restaurantId}
+                accent={accent}
+                value={laundryPickupAt}
+                onChange={setLaundryPickupAt}
+                onReadyChange={setLaundryPickupReady}
+              />
+            </SurfaceCard>
+          </>
+        ) : null}
 
         {needsDeliveryAddress ? (
           <>

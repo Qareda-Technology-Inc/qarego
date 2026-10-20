@@ -18,6 +18,8 @@ export type FoodOrderRow = {
     countedAt?: string | null;
     countedItemCount?: number | null;
     previousSubtotal?: number | null;
+    /** Booked collection window start; null = collect as soon as accepted. */
+    pickupAt?: string | null;
   } | null;
   items: {
     menuItem?: string;

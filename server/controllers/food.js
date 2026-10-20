@@ -34,6 +34,12 @@ import { isDuplicateKeyError, readClientRequestId } from "../utils/idempotency.j
 import { listAssignableRiders } from "./merchant/orders.js";
 import { availableNowFilter } from "../utils/menuAvailability.js";
 import { countItems } from "../utils/laundryOrders.js";
+import {
+  PICKUP_WINDOW_MIN,
+  laundryAsapAvailable,
+  laundryPickupSlots,
+  resolveLaundryPickupAt,
+} from "../utils/laundryPickup.js";
 /** Attach computed open/closed metadata to a plain restaurant object. */
 const withOpenState = (restaurant, now = new Date()) => {
   const state = computeOpenState(restaurant, now);
@@ -128,6 +134,7 @@ export const createFoodOrder = async (req, res) => {
     scheduledFor,
     promoCode,
     prescriptionUrls: prescriptionUrlsRaw,
+    laundryPickupAt: laundryPickupRaw,
   } = req.body;
 
   if (paymentMethod === "MOBILE_MONEY") assertMomoEnabled();
@@ -189,8 +196,18 @@ export const createFoodOrder = async (req, res) => {
     }
   }
 
+  // Laundry can be booked for a later pickup, even while the shop is closed (it accepts on opening).
+  let laundryPickupAt = null;
+  if (isLaundry) {
+    try {
+      laundryPickupAt = resolveLaundryPickupAt(restaurant, laundryPickupRaw);
+    } catch (err) {
+      throw new BadRequestError(err.message);
+    }
+  }
+
   const openState = computeOpenState(restaurant);
-  if (!openState.isOpen) {
+  if (!openState.isOpen && !(laundryPickupAt && openState.status === "closed")) {
     const suffix =
       openState.status === "closed"
         ? `${restaurant.name} is closed right now${
@@ -329,7 +346,7 @@ export const createFoodOrder = async (req, res) => {
     scheduledFor: scheduledForDate,
     status: "PLACED",
     laundry: isLaundry
-      ? { estimatedSubtotal: subtotal, estimatedItemCount: countItems(orderItems) }
+      ? { estimatedSubtotal: subtotal, estimatedItemCount: countItems(orderItems), pickupAt: laundryPickupAt }
       : null,
   });
   } catch (err) {
@@ -594,6 +611,18 @@ export const adminListAssignableRiders = async (req, res) => {
     throw new BadRequestError("Admin access required");
   }
   return listAssignableRiders(req, res);
+};
+
+/** GET /food/restaurants/:id/laundry-pickup-slots — bookable 2-hour collection windows. */
+export const getLaundryPickupSlots = async (req, res) => {
+  const restaurant = await Restaurant.findById(req.params.id).lean();
+  if (!restaurant || restaurant.vertical !== "LAUNDRY") throw new NotFoundError("Laundry not found");
+  const slots = laundryPickupSlots(restaurant).map((s) => ({ start: s.start, end: s.end }));
+  res.status(StatusCodes.OK).json({
+    asapAvailable: laundryAsapAvailable(restaurant),
+    windowMinutes: PICKUP_WINDOW_MIN,
+    slots,
+  });
 };
 
 /** GET /food/admin/orders/:id — everything support needs about one order. */

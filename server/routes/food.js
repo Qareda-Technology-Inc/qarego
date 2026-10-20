@@ -3,6 +3,7 @@ import { getGasOptions, getGasQuote, createGasOrder } from "../controllers/gas.j
 import {
   listRestaurants,
   getRestaurantMenu,
+  getLaundryPickupSlots,
   createFoodOrder,
   getFoodOrder,
   listMyFoodOrders,
@@ -26,6 +27,7 @@ const router = express.Router();
 
 router.get("/restaurants", listRestaurants);
 router.get("/restaurants/:id", getRestaurantMenu);
+router.get("/restaurants/:id/laundry-pickup-slots", getLaundryPickupSlots);
 router.get("/checkout-settings", getFoodCheckoutSettings);
 router.get("/delivery-quote", getFoodDeliveryQuote);
 router.post("/orders", createFoodOrder);

@@ -1,3 +1,4 @@
+import { formatPickupWindow, pickupDayLabel, pickupTimeRange } from "@/utils/laundryPickup";
 import { formatLongDuration } from "@/styles/foodStyles";
 import { formatCurrency } from "./Constants";
 import {
@@ -58,6 +59,7 @@ type CancelInfo = {
   laundry?: {
     priceStatus?: "estimate" | "awaiting_customer" | "approved" | "declined";
     countedItemCount?: number | null;
+    pickupAt?: string | null;
   } | null;
   restaurantName?: string;
   fulfillmentType?: "DELIVERY" | "PICKUP" | "SCHEDULED";
@@ -160,6 +162,24 @@ function gasRefillHero(orderStatus: FoodOrderStatus, ride: GasRide, info: Cancel
  * Laundry runs like a gas refill (collected first), with the shop's count in the middle: if it
  * costs more than the estimate the customer approves it before anything is washed.
  */
+/**
+ * Laundry booked for a later pickup that no rider has been sent for yet. The customer can still
+ * cancel it (server: customer_cancel in foodOrderFlow.js).
+ */
+export function isLaundryPickupBooked(order: {
+  status?: string;
+  ride?: unknown;
+  gasStage?: string | null;
+  laundry?: { pickupAt?: string | null } | null;
+}): boolean {
+  return (
+    !!order.laundry?.pickupAt &&
+    !order.ride &&
+    !order.gasStage &&
+    (order.status === "PLACED" || order.status === "PREPARING")
+  );
+}
+
 function laundryStepIndex(orderStatus: FoodOrderStatus, ride: GasRide, info: CancelInfo) {
   if (orderStatus === "DELIVERED") return 7;
   if (orderStatus === "READY_FOR_PICKUP" || orderStatus === "PICKED_UP") return 6;
@@ -167,7 +187,9 @@ function laundryStepIndex(orderStatus: FoodOrderStatus, ride: GasRide, info: Can
   if (info.gasStage === "TO_STATION" || (ride?.gasLeg === "COLLECT" && ride.status === "IN_PROGRESS")) {
     return 3;
   }
-  if (orderStatus === "PREPARING") return 2;
+  if (orderStatus === "PREPARING") {
+    return isLaundryPickupBooked({ status: orderStatus, ride, gasStage: info.gasStage, laundry: info.laundry }) ? 1 : 2;
+  }
   return 0;
 }
 
@@ -178,7 +200,13 @@ function buildLaundrySteps(orderStatus: FoodOrderStatus, ride: GasRide, info: Ca
   const declined = status === "declined";
   const defs = [
     { id: "placed", label: "Request sent", subtitle: `Sent to ${shop}` },
-    { id: "accepted", label: "Laundry accepted", subtitle: "A rider will come for your bag" },
+    {
+      id: "accepted",
+      label: "Laundry accepted",
+      subtitle: info.laundry?.pickupAt
+        ? `Pickup booked: ${formatPickupWindow(info.laundry.pickupAt)}`
+        : "A rider will come for your bag",
+    },
     {
       id: "collect",
       label: searching ? "Finding a rider" : "Rider collecting your laundry",
@@ -212,8 +240,15 @@ function buildLaundrySteps(orderStatus: FoodOrderStatus, ride: GasRide, info: Ca
 
 function laundryHero(orderStatus: FoodOrderStatus, ride: GasRide, info: CancelInfo) {
   const shop = info.restaurantName || "The laundry";
+  const pickupAt = info.laundry?.pickupAt;
   if (orderStatus === "PLACED" || orderStatus === "CONFIRMED") {
-    return { title: "Confirming request", subtitle: "Waiting for the laundry to accept" };
+    return {
+      title: "Confirming request",
+      subtitle: pickupAt ? `Pickup ${formatPickupWindow(pickupAt)}` : "Waiting for the laundry to accept",
+    };
+  }
+  if (pickupAt && isLaundryPickupBooked({ status: orderStatus, ride, gasStage: info.gasStage, laundry: info.laundry })) {
+    return { title: "Pickup booked", subtitle: `${formatPickupWindow(pickupAt)} · have your bag ready` };
   }
   if (ride?.gasLeg === "COLLECT") {
     if (ride.status === "SEARCHING_FOR_RIDER") {
@@ -501,10 +536,15 @@ export function getFoodOrderEtaWindow(order: {
   status: FoodOrderStatus;
   restaurant?: { estimatedPrepMinutes?: number } | null;
   ride?: { status?: string; gasLeg?: string | null } | null;
-  laundry?: { priceStatus?: string } | null;
+  laundry?: { priceStatus?: string; pickupAt?: string | null } | null;
+  gasStage?: string | null;
 }): string | null {
   if (order.status === "DELIVERED" || order.status === "CANCELLED") return null;
   const laundry = !!order.laundry;
+  if (order.laundry?.pickupAt && isLaundryPickupBooked(order)) {
+    const start = new Date(order.laundry.pickupAt);
+    return `${pickupDayLabel(start)} ${pickupTimeRange(start).split("–")[0]}`;
+  }
   // Collect-first trips (gas refill, laundry) run the other way: customer first, then the store.
   if (order.ride?.gasLeg === "COLLECT") {
     if (order.ride.status === "START") return laundry ? "Rider on the way" : "Courier on the way";

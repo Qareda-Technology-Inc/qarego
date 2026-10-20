@@ -1,3 +1,4 @@
+import { laundryPickupDispatchAt } from "./laundryPickup.js";
 import Ride from "../models/Ride.js";
 import FoodOrder from "../models/FoodOrder.js";
 import Restaurant from "../models/Restaurant.js";
@@ -253,7 +254,7 @@ export async function createCourierRideForOrder(foodOrder, restaurant, io, optio
  * collects from the customer and takes it to the store. Pays the full round-trip fee (settled
  * once, when it comes back); no cash changes hands on this leg.
  */
-async function createCollectionRide(foodOrder, restaurant, io) {
+export async function createCollectionRide(foodOrder, restaurant, io) {
   const itemSummary = courierItemSummary(foodOrder, restaurant);
   const ride = await Ride.create({
     serviceType: "FOOD",
@@ -307,10 +308,18 @@ export async function applyRestaurantAction(orderId, action, io, options = {}) {
       }
       foodOrder.status = "PREPARING";
       if (isCollectFirstOrder(foodOrder)) {
-        // Nothing to prepare until it arrives: send a courier to collect it now.
         foodOrder.preparingStartedAt = new Date();
-        foodOrder.courierBroadcastSent = true;
-        await createCollectionRide(foodOrder, restaurant, io);
+        const pickupAt = foodOrder.laundry?.pickupAt;
+        const dispatchAt = pickupAt ? laundryPickupDispatchAt(pickupAt) : null;
+        if (dispatchAt && dispatchAt.getTime() > Date.now()) {
+          // Booked for later: the scheduler offers the collection shortly before the window.
+          foodOrder.courierBroadcastAt = dispatchAt;
+          foodOrder.courierBroadcastSent = false;
+        } else {
+          // Nothing to prepare until it arrives: send a courier to collect it now.
+          foodOrder.courierBroadcastSent = true;
+          await createCollectionRide(foodOrder, restaurant, io);
+        }
       } else {
         scheduleCourierBroadcast(foodOrder, restaurant);
       }
@@ -319,9 +328,14 @@ export async function applyRestaurantAction(orderId, action, io, options = {}) {
     case "customer_cancel": {
       // Store/admin can cancel until the courier has the food (incl. ready for pickup, e.g.
       // when no courier comes). Customers can only cancel before the store accepts.
+      // A booked laundry pickup can still be called off by the customer until a rider is sent.
+      const waitingForPickup =
+        isLaundryOrder(foodOrder) && foodOrder.status === "PREPARING" && !foodOrder.collectionRide && !foodOrder.gasStage;
       const allowed =
         action === "customer_cancel"
-          ? ["PLACED"]
+          ? waitingForPickup
+            ? ["PREPARING"]
+            : ["PLACED"]
           : ["PLACED", "CONFIRMED", "PREPARING", "READY_FOR_PICKUP"];
       if (!allowed.includes(foodOrder.status)) {
         return { error: "invalid_transition" };

@@ -279,6 +279,9 @@ const RestaurantMenu = () => {
   }, [categoryList, selectedCategory]);
 
   const isClosed = restaurant?.isOpen === false;
+  // A laundry closed for the night still takes bookings: the customer picks a pickup time for when it opens.
+  const bookable = selectedVertical === "LAUNDRY" && restaurant?.openStatus === "closed";
+  const blockOrdering = isClosed && !bookable;
   /** Category and cuisine, without repeating a value that appears in both. */
   const heroTagline = [restaurant?.category, restaurant?.cuisine]
     .map((v) => v?.trim())
@@ -335,7 +338,7 @@ const RestaurantMenu = () => {
 
   const handleAdd = (item: MenuItem) => {
     if (!restaurant) return;
-    if (isClosed) {
+    if (blockOrdering) {
       showMessage({
         title: restaurant.openLabel || "Closed",
         message:
@@ -407,7 +410,7 @@ const RestaurantMenu = () => {
             <MenuItemsHorizontalRow
               items={items}
               accent={accent}
-              isClosed={!!isClosed}
+              isClosed={!!blockOrdering}
               onAdd={handleAdd}
               showRxBadge={selectedVertical === "PHARMACY"}
             />
@@ -418,7 +421,7 @@ const RestaurantMenu = () => {
                   key={item._id}
                   item={item}
                   accent={accent}
-                  isClosed={!!isClosed}
+                  isClosed={!!blockOrdering}
                   layout="column"
                   onAdd={() => handleAdd(item)}
                   showRxBadge={selectedVertical === "PHARMACY"}
@@ -604,7 +607,9 @@ const RestaurantMenu = () => {
                   {restaurant.openLabel || "Closed"}
                 </CustomText>
                 <CustomText fontSize={12} style={{ color: "#b45309", marginTop: 2 }}>
-                  {restaurant.openStatus === "closed"
+                  {bookable
+                    ? `Book a pickup for when they open${restaurant.todayHours ? ` · today ${restaurant.todayHours}` : ""}.`
+                    : restaurant.openStatus === "closed"
                     ? `Browse the menu${
                         restaurant.todayHours ? ` · today ${restaurant.todayHours}` : ""
                       }, ordering opens when they do.`

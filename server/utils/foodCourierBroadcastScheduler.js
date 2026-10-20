@@ -1,9 +1,11 @@
 import FoodOrder from "../models/FoodOrder.js";
 import Restaurant from "../models/Restaurant.js";
 import {
+  createCollectionRide,
   createCourierRideForOrder,
   emitFoodOrderUpdated,
 } from "./foodOrderFlow.js";
+import { isCollectFirstOrder } from "./laundryOrders.js";
 
 const POLL_MS = 30_000;
 
@@ -44,7 +46,14 @@ export async function processDueCourierBroadcasts(io) {
         continue;
       }
 
-      await createCourierRideForOrder(claimed, restaurant, io, { broadcast: true });
+      if (isCollectFirstOrder(claimed)) {
+        // Booked laundry pickup: the window is about to open, so send a rider to collect it.
+        if (claimed.collectionRide || claimed.gasStage) continue;
+        await createCollectionRide(claimed, restaurant, io);
+        await claimed.save();
+      } else {
+        await createCourierRideForOrder(claimed, restaurant, io, { broadcast: true });
+      }
       await emitFoodOrderUpdated(io, claimed._id);
     } catch (err) {
       console.error("[food] early courier broadcast failed:", claimed._id, err?.message || err);
