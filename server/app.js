@@ -18,6 +18,7 @@ import driverRouter from './routes/driver.js';
 import customerRouter from './routes/customer.js';
 import adminRouter from './routes/admin.js';
 import merchantRouter from './routes/merchant.js';
+import { submitVendorApplication } from './controllers/vendorApplication.js';
 import foodRouter from './routes/food.js';
 import commerceRouter from './routes/commerce.js';
 import webhooksRouter from './routes/webhooks.js';
@@ -183,6 +184,8 @@ app.get("/features", (_req, res) => {
 });
 
 // Routes
+// Public: the website's "List your store" form (reached through the website's /api rewrite).
+app.post("/vendor-applications", express.json({ limit: "20kb" }), submitVendorApplication);
 app.use("/auth", authRouter);
 app.use("/ride", authMiddleware, rideRouter);
 app.use("/drivers", driverRouter);

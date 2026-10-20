@@ -60,6 +60,8 @@ const userSchema = new Schema(
       default: null,
     },
     /** For customers: when true, cannot request new rides */
+    /** Set when QareGO issues a temporary password (invite or reset); cleared once the user picks their own. */
+    mustChangePassword: { type: Boolean, default: false },
     isSuspended: {
       type: Boolean,
       default: false,

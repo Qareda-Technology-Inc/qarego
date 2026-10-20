@@ -13,9 +13,10 @@ import ImageUploadField from "@/components/ImageUploadField";
 import StoreLocationPicker, { type StoreLocation } from "@/components/StoreLocationPicker";
 import PageLoader from "@/components/ui/PageLoader";
 import { notify } from "@/lib/notify";
-import { Settings, Loader2, Save, Power, MapPin, Clock, Wallet, BadgeCheck } from "lucide-react";
+import { Settings, Loader2, Save, Power, MapPin, Clock, Wallet, BadgeCheck, KeyRound } from "lucide-react";
 import { useFeatures } from "@/lib/features";
 import { GoLiveChecklist, type Readiness, type ReviewStatus } from "@/components/GoLiveChecklist";
+import { ChangePasswordForm } from "@/components/ChangePasswordForm";
 
 type DayHours = { closed: boolean; open: string; close: string };
 
@@ -652,6 +653,17 @@ export default function SettingsPage() {
           </Button>
         </div>
       </form>
+
+      <div id="account-password" className="bg-white rounded-2xl border border-border p-5 mt-6 scroll-mt-4">
+        <div className="flex items-center gap-2 mb-1">
+          <KeyRound className="h-4 w-4 text-brand" />
+          <p className="font-medium text-foreground">Password</p>
+        </div>
+        <p className="text-sm text-muted mb-4">
+          For your QareGO login (all your stores). If you&apos;ve forgotten it, ask QareGO to send you a new one.
+        </p>
+        <ChangePasswordForm onDone={() => notify.success("Password changed")} />
+      </div>
     </div>
   );
 }

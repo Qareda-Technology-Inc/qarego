@@ -843,6 +843,206 @@ ol {
   }
 }
 
+/* —— "List your store" application (StoreApplication component) —— */
+.apply {
+  width: min(560px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--card);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+}
+.apply::backdrop {
+  background: rgba(11, 42, 74, 0.55);
+  backdrop-filter: blur(2px);
+}
+.apply__inner {
+  position: relative;
+  padding: 28px 20px 24px;
+}
+@media (min-width: 720px) {
+  .apply__inner {
+    padding: 36px 36px 28px;
+  }
+}
+.apply h3 {
+  font-size: 24px;
+  line-height: 1.2;
+  margin-bottom: 6px;
+}
+.apply .eyebrow {
+  margin-bottom: 6px;
+}
+.apply__lede {
+  margin: 0 0 18px;
+  color: var(--muted);
+}
+.apply__close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--tint);
+  color: var(--ink);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+.apply__close:hover {
+  background: #e2e9f2;
+}
+.apply__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.apply__field em {
+  font-style: normal;
+  font-weight: 400;
+  color: var(--muted);
+}
+.apply input,
+.apply textarea {
+  width: 100%;
+  padding: 11px 13px;
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 400;
+}
+.apply input:focus,
+.apply textarea:focus {
+  outline: none;
+  border-color: var(--navy);
+  background: #fff;
+  box-shadow: 0 0 0 4px rgba(19, 69, 116, 0.12);
+}
+.apply textarea {
+  resize: vertical;
+}
+.apply__row {
+  display: grid;
+  gap: 0 14px;
+}
+@media (min-width: 720px) {
+  .apply__row {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+.apply__types {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 16px;
+  padding: 0;
+  border: 0;
+}
+.apply__types legend {
+  margin-bottom: 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.apply__types label {
+  padding: 8px 14px;
+  border: 1.5px solid var(--line);
+  border-radius: 999px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.apply__types label:hover {
+  border-color: var(--navy);
+}
+.apply__types label.is-on {
+  border-color: var(--navy);
+  background: var(--navy);
+  color: #fff;
+}
+.apply__types label:focus-within {
+  box-shadow: 0 0 0 4px rgba(19, 69, 116, 0.18);
+}
+.apply__types input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+.apply__hp {
+  position: absolute;
+  left: -10000px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+.apply__submit {
+  width: 100%;
+  margin-top: 4px;
+  border: 0;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.apply__submit:disabled {
+  opacity: 0.6;
+  cursor: wait;
+  transform: none;
+}
+.apply__error {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #fdecec;
+  color: #a12020;
+  font-size: 14px;
+}
+.apply__fine {
+  margin: 12px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  text-align: center;
+}
+.apply__fine a {
+  text-decoration: underline;
+}
+.apply__done {
+  padding: 12px 0 4px;
+  text-align: center;
+}
+.apply__done p {
+  margin: 0 0 22px;
+  color: var(--muted);
+}
+.apply__tick {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  margin-bottom: 14px;
+  border-radius: 999px;
+  background: #e7f6ec;
+  color: #1d7a3e;
+}
+.apply__tick svg {
+  width: 28px;
+  height: 28px;
+}
+.btn--outline {
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;

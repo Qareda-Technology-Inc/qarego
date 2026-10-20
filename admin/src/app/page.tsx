@@ -18,6 +18,7 @@ import {
   Store,
   UserPlus,
   BadgeCheck,
+  Inbox,
   Users,
   UtensilsCrossed,
   Wallet,
@@ -43,6 +44,7 @@ type Overview = {
   yesterday: DayTotals;
   live: { onlineRiders: number; activeTrips: number; activeOrders: number; newCustomersToday: number };
   actions: {
+    newApplications: { count: number; items: { _id: string; name: string; area: string; minutes: number }[] };
     storesToReview: { count: number; items: { _id: string; name: string; vertical: string; minutes: number | null }[] };
     pendingRiders: { count: number; items: { _id: string; name: string; phone?: string }[] };
     ridersOverLimit: { debtLimit: number; items: { _id: string; name: string; phone?: string; owed: number }[] };
@@ -114,6 +116,7 @@ export default function Dashboard() {
   const yesterday = data?.yesterday;
   const a = data?.actions;
   const actionCount =
+    (a?.newApplications?.count ?? 0) +
     (a?.storesToReview?.count ?? 0) +
     (a?.pendingRiders.count ?? 0) +
     (a?.ridersOverLimit.items.length ?? 0) +
@@ -259,6 +262,25 @@ export default function Dashboard() {
               >
                 {a.ridesSearching.map((r) => (
                   <ActionRow key={r._id} main={`${r.type} · ${r.pickup ?? "Pickup"}`} side={`${r.minutes} min`} />
+                ))}
+              </ActionGroup>
+            ) : null}
+
+            {a.newApplications?.count ? (
+              <ActionGroup
+                icon={Inbox}
+                tone="blue"
+                title={`${a.newApplications.count} new store application${a.newApplications.count === 1 ? "" : "s"}`}
+                hint="Businesses asking to sell on QareGO; call them, then invite"
+                href="/vendors?tab=applications"
+              >
+                {a.newApplications.items.map((x) => (
+                  <ActionRow
+                    key={x._id}
+                    main={`${x.name} · ${x.area}`}
+                    side={x.minutes < 60 ? `${x.minutes} min` : x.minutes < 1440 ? `${Math.round(x.minutes / 60)} h` : `${Math.round(x.minutes / 1440)} d`}
+                    href="/vendors?tab=applications"
+                  />
                 ))}
               </ActionGroup>
             ) : null}

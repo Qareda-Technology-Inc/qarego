@@ -45,6 +45,7 @@ import {
   adminListVendors,
   adminUpdateVendor,
   adminDeleteVendor,
+  adminResetVendorPassword,
   adminListVendorCategories,
   adminCreateVendorCategory,
   adminListRestaurants,
@@ -63,6 +64,11 @@ import {
   adminDeleteStoreType,
 } from '../controllers/commerceStoreType.js';
 import { adminListStoreReviews, adminReviewStore } from '../controllers/storeReview.js';
+import {
+  adminListVendorApplications,
+  adminUpdateVendorApplication,
+  adminInviteFromApplication,
+} from '../controllers/vendorApplication.js';
 import { registerAdminServiceZoneRoutes } from './serviceZone.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -140,6 +146,10 @@ adminRouter.delete('/store-types/:id', adminDeleteStoreType);
 adminRouter.get('/vendors', adminListVendors);
 adminRouter.post('/vendors', adminCreateVendor);
 adminRouter.patch('/vendors/:vendorId', adminUpdateVendor);
+adminRouter.post('/vendors/:vendorId/reset-password', adminResetVendorPassword);
+adminRouter.get('/vendor-applications', adminListVendorApplications);
+adminRouter.patch('/vendor-applications/:id', adminUpdateVendorApplication);
+adminRouter.post('/vendor-applications/:id/invite', adminInviteFromApplication);
 adminRouter.delete('/vendors/:vendorId', adminDeleteVendor);
 adminRouter.get('/vendors/:vendorId/categories', adminListVendorCategories);
 adminRouter.post('/vendors/:vendorId/categories', adminCreateVendorCategory);

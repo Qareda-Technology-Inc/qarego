@@ -101,7 +101,7 @@ export default function LoginPage() {
           </div>
 
           <h2 className="text-3xl font-bold tracking-tight text-foreground">Sign in</h2>
-          <p className="mt-2 text-sm text-muted">Use the login QareGO gave you for your store.</p>
+          <p className="mt-2 text-sm text-muted">Use the login QareGO texted you (staff: the one your manager gave you). Your username or phone number both work.</p>
 
           <form onSubmit={handleSubmit} className="mt-8 space-y-5">
             {error ? (
@@ -111,14 +111,14 @@ export default function LoginPage() {
               </div>
             ) : null}
 
-            <Field id="username" label="Username" icon={User}>
+            <Field id="username" label="Username or phone number" icon={User}>
               <input
                 id="username"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 autoComplete="username"
                 required
-                placeholder="your.store"
+                placeholder="your.store or 024 123 4567"
                 className="h-12 w-full rounded-xl border border-border bg-slate-50/70 pl-11 pr-4 text-sm text-foreground outline-none transition placeholder:text-slate-400 focus:border-brand focus:bg-white focus:ring-4 focus:ring-brand/10"
               />
             </Field>

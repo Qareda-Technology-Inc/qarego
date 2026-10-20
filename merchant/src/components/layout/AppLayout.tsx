@@ -12,7 +12,8 @@ import { KitchenAlertEnable } from "@/components/KitchenAlertEnable";
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const isLoginPage = pathname === "/login";
+  // Sign-in and choosing a password are full-screen, without the sidebar.
+  const isLoginPage = pathname === "/login" || pathname === "/set-password";
 
   useEffect(() => {
     setSidebarOpen(false);

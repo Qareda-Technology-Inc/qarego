@@ -5,6 +5,7 @@ import { StatusCodes } from "http-status-codes";
 import { formatCurrency } from "../../utils/currency.js";
 import FoodOrder from "../../models/FoodOrder.js";
 import Restaurant from "../../models/Restaurant.js";
+import VendorApplication from "../../models/VendorApplication.js";
 import { getSettings } from "../../utils/tripSettlement.js";
 
 export const getDashboardStats = async (req, res) => {
@@ -214,6 +215,7 @@ export const getAdminOverview = async (_req, res) => {
     lateRides,
     storeDebt,
     storesToReview,
+    newApplications,
   ] = await Promise.all([
     User.countDocuments({ role: "rider", isOnline: true, deletedAt: null }),
     Ride.countDocuments({ status: { $in: ["START", "ARRIVED", "IN_PROGRESS"] } }),
@@ -262,6 +264,7 @@ export const getAdminOverview = async (_req, res) => {
       .select("name vertical review.submittedAt")
       .sort({ "review.submittedAt": 1 })
       .lean(),
+    VendorApplication.find({ status: "new" }).select("businessName area createdAt").sort({ createdAt: 1 }).lean(),
   ]);
 
   const ago = (d) => Math.max(0, Math.round((now - new Date(d)) / MINUTE));
@@ -272,6 +275,15 @@ export const getAdminOverview = async (_req, res) => {
     yesterday,
     live: { onlineRiders, activeTrips, activeOrders, newCustomersToday },
     actions: {
+      newApplications: {
+        count: newApplications.length,
+        items: newApplications.slice(0, 5).map((a) => ({
+          _id: a._id,
+          name: a.businessName,
+          area: a.area,
+          minutes: ago(a.createdAt),
+        })),
+      },
       storesToReview: {
         count: storesToReview.length,
         items: storesToReview.slice(0, 5).map((r) => ({

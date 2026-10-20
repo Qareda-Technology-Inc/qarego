@@ -2,6 +2,10 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "rewrites": [
     {
+      "source": "/api/vendor-applications",
+      "destination": "https://qarego.onrender.com/vendor-applications"
+    },
+    {
       "source": "/privacy",
       "destination": "/privacy/index.html"
     },

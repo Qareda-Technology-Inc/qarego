@@ -58,6 +58,12 @@ export async function fetcher(url: string, options: RequestInit = {}): Promise<a
     throw new Error("Session expired");
   }
 
+  // Still on a temporary password: the server refuses everything until it's changed.
+  if (res.status === 403 && data.code === "PASSWORD_CHANGE_REQUIRED" && typeof window !== "undefined") {
+    if (window.location.pathname !== "/set-password") window.location.assign("/set-password");
+    throw new Error(data.msg || "Choose your own password first");
+  }
+
   if (!res.ok) {
     const fallback =
       res.status === 404

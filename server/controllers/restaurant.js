@@ -13,6 +13,7 @@ import { sanitizeImageUrl } from "../utils/mediaStorage.js";
 import { detectGhMomoChannel } from "../utils/hubtelService.js";
 import FoodOrder from "../models/FoodOrder.js";
 import { reviewStatus } from "../utils/storeReadiness.js";
+import { inviteVendor, issueTempPassword, merchantPortalUrl, uniqueUsernameFrom } from "../utils/vendorLogin.js";
 
 function normalizePayoutConfig(next = {}, prev = {}) {
   const allowedChannels = new Set(["mtn-gh", "vodafone-gh", "airteltigo-gh"]);
@@ -73,39 +74,46 @@ function pickRestaurantFields(body) {
   return out;
 }
 
-/** POST /admin/vendors — create a standalone vendor (merchant) account */
+/**
+ * POST /admin/vendors { name, phone, username? } — invite a vendor. QareGO makes a temporary
+ * password and texts the sign-in details; the vendor picks their own password on first sign-in.
+ * The temporary password is returned once so the admin can pass it on if the text doesn't arrive.
+ */
 export const adminCreateVendor = async (req, res) => {
-  const { username, password, name, phone } = req.body;
-  if (!username || !password) {
-    throw new BadRequestError("Username and password are required");
-  }
-  const existing = await User.findOne({ username: username.trim() });
-  if (existing) {
-    throw new BadRequestError("That username is already taken");
-  }
-  const vendor = await User.create({
-    role: "merchant",
-    username: username.trim(),
-    password,
-    name: name?.trim() || username.trim(),
-    phone: phone ? normalizePhone(phone) : undefined,
-  });
+  const { vendor, login } = await inviteVendor(req.body);
   res.status(StatusCodes.CREATED).json({
-    message: "Vendor created",
+    message: "Vendor invited",
     vendor: {
       _id: vendor._id,
       name: vendor.name,
       username: vendor.username,
       phone: vendor.phone,
       storeCount: 0,
+      mustChangePassword: true,
     },
+    login,
+  });
+};
+
+/** POST /admin/vendors/:vendorId/reset-password — new temporary password, texted to the vendor. */
+export const adminResetVendorPassword = async (req, res) => {
+  const { vendorId } = req.params;
+  if (!mongoose.isValidObjectId(vendorId)) throw new BadRequestError("Invalid vendor id");
+  const vendor = await User.findOne({ _id: vendorId, role: "merchant" });
+  if (!vendor) throw new NotFoundError("Vendor not found");
+  if (!vendor.username) vendor.username = await uniqueUsernameFrom(vendor.name);
+
+  const { tempPassword, sms } = await issueTempPassword(vendor, "reset");
+  res.status(StatusCodes.OK).json({
+    message: "Password reset",
+    login: { username: vendor.username, tempPassword, sms, phone: vendor.phone, portalUrl: merchantPortalUrl() },
   });
 };
 
 /** GET /admin/vendors — all merchant (vendor) accounts with how many stores each runs */
 export const adminListVendors = async (req, res) => {
   const vendors = await User.find({ role: "merchant" })
-    .select("name username phone createdAt")
+    .select("name username phone createdAt mustChangePassword")
     .sort({ createdAt: -1 })
     .lean();
 
@@ -134,7 +142,8 @@ export const adminUpdateVendor = async (req, res) => {
   const vendor = await User.findOne({ _id: vendorId, role: "merchant" });
   if (!vendor) throw new NotFoundError("Vendor not found");
 
-  const { name, phone, username, password } = req.body;
+  // Passwords are changed with "Reset password" (adminResetVendorPassword), never typed by an admin.
+  const { name, phone, username } = req.body;
   if (name !== undefined) vendor.name = String(name).trim();
   if (phone !== undefined) vendor.phone = phone ? normalizePhone(String(phone)) : undefined;
   if (username !== undefined) {
@@ -145,9 +154,6 @@ export const adminUpdateVendor = async (req, res) => {
       if (existing) throw new BadRequestError("That username is already taken");
       vendor.username = next;
     }
-  }
-  if (password !== undefined && String(password).trim()) {
-    vendor.password = String(password);
   }
 
   await vendor.save();
@@ -307,6 +313,7 @@ export const adminCreateRestaurant = async (req, res) => {
       role: "merchant",
       username: owner.username.trim(),
       password: owner.password,
+      mustChangePassword: true,
       name: owner.name?.trim() || fields.name,
       phone: owner.phone ? normalizePhone(owner.phone) : undefined,
     });
@@ -407,6 +414,7 @@ export const adminUpdateRestaurant = async (req, res) => {
       role: "merchant",
       username: owner.username.trim(),
       password: owner.password,
+      mustChangePassword: true,
       name: owner.name?.trim() || restaurant.name,
       phone: owner.phone ? normalizePhone(owner.phone) : undefined,
     });

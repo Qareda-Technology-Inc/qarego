@@ -2,15 +2,24 @@ import User from "../../models/User.js";
 import Restaurant from "../../models/Restaurant.js";
 import { StatusCodes } from "http-status-codes";
 import { BadRequestError, UnauthenticatedError } from "../../errors/index.js";
+import { normalizePhone } from "../../utils/phone.js";
 
 /** POST /auth/merchant/login — vendor (merchant) or cook login */
 export const merchantLogin = async (req, res) => {
-  const { username, password } = req.body;
-  if (!username || !password) {
-    throw new BadRequestError("Please provide username and password");
+  const { password } = req.body;
+  const login = String(req.body.username || "").trim();
+  if (!login || !password) {
+    throw new BadRequestError("Please provide your username or phone, and your password");
   }
 
-  const user = await User.findOne({ username }).select("+password");
+  // Vendors can sign in with their phone number too (024…, 24…, +23324…).
+  let user = await User.findOne({ username: login }).select("+password");
+  if (!user && /^[+\d\s-]{9,16}$/.test(login)) {
+    user = await User.findOne({
+      phone: normalizePhone(login),
+      role: { $in: ["merchant", "cook"] },
+    }).select("+password");
+  }
   if (!user) {
     throw new UnauthenticatedError("Invalid Credentials");
   }
@@ -54,9 +63,35 @@ export const merchantLogin = async (req, res) => {
       userId: user._id,
       name: user.name,
       role: user.role,
+      mustChangePassword: !!user.mustChangePassword,
     },
     restaurants,
     accessToken,
     refreshToken,
   });
+};
+
+/**
+ * POST /merchant/password { currentPassword, newPassword } — choose your own password
+ * (required after an invite or reset, and available any time from Settings).
+ */
+export const changeMyPassword = async (req, res) => {
+  const currentPassword = String(req.body.currentPassword || "");
+  const newPassword = String(req.body.newPassword || "");
+  if (!currentPassword) throw new BadRequestError("Enter your current password");
+  if (newPassword.length < 8) throw new BadRequestError("Use at least 8 characters for your new password");
+  if (newPassword === currentPassword) throw new BadRequestError("Choose a password different from the current one");
+
+  const user = await User.findById(req.user.id).select("+password");
+  if (!user || (user.role !== "merchant" && user.role !== "cook")) {
+    throw new UnauthenticatedError("Merchant access required");
+  }
+  if (!(await user.comparePassword(currentPassword))) {
+    throw new BadRequestError("Your current password isn't right");
+  }
+
+  user.password = newPassword;
+  user.mustChangePassword = false;
+  await user.save();
+  res.status(StatusCodes.OK).json({ message: "Password changed" });
 };

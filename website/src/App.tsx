@@ -1,6 +1,7 @@
 import { STORE_LINKS, STORES_LIVE } from "./config";
 import { StoreButtons } from "./components/StoreButtons";
 import { Icon, type IconName } from "./components/Icons";
+import { StoreApplication } from "./components/StoreApplication";
 
 const nav = [
   { href: "#services", label: "Services" },
@@ -378,9 +379,7 @@ export default function App() {
                   </li>
                 ))}
               </ul>
-              <a className="btn btn--outline" href="mailto:support@qaretech.com?subject=Join%20QareGO%20as%20a%20store">
-                List your store <Icon name="arrow" />
-              </a>
+              <StoreApplication />
             </div>
           </div>
         </section>

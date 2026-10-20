@@ -72,3 +72,18 @@ export function requireOwner(req, res, next) {
   }
   next();
 }
+
+/**
+ * Accounts on a temporary password (invite or reset) can't use the portal until they
+ * choose their own. Mounted after POST /merchant/password, so that route stays open.
+ */
+export async function requireOwnPassword(req, res, next) {
+  const user = await User.findById(req.user?.id).select("mustChangePassword").lean();
+  if (user?.mustChangePassword) {
+    return res.status(403).json({
+      msg: "Choose your own password before continuing",
+      code: "PASSWORD_CHANGE_REQUIRED",
+    });
+  }
+  next();
+}

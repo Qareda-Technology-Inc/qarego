@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { fetcher } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
@@ -16,8 +17,10 @@ import {
   buildStoreCreatePayload,
   resolveFormVertical,
 } from "@/lib/storeForm";
-import { Plus, Store, UserCircle, UserPlus, Settings2, MapPin, Pencil, Trash2 } from "lucide-react";
+import { Plus, Store, UserCircle, UserPlus, Settings2, MapPin, Pencil, Trash2, KeyRound } from "lucide-react";
 import { ConfirmByTypingModal } from "@/components/ConfirmByTypingModal";
+import { VendorLoginModal, type VendorLogin } from "@/components/VendorLoginModal";
+import { VendorApplications } from "@/components/VendorApplications";
 
 interface Vendor {
   _id: string;
@@ -25,6 +28,8 @@ interface Vendor {
   username?: string;
   phone?: string;
   storeCount?: number;
+  /** Still on the temporary password QareGO sent (hasn't signed in and chosen their own). */
+  mustChangePassword?: boolean;
 }
 
 interface OwnerRef {
@@ -56,9 +61,21 @@ const VERTICAL_BADGE: Record<string, string> = {
   GAS: "Gas station",
 };
 
-const EMPTY_VENDOR = { username: "", password: "", name: "", phone: "" };
+const EMPTY_VENDOR = { name: "", phone: "", username: "" };
 
 export default function VendorsPage() {
+  return (
+    <Suspense fallback={null}>
+      <VendorsContent />
+    </Suspense>
+  );
+}
+
+function VendorsContent() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const tab = useSearchParams().get("tab") === "applications" ? "applications" : "vendors";
+  const [newApplications, setNewApplications] = useState(0);
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [loading, setLoading] = useState(true);
@@ -67,7 +84,9 @@ export default function VendorsPage() {
   const [vendorForm, setVendorForm] = useState({ ...EMPTY_VENDOR });
   const [editVendorModal, setEditVendorModal] = useState(false);
   const [editVendorId, setEditVendorId] = useState("");
-  const [editVendorForm, setEditVendorForm] = useState({ username: "", password: "", name: "", phone: "" });
+  const [editVendorForm, setEditVendorForm] = useState({ username: "", name: "", phone: "" });
+  const [vendorLogin, setVendorLogin] = useState<VendorLogin | null>(null);
+  const [resetting, setResetting] = useState(false);
   const [vendorSearch, setVendorSearch] = useState("");
   const [deleteVendorModal, setDeleteVendorModal] = useState(false);
   const [deleteVendorTarget, setDeleteVendorTarget] = useState<Vendor | null>(null);
@@ -82,15 +101,18 @@ export default function VendorsPage() {
 
   const [saving, setSaving] = useState(false);
 
-  const load = async () => {
+  /** `quiet` refreshes without the full-page loader (keeps open dialogs, e.g. a new login, on screen). */
+  const load = async (quiet = false) => {
     try {
-      setLoading(true);
-      const [vendorData, restaurantData] = await Promise.all([
+      if (!quiet) setLoading(true);
+      const [vendorData, restaurantData, applicationData] = await Promise.all([
         fetcher("/admin/vendors"),
         fetcher("/admin/restaurants"),
+        fetcher("/admin/vendor-applications?status=new").catch(() => null),
       ]);
       setVendors(vendorData.vendors || []);
       setRestaurants(restaurantData.restaurants || []);
+      setNewApplications(applicationData?.counts?.new ?? 0);
     } catch (e) {
       console.error("Failed to load vendors", e);
     } finally {
@@ -128,13 +150,18 @@ export default function VendorsPage() {
     e.preventDefault();
     setSaving(true);
     try {
-      await fetcher("/admin/vendors", {
+      const data = await fetcher("/admin/vendors", {
         method: "POST",
-        body: JSON.stringify(vendorForm),
+        body: JSON.stringify({
+          name: vendorForm.name,
+          phone: vendorForm.phone,
+          username: vendorForm.username.trim() || undefined,
+        }),
       });
       setVendorModal(false);
       setVendorForm({ ...EMPTY_VENDOR });
-      load();
+      setVendorLogin({ ...data.login, name: data.vendor?.name, phone: data.vendor?.phone, reason: "invite" });
+      load(true);
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : "Failed to create vendor");
     } finally {
@@ -146,7 +173,6 @@ export default function VendorsPage() {
     setEditVendorId(vendor._id);
     setEditVendorForm({
       username: vendor.username || "",
-      password: "",
       name: vendor.name || "",
       phone: vendor.phone || "",
     });
@@ -162,7 +188,6 @@ export default function VendorsPage() {
         method: "PATCH",
         body: JSON.stringify({
           username: editVendorForm.username,
-          password: editVendorForm.password || undefined,
           name: editVendorForm.name,
           phone: editVendorForm.phone,
         }),
@@ -173,6 +198,25 @@ export default function VendorsPage() {
       alert(err instanceof Error ? err.message : "Failed to update vendor");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const resetVendorPassword = async () => {
+    if (!editVendorId) return;
+    const target = vendors.find((v) => v._id === editVendorId);
+    if (!confirm(`Send ${target?.name || "this vendor"} a new temporary password? Their current password stops working.`)) {
+      return;
+    }
+    setResetting(true);
+    try {
+      const data = await fetcher(`/admin/vendors/${editVendorId}/reset-password`, { method: "POST", body: "{}" });
+      setEditVendorModal(false);
+      setVendorLogin({ ...data.login, name: target?.name, reason: "reset" });
+      load(true);
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Couldn't reset the password");
+    } finally {
+      setResetting(false);
     }
   };
 
@@ -280,10 +324,36 @@ export default function VendorsPage() {
         </div>
         <Button onClick={() => setVendorModal(true)} className="w-full sm:w-auto shrink-0">
           <UserPlus className="mr-2 h-4 w-4" />
-          Create Vendor
+          Invite vendor
         </Button>
       </div>
 
+      <div className="flex gap-1 border-b border-gray-200">
+        {(
+          [
+            ["vendors", "Vendors"],
+            ["applications", "Applications"],
+          ] as const
+        ).map(([key, label]) => (
+          <button
+            key={key}
+            onClick={() => router.replace(key === "vendors" ? pathname : `${pathname}?tab=${key}`, { scroll: false })}
+            className={`-mb-px flex items-center gap-2 border-b-2 px-3 py-2 text-sm font-medium ${
+              tab === key ? "border-blue-600 text-blue-700" : "border-transparent text-gray-500 hover:text-gray-800"
+            }`}
+          >
+            {label}
+            {key === "applications" && newApplications ? (
+              <span className="rounded-full bg-blue-600 px-1.5 text-xs font-semibold text-white">{newApplications}</span>
+            ) : null}
+          </button>
+        ))}
+      </div>
+
+      {tab === "applications" ? (
+        <VendorApplications onChanged={() => load(true)} />
+      ) : (
+      <>
       {vendors.length > 0 ? (
         <input
           type="search"
@@ -317,7 +387,14 @@ export default function VendorsPage() {
                       <UserCircle className="h-6 w-6 text-indigo-500" />
                     </div>
                     <div>
-                      <CardTitle className="text-base">{v.name || v.username}</CardTitle>
+                      <CardTitle className="flex flex-wrap items-center gap-2 text-base">
+                        {v.name || v.username}
+                        {v.mustChangePassword ? (
+                          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
+                            Hasn&apos;t signed in yet
+                          </span>
+                        ) : null}
+                      </CardTitle>
                       <p className="text-xs text-gray-400">
                         @{v.username}
                         {v.phone ? ` · ${v.phone}` : ""} · {stores.length} store
@@ -483,36 +560,39 @@ export default function VendorsPage() {
         </Card>
       )}
 
-      {/* Create Vendor */}
-      <Modal isOpen={vendorModal} onClose={() => setVendorModal(false)} title="Create Vendor">
+      </>
+      )}
+
+      {/* Invite vendor */}
+      <Modal isOpen={vendorModal} onClose={() => setVendorModal(false)} title="Invite a vendor">
         <form onSubmit={createVendor} className="space-y-4">
-          <p className="text-xs text-gray-500">
-            A vendor is a merchant login that can own one or more stores and manage their cooks.
+          <p className="text-sm text-gray-600">
+            We&apos;ll text them a link and a temporary password. They choose their own password the first time they sign
+            in, then set up their stores.
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <Label htmlFor="vUsername">Username</Label>
-              <Input id="vUsername" value={vendorForm.username} onChange={(e) => setVendorForm({ ...vendorForm, username: e.target.value })} placeholder="mamas_kitchen" autoComplete="off" required />
+              <Label htmlFor="vName">Business or contact name</Label>
+              <Input id="vName" value={vendorForm.name} onChange={(e) => setVendorForm({ ...vendorForm, name: e.target.value })} placeholder="Auntie Esi's Chop Bar" required />
             </div>
             <div>
-              <Label htmlFor="vPassword">Password</Label>
-              <Input id="vPassword" type="password" value={vendorForm.password} onChange={(e) => setVendorForm({ ...vendorForm, password: e.target.value })} autoComplete="new-password" required />
+              <Label htmlFor="vPhone">Phone (for the text message)</Label>
+              <Input id="vPhone" type="tel" value={vendorForm.phone} onChange={(e) => setVendorForm({ ...vendorForm, phone: e.target.value })} placeholder="024 123 4567" required />
             </div>
-            <div>
-              <Label htmlFor="vName">Contact Name</Label>
-              <Input id="vName" value={vendorForm.name} onChange={(e) => setVendorForm({ ...vendorForm, name: e.target.value })} />
-            </div>
-            <div>
-              <Label htmlFor="vPhone">Phone</Label>
-              <Input id="vPhone" value={vendorForm.phone} onChange={(e) => setVendorForm({ ...vendorForm, phone: e.target.value })} placeholder="+233..." />
+            <div className="sm:col-span-2">
+              <Label htmlFor="vUsername">Username (optional)</Label>
+              <Input id="vUsername" value={vendorForm.username} onChange={(e) => setVendorForm({ ...vendorForm, username: e.target.value })} placeholder="Leave blank to make one from the name" autoComplete="off" />
+              <p className="mt-1 text-xs text-gray-500">They can also sign in with their phone number.</p>
             </div>
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <Button type="button" variant="outline" onClick={() => setVendorModal(false)}>Cancel</Button>
-            <Button type="submit" disabled={saving}>{saving ? "Creating..." : "Create Vendor"}</Button>
+            <Button type="submit" disabled={saving}>{saving ? "Sending..." : "Send invite"}</Button>
           </div>
         </form>
       </Modal>
+
+      <VendorLoginModal login={vendorLogin} onClose={() => setVendorLogin(null)} />
 
       <ConfirmByTypingModal
         open={deleteVendorModal}
@@ -562,16 +642,6 @@ export default function VendorsPage() {
               />
             </div>
             <div>
-              <Label htmlFor="evPassword">New Password (optional)</Label>
-              <Input
-                id="evPassword"
-                type="password"
-                value={editVendorForm.password}
-                onChange={(e) => setEditVendorForm({ ...editVendorForm, password: e.target.value })}
-                placeholder="Leave blank to keep current password"
-              />
-            </div>
-            <div>
               <Label htmlFor="evName">Contact Name</Label>
               <Input
                 id="evName"
@@ -587,6 +657,15 @@ export default function VendorsPage() {
                 onChange={(e) => setEditVendorForm({ ...editVendorForm, phone: e.target.value })}
               />
             </div>
+          </div>
+          <div className="flex flex-col gap-3 rounded-lg border border-gray-200 bg-gray-50 p-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="text-sm">
+              <p className="font-medium text-gray-900">Password</p>
+              <p className="text-gray-500">Forgotten or never received? Send them a new temporary one.</p>
+            </div>
+            <Button type="button" variant="outline" onClick={resetVendorPassword} disabled={resetting} className="shrink-0">
+              <KeyRound className="mr-1 h-4 w-4" /> {resetting ? "Sending..." : "Reset password"}
+            </Button>
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <Button type="button" variant="outline" onClick={() => setEditVendorModal(false)}>

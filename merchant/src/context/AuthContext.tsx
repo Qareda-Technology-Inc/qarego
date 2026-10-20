@@ -10,6 +10,8 @@ export interface MerchantUser {
   userId: string;
   name: string;
   role: "merchant" | "cook";
+  /** On a temporary password from QareGO; must choose their own before using the portal. */
+  mustChangePassword?: boolean;
 }
 
 export interface StoreSummary {
@@ -28,6 +30,7 @@ interface AuthContextType {
   isOwner: boolean;
   login: (token: string, refreshToken: string, userData: MerchantUser, restaurants: StoreSummary[]) => void;
   logout: () => void;
+  markPasswordChanged: () => void;
   setActiveRestaurant: (id: string, redirectTo?: string) => void;
   refreshRestaurants: () => Promise<StoreSummary[]>;
 }
@@ -41,6 +44,7 @@ const AuthContext = createContext<AuthContextType>({
   isOwner: false,
   login: () => {},
   logout: () => {},
+  markPasswordChanged: () => {},
   setActiveRestaurant: () => {},
   refreshRestaurants: async () => [],
 });
@@ -89,11 +93,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!user && pathname !== "/login") {
       router.push("/login");
     } else if (user && pathname === "/login") {
-      router.push("/");
+      router.push(user.mustChangePassword ? "/set-password" : "/");
+    } else if (user?.mustChangePassword && pathname !== "/set-password") {
+      router.replace("/set-password");
+    } else if (user && !user.mustChangePassword && pathname === "/set-password") {
+      router.replace("/");
     } else if (
       user?.role === "merchant" &&
       restaurants.length === 0 &&
       pathname !== "/login" &&
+      pathname !== "/set-password" &&
       pathname !== "/stores"
     ) {
       // No stores yet — guide owner to create their first store
@@ -123,7 +132,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(userData);
     persistStores(list || [], list?.[0]?._id || null);
     disconnectSocket();
-    router.push("/");
+    router.push(userData.mustChangePassword ? "/set-password" : "/");
+  };
+
+  const markPasswordChanged = () => {
+    setUser((u) => {
+      if (!u) return u;
+      const next = { ...u, mustChangePassword: false };
+      localStorage.setItem("merchantUser", JSON.stringify(next));
+      return next;
+    });
   };
 
   const logout = () => {
@@ -179,6 +197,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isOwner: user?.role === "merchant",
         login,
         logout,
+        markPasswordChanged,
         setActiveRestaurant,
         refreshRestaurants,
       }}

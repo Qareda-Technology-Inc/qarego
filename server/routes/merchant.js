@@ -3,6 +3,7 @@ import {
   loadMerchantContext,
   requireOwner,
   requireMerchantRole,
+  requireOwnPassword,
 } from "../middleware/merchantContext.js";
 import {
   listMyRestaurants,
@@ -16,6 +17,7 @@ import {
   getMyRestaurant,
   updateMyRestaurant,
   submitMyStoreForReview,
+  changeMyPassword,
   setAcceptingOrders,
   getMyStats,
   listMyMenuCategories,
@@ -40,6 +42,10 @@ import {
 import { merchantListStoreTypes } from "../controllers/commerceStoreType.js";
 
 const router = express.Router();
+
+// Choosing a password must work while every other route is blocked by requireOwnPassword.
+router.post("/password", requireMerchantRole, changeMyPassword);
+router.use(requireOwnPassword);
 
 // Stores — no single active store needed
 router.get("/restaurants", requireMerchantRole, listMyRestaurants);
