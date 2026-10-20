@@ -18,6 +18,7 @@ import {
   Bell,
   MapPinned,
   UserCheck,
+  BadgeCheck,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/context/AuthContext';
@@ -33,6 +34,7 @@ const navigation = [
   { name: 'Customers', href: '/customers', icon: Users },
   { name: 'Trips', href: '/trips', icon: MapPin },
   { name: 'Vendors', href: '/vendors', icon: Store },
+  { name: 'Store approvals', href: '/store-approvals', icon: BadgeCheck },
   { name: 'Store types', href: '/store-types', icon: Tags },
   { name: 'Store orders', href: '/food-orders', icon: UtensilsCrossed },
   { name: 'Service areas', href: '/service-zones', icon: MapPinned },

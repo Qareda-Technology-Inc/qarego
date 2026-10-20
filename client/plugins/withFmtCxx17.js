@@ -3,7 +3,7 @@ const path = require("path");
 const { withDangerousMod } = require("expo/config-plugins");
 const { mergeContents } = require("@expo/config-plugins/build/utils/generateCode");
 
-// Xcode 26's clang rejects fmt 11.0.2's consteval format strings (pinned by RN 0.79),
+// Xcode 26's clang rejects fmt 11.0.2's consteval format strings (pinned by RN 0.79–0.81),
 // failing the build in Pods/fmt/format.cc. fmt disables consteval below C++20, so
 // compile only the fmt pod as C++17. Must run after react_native_post_install,
 // which sets every pod to C++20.
@@ -24,8 +24,9 @@ module.exports = function withFmtCxx17(config) {
         tag: "qarego-fmt-cxx17",
         src: contents,
         newSrc: SNIPPET,
-        anchor: /# This is necessary for Xcode 14/,
-        offset: 0,
+        // Insert after react_native_post_install(...), whose last argument line is this one.
+        anchor: /:ccache_enabled => ccache_enabled\?\(podfile_properties\),/,
+        offset: 2,
         comment: "#",
       });
       if (!result.didMerge && !result.didClear && !contents.includes("qarego-fmt-cxx17")) {

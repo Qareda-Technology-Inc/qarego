@@ -56,6 +56,27 @@ const restaurantSchema = new Schema(
      * Weekly opening hours, indexed by JS getDay() (0 = Sun … 6 = Sat).
      * Undefined/empty means "always within hours" (only the pause flag gates it).
      */
+    /**
+     * QareGO's check before a store goes live. Stores a vendor creates start as "draft"
+     * (hidden); stores created by an admin, and stores from before reviews existed (no
+     * review at all), count as approved.
+     */
+    review: {
+      status: {
+        type: String,
+        enum: ["draft", "pending", "changes_requested", "approved"],
+      },
+      note: { type: String, default: null },
+      submittedAt: { type: Date, default: null },
+      decidedAt: { type: Date, default: null },
+      by: { type: Schema.Types.ObjectId, ref: "User", default: null },
+    },
+    /** Operating licence photo — required for pharmacies (Pharmacy Council) and gas (NPA). */
+    licence: {
+      url: { type: String, default: null },
+      number: { type: String, default: null, trim: true },
+      uploadedAt: { type: Date, default: null },
+    },
     openingHours: {
       type: [
         {

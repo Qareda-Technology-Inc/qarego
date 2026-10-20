@@ -20,6 +20,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { VerticalIcon } from "@/components/VerticalIcon";
+import { GoLiveChecklist, reviewBadge, type Readiness, type ReviewStatus } from "@/components/GoLiveChecklist";
 
 type StoreOverview = {
   _id: string;
@@ -36,6 +37,9 @@ type StoreOverview = {
   todayRevenue: number;
   pending: number;
   active: number;
+  reviewStatus: ReviewStatus;
+  readiness: Readiness;
+  review?: { note?: string | null };
 };
 
 type Totals = {
@@ -61,8 +65,7 @@ export default function HomePage() {
     if (user && !isOwner) router.replace("/orders");
   }, [user, isOwner, router]);
 
-  useEffect(() => {
-    if (!isOwner) return;
+  const loadOverview = () =>
     fetcher("/merchant/overview")
       .then((data) => {
         setTotals(data.totals);
@@ -70,6 +73,10 @@ export default function HomePage() {
       })
       .catch((e) => console.error(e))
       .finally(() => setLoading(false));
+
+  useEffect(() => {
+    if (!isOwner) return;
+    loadOverview();
   }, [isOwner]);
 
   if (!isOwner) {
@@ -80,9 +87,12 @@ export default function HomePage() {
     );
   }
 
-  const openKitchen = (id: string) => {
-    if (id === activeRestaurantId) router.push("/orders");
-    else setActiveRestaurant(id, "/orders");
+  const openKitchen = (id: string) => openForStore(id, "/orders");
+
+  /** Open a page for one store, switching to it first when it isn't the active one. */
+  const openForStore = (id: string, path: string) => {
+    if (id === activeRestaurantId) router.push(path);
+    else setActiveRestaurant(id, path);
   };
 
   return (
@@ -157,22 +167,35 @@ export default function HomePage() {
                   <p className="text-sm text-muted truncate">{s.address || s.cuisine}</p>
                 </div>
                 <div className="flex flex-col items-end gap-1 shrink-0">
-                  <span
-                    className={`text-xs px-2 py-0.5 rounded-full ${
-                      s.isActive ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"
-                    }`}
-                  >
-                    {s.isActive ? "Online" : "Offline"}
-                  </span>
-                  <span
-                    className={`text-xs px-2 py-0.5 rounded-full ${
-                      s.isAcceptingOrders ? "bg-emerald-100 text-emerald-700" : "bg-yellow-100 text-yellow-700"
-                    }`}
-                  >
-                    {s.isAcceptingOrders ? "Accepting" : "Paused"}
-                  </span>
+                  {(() => {
+                    const badge = reviewBadge(s.reviewStatus, s.isActive);
+                    return <span className={`text-xs px-2 py-0.5 rounded-full ${badge.className}`}>{badge.label}</span>;
+                  })()}
+                  {s.reviewStatus === "approved" && s.isActive ? (
+                    <span
+                      className={`text-xs px-2 py-0.5 rounded-full ${
+                        s.isAcceptingOrders ? "bg-emerald-100 text-emerald-700" : "bg-yellow-100 text-yellow-700"
+                      }`}
+                    >
+                      {s.isAcceptingOrders ? "Accepting" : "Paused"}
+                    </span>
+                  ) : null}
                 </div>
               </div>
+
+              {s.reviewStatus !== "approved" ? (
+                <div className="mt-4">
+                  <GoLiveChecklist
+                    compact
+                    restaurantId={s._id}
+                    status={s.reviewStatus}
+                    readiness={s.readiness}
+                    note={s.review?.note}
+                    onOpen={(path) => openForStore(s._id, path)}
+                    onSubmitted={loadOverview}
+                  />
+                </div>
+              ) : null}
 
               <div className="grid grid-cols-3 gap-2 mt-4 text-center">
                 <Metric label="Today" value={String(s.todayOrders)} />

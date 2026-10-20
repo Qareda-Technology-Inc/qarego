@@ -10,6 +10,7 @@ import { BadRequestError, NotFoundError } from "../../errors/index.js";
 import { normalizePhone } from "../../utils/phone.js";
 import { detectGhMomoChannel } from "../../utils/hubtelService.js";
 import { computeOpenState, sanitizeHours } from "../../utils/storeHours.js";
+import { getStoreReadiness, reviewStatus } from "../../utils/storeReadiness.js";
 
 /** GET /merchant/restaurants — all stores this account can manage */
 export const listMyRestaurants = async (req, res) => {
@@ -96,11 +97,13 @@ export const createMyRestaurant = async (req, res) => {
     );
   }
 
+  // Hidden from customers until QareGO approves it (see submitMyStoreForReview).
   const restaurant = await Restaurant.create({
     ...fields,
     owner: req.user.id,
-    isActive: true,
+    isActive: false,
     isAcceptingOrders: true,
+    review: { status: "draft" },
   });
 
   res.status(StatusCodes.CREATED).json({ message: "Store created", restaurant });
@@ -144,7 +147,15 @@ export const getMyRestaurant = async (req, res) => {
     .populate("owner", "name username phone")
     .lean();
   const openState = restaurant ? computeOpenState(restaurant) : null;
-  res.status(StatusCodes.OK).json({ restaurant, openState, role: req.user.role });
+  const readiness = restaurant ? await getStoreReadiness(restaurant) : null;
+  if (restaurant?.review) delete restaurant.review.by;
+  res.status(StatusCodes.OK).json({
+    restaurant,
+    openState,
+    role: req.user.role,
+    reviewStatus: restaurant ? reviewStatus(restaurant) : null,
+    readiness,
+  });
 };
 
 const MERCHANT_EDITABLE = [
@@ -228,9 +239,47 @@ export const updateMyRestaurant = async (req, res) => {
     };
   }
 
+  if (req.body.licence && typeof req.body.licence === "object") {
+    const url = req.body.licence.url !== undefined ? sanitizeImageUrl(req.body.licence.url) : restaurant.licence?.url;
+    const number =
+      req.body.licence.number !== undefined
+        ? String(req.body.licence.number || "").trim() || null
+        : restaurant.licence?.number;
+    restaurant.licence = { url: url || null, number: number || null, uploadedAt: new Date() };
+  }
+
   await restaurant.save();
 
   res.status(StatusCodes.OK).json({ message: "Restaurant updated", restaurant });
+};
+
+/**
+ * POST /merchant/restaurant/submit-review — ask QareGO to put the store live.
+ * Only once every checklist item is done; a store that's already live can't be resubmitted.
+ */
+export const submitMyStoreForReview = async (req, res) => {
+  const restaurant = await Restaurant.findById(req.restaurantId);
+  if (!restaurant) throw new NotFoundError("Restaurant not found");
+
+  const status = reviewStatus(restaurant);
+  if (status === "approved") throw new BadRequestError("This store is already approved");
+  if (status === "pending") throw new BadRequestError("This store is already waiting for review");
+
+  const readiness = await getStoreReadiness(restaurant);
+  if (!readiness.ready) {
+    const missing = readiness.items.filter((i) => !i.done).map((i) => i.label.toLowerCase());
+    throw new BadRequestError(`Finish these first: ${missing.join(", ")}`);
+  }
+
+  restaurant.review = {
+    status: "pending",
+    note: restaurant.review?.note ?? null,
+    submittedAt: new Date(),
+    decidedAt: restaurant.review?.decidedAt ?? null,
+    by: restaurant.review?.by ?? null,
+  };
+  await restaurant.save();
+  res.status(StatusCodes.OK).json({ message: "Sent for review", reviewStatus: "pending", readiness });
 };
 
 /**

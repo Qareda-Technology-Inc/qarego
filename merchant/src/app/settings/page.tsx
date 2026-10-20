@@ -13,8 +13,9 @@ import ImageUploadField from "@/components/ImageUploadField";
 import StoreLocationPicker, { type StoreLocation } from "@/components/StoreLocationPicker";
 import PageLoader from "@/components/ui/PageLoader";
 import { notify } from "@/lib/notify";
-import { Settings, Loader2, Save, Power, MapPin, Clock, Wallet } from "lucide-react";
+import { Settings, Loader2, Save, Power, MapPin, Clock, Wallet, BadgeCheck } from "lucide-react";
 import { useFeatures } from "@/lib/features";
+import { GoLiveChecklist, type Readiness, type ReviewStatus } from "@/components/GoLiveChecklist";
 
 type DayHours = { closed: boolean; open: string; close: string };
 
@@ -36,6 +37,8 @@ interface Restaurant {
   latitude?: number;
   longitude?: number;
   openingHours?: DayHours[];
+  licence?: { url?: string | null; number?: string | null };
+  review?: { note?: string | null };
   payoutConfig?: {
     recipientName?: string | null;
     recipientMsisdn?: string | null;
@@ -95,6 +98,10 @@ export default function SettingsPage() {
     channel: "mtn-gh",
   });
   const [savingPayout, setSavingPayout] = useState(false);
+  const [reviewStatus, setReviewStatus] = useState<ReviewStatus>("approved");
+  const [readiness, setReadiness] = useState<Readiness | null>(null);
+  const [licence, setLicence] = useState({ url: "", number: "" });
+  const [savingLicence, setSavingLicence] = useState(false);
 
   useEffect(() => {
     if (!isOwner) router.replace("/");
@@ -105,6 +112,9 @@ export default function SettingsPage() {
       const data = await fetcher("/merchant/restaurant");
       const r: Restaurant = data.restaurant;
       setRestaurant(r);
+      setReviewStatus(data.reviewStatus ?? "approved");
+      setReadiness(data.readiness ?? null);
+      setLicence({ url: r.licence?.url || "", number: r.licence?.number || "" });
       setForm({
         description: r.description || "",
         imageEmoji: r.imageEmoji || "",
@@ -141,7 +151,8 @@ export default function SettingsPage() {
   };
 
   useEffect(() => {
-    load();
+    const t = setTimeout(load, 0);
+    return () => clearTimeout(t);
   }, []);
 
   const save = async (e: React.FormEvent) => {
@@ -250,6 +261,36 @@ export default function SettingsPage() {
     }
   };
 
+  const saveLicence = async () => {
+    if (!licence.url || !licence.number.trim()) {
+      notify.warning("Licence incomplete", "Upload a photo of the licence and enter its number.");
+      return;
+    }
+    setSavingLicence(true);
+    try {
+      await fetcher("/merchant/restaurant", {
+        method: "PATCH",
+        body: JSON.stringify({ licence: { url: licence.url, number: licence.number.trim() } }),
+      });
+      await load();
+      notify.success("Licence saved");
+    } catch (err: unknown) {
+      notify.error(err instanceof Error ? err.message : "Could not save the licence");
+    } finally {
+      setSavingLicence(false);
+    }
+  };
+
+  /** Scroll to a section on this page, or go to another page (the menu). */
+  const openFix = (path: string) => {
+    const [page, hash] = path.split("#");
+    if (page === "/settings" && hash) {
+      document.getElementById(hash)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    } else {
+      router.push(path);
+    }
+  };
+
   const toggleAccepting = async () => {
     if (!restaurant) return;
     setToggling(true);
@@ -279,6 +320,19 @@ export default function SettingsPage() {
         {restaurant.name} — pickup location, hours, settlement MoMo, and how customers see your store.
       </p>
 
+      {readiness && reviewStatus !== "approved" ? (
+        <div className="mb-6">
+          <GoLiveChecklist
+            restaurantId={restaurant._id}
+            status={reviewStatus}
+            readiness={readiness}
+            note={restaurant.review?.note}
+            onOpen={openFix}
+            onSubmitted={load}
+          />
+        </div>
+      ) : null}
+
       <div className="bg-white rounded-2xl border border-border p-5 mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <p className="font-medium text-foreground">
@@ -287,6 +341,8 @@ export default function SettingsPage() {
           <p className="text-sm text-muted">
             {restaurant.isActive
               ? "Toggle to temporarily stop receiving new orders."
+              : reviewStatus !== "approved"
+              ? "Customers can order once QareGO approves your store."
               : copy.settingsOffline}
           </p>
         </div>
@@ -306,7 +362,7 @@ export default function SettingsPage() {
         </Button>
       </div>
 
-      <div id="store-location" className="bg-white rounded-2xl border border-border p-5 mb-6">
+      <div id="store-location" className="bg-white rounded-2xl border border-border p-5 mb-6 scroll-mt-4">
         <div className="flex items-center gap-2 mb-1">
           <MapPin className="h-4 w-4 text-brand" />
           <p className="font-medium text-foreground">Pickup location</p>
@@ -344,7 +400,7 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl border border-border p-5 mb-6">
+      <div id="store-hours" className="bg-white rounded-2xl border border-border p-5 mb-6 scroll-mt-4">
         <div className="flex items-center gap-2 mb-1">
           <Clock className="h-4 w-4 text-brand" />
           <p className="font-medium text-foreground">Opening hours</p>
@@ -419,6 +475,45 @@ export default function SettingsPage() {
       </div>
 
       {/* Instant payouts go out by mobile money, which is paused until the new provider is live. */}
+      {restaurant.vertical === "PHARMACY" || restaurant.vertical === "GAS" ? (
+        <div id="store-licence" className="bg-white rounded-2xl border border-border p-5 mb-6 scroll-mt-4 space-y-4">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <BadgeCheck className="h-4 w-4 text-brand" />
+              <p className="font-medium text-foreground">
+                {restaurant.vertical === "PHARMACY" ? "Pharmacy licence" : "LPG retail licence"}
+              </p>
+            </div>
+            <p className="text-sm text-muted">
+              {restaurant.vertical === "PHARMACY"
+                ? "Your Pharmacy Council premises licence. QareGO checks it before your store goes live; customers don't see it."
+                : "Your NPA licence to sell LPG. QareGO checks it before your station goes live; customers don't see it."}
+            </p>
+          </div>
+          <ImageUploadField
+            label="Photo of the licence"
+            hint="A clear photo where the name, number and expiry date can be read."
+            folder="licences"
+            value={licence.url}
+            onChange={(url) => setLicence((l) => ({ ...l, url }))}
+            aspect="wide"
+          />
+          <div>
+            <Label htmlFor="licenceNumber">Licence number</Label>
+            <Input
+              id="licenceNumber"
+              value={licence.number}
+              onChange={(e) => setLicence((l) => ({ ...l, number: e.target.value }))}
+            />
+          </div>
+          <div className="flex justify-end">
+            <Button type="button" onClick={saveLicence} disabled={savingLicence}>
+              {savingLicence ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Save className="h-4 w-4 mr-1 inline" /> Save licence</>}
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
       {momoEnabled ? (
       <form onSubmit={savePayout} className="bg-white rounded-2xl border border-border p-5 mb-6 space-y-4">
         <div className="flex items-center gap-2 mb-1">
@@ -483,7 +578,7 @@ export default function SettingsPage() {
       </form>
       ) : null}
 
-      <form onSubmit={save} className="bg-white rounded-2xl border border-border p-5 space-y-4">
+      <form id="store-profile" onSubmit={save} className="bg-white rounded-2xl border border-border p-5 space-y-4 scroll-mt-4">
         <h2 className="font-semibold text-foreground">Store profile</h2>
         <p className="text-sm text-muted -mt-2">Photo, description, and prep time shown to customers.</p>
 

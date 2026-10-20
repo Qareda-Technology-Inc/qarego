@@ -12,6 +12,7 @@ import { normalizePhone } from "../utils/phone.js";
 import { sanitizeImageUrl } from "../utils/mediaStorage.js";
 import { detectGhMomoChannel } from "../utils/hubtelService.js";
 import FoodOrder from "../models/FoodOrder.js";
+import { reviewStatus } from "../utils/storeReadiness.js";
 
 function normalizePayoutConfig(next = {}, prev = {}) {
   const allowedChannels = new Set(["mtn-gh", "vodafone-gh", "airteltigo-gh"]);
@@ -341,7 +342,12 @@ export const adminCreateRestaurant = async (req, res) => {
     );
   }
 
-  const restaurant = await Restaurant.create({ ...fields, owner: resolvedOwnerId });
+  // An admin setting up the store is the review, so it goes live as normal.
+  const restaurant = await Restaurant.create({
+    ...fields,
+    owner: resolvedOwnerId,
+    review: { status: "approved", decidedAt: new Date(), by: req.user.id },
+  });
 
   const populated = await Restaurant.findById(restaurant._id)
     .populate("owner", "name username phone")
@@ -363,6 +369,15 @@ export const adminUpdateRestaurant = async (req, res) => {
   const fields = pickRestaurantFields(req.body);
   await applyStoreTypeToRestaurantFields(req.body, fields);
   Object.assign(restaurant, fields);
+  // Switching a store that hasn't been reviewed to Active is the admin approving it.
+  if (fields.isActive === true && reviewStatus(restaurant) !== "approved") {
+    restaurant.review = {
+      ...(restaurant.review?.toObject?.() ?? restaurant.review ?? {}),
+      status: "approved",
+      decidedAt: new Date(),
+      by: req.user.id,
+    };
+  }
   if (fields.category && !fields.vertical) {
     restaurant.vertical = inferVerticalFromCategoryName(fields.category);
   }

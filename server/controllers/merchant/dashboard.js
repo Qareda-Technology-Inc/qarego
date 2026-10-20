@@ -5,6 +5,7 @@ import FoodOrder from "../../models/FoodOrder.js";
 import { StatusCodes } from "http-status-codes";
 import { getSettings } from "../../utils/tripSettlement.js";
 import { resolveKitchenAlertSoundUrl } from "../../utils/platformAlertSound.js";
+import { buildReadiness, countItemsWithPhotos, reviewStatus } from "../../utils/storeReadiness.js";
 
 /**
  * GET /merchant/overview — owner dashboard across ALL their stores.
@@ -16,7 +17,9 @@ export const getMyOverview = async (req, res) => {
   startOfDay.setHours(0, 0, 0, 0);
 
   const restaurants = await Restaurant.find({ owner: req.user.id })
-    .select("name imageEmoji cuisine vertical address isActive isAcceptingOrders")
+    .select(
+      "name imageEmoji cuisine vertical address isActive isAcceptingOrders imageUrl latitude longitude openingHours licence review.status review.note review.submittedAt review.decidedAt"
+    )
     .sort({ createdAt: 1 })
     .lean();
 
@@ -24,7 +27,7 @@ export const getMyOverview = async (req, res) => {
 
   const byRestaurant = (arr) => new Map(arr.map((c) => [String(c._id), c]));
 
-  const [menuCounts, cookCounts, todayAgg, pendingAgg, activeAgg] = await Promise.all([
+  const [menuCounts, cookCounts, todayAgg, pendingAgg, activeAgg, photoCounts] = await Promise.all([
     MenuItem.aggregate([
       { $match: { restaurant: { $in: ids } } },
       { $group: { _id: "$restaurant", count: { $sum: 1 } } },
@@ -56,6 +59,7 @@ export const getMyOverview = async (req, res) => {
       },
       { $group: { _id: "$restaurant", count: { $sum: 1 } } },
     ]),
+    countItemsWithPhotos(ids),
   ]);
 
   const menuMap = byRestaurant(menuCounts);
@@ -69,6 +73,8 @@ export const getMyOverview = async (req, res) => {
     const today = todayMap.get(key);
     return {
       ...r,
+      reviewStatus: reviewStatus(r),
+      readiness: buildReadiness(r, photoCounts.get(key) || 0),
       menuItemCount: menuMap.get(key)?.count || 0,
       cookCount: cookMap.get(key)?.count || 0,
       todayOrders: today?.count || 0,

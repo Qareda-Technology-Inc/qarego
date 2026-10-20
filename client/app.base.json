@@ -68,7 +68,10 @@
         "android.permission.PROCESS_OUTGOING_CALLS",
         "android.permission.READ_PHONE_STATE",
         "android.permission.READ_PHONE_NUMBERS",
-        "android.permission.SYSTEM_ALERT_WINDOW"
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.FOREGROUND_SERVICE_MICROPHONE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
       ]
     },
     "web": {
@@ -110,7 +113,13 @@
         }
       ],
       "expo-localization",
-      "expo-av",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
+      ],
       [
         "expo-notifications",
         {

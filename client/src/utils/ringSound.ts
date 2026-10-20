@@ -1,6 +1,6 @@
 /**
  * Rider offer alert — admin URL + loop while offers pending.
- * Only loads expo-av when ExponentAV is linked in the native build.
+ * Only loads expo-audio when its native module is linked in the build.
  */
 
 import { Vibration } from "react-native";
@@ -8,72 +8,62 @@ import { requireOptionalNativeModule } from "expo-modules-core";
 import { appAxios } from "@/service/apiInterceptors";
 import { ensureApiBaseUrl, getApiBaseUrl } from "@/service/config";
 
-type ExpoAVModule = {
-  Audio: {
-    setAudioModeAsync: (mode: object) => Promise<void>;
-    Sound: {
-      createAsync: (
-        source: { uri: string },
-        initialStatus?: object
-      ) => Promise<{
-        sound: {
-          stopAsync: () => Promise<void>;
-          unloadAsync: () => Promise<void>;
-          playAsync: () => Promise<void>;
-        };
-      }>;
-    };
-  };
-};
+type ExpoAudioModule = typeof import("expo-audio");
+type Player = ReturnType<ExpoAudioModule["createAudioPlayer"]>;
 
-let avChecked = false;
-let avNativeLinked = false;
-let ExpoAV: ExpoAVModule | null = null;
-let avLoadPromise: Promise<ExpoAVModule | null> | null = null;
+let audioChecked = false;
+let audioNativeLinked = false;
+let ExpoAudio: ExpoAudioModule | null = null;
+let audioLoadPromise: Promise<ExpoAudioModule | null> | null = null;
 
-function isExponentAVLinked(): boolean {
-  if (!avChecked) {
-    avChecked = true;
-    avNativeLinked = requireOptionalNativeModule("ExponentAV") != null;
-    if (!avNativeLinked) {
+function isExpoAudioLinked(): boolean {
+  if (!audioChecked) {
+    audioChecked = true;
+    audioNativeLinked = requireOptionalNativeModule("ExpoAudio") != null;
+    if (!audioNativeLinked) {
       console.log(
-        "expo-av (ExponentAV) not in this build — rider mp3 needs: cd client && npx expo prebuild --clean && npm run android"
+        "expo-audio not in this build — rider mp3 needs: cd client && npx expo prebuild --clean && npm run android"
       );
     }
   }
-  return avNativeLinked;
+  return audioNativeLinked;
 }
 
-/** Load JS only after native module exists (never require expo-av otherwise). */
-async function loadExpoAV(): Promise<ExpoAVModule | null> {
-  if (!isExponentAVLinked()) return null;
-  if (ExpoAV) return ExpoAV;
-  if (!avLoadPromise) {
-    avLoadPromise = import("expo-av")
+/** Load JS only after native module exists (never require expo-audio otherwise). */
+async function loadExpoAudio(): Promise<ExpoAudioModule | null> {
+  if (!isExpoAudioLinked()) return null;
+  if (ExpoAudio) return ExpoAudio;
+  if (!audioLoadPromise) {
+    audioLoadPromise = import("expo-audio")
       .then((mod) => {
-        ExpoAV = mod as ExpoAVModule;
-        return ExpoAV;
+        ExpoAudio = mod;
+        return ExpoAudio;
       })
       .catch((e) => {
-        console.warn("[rider] expo-av import failed:", e);
-        avNativeLinked = false;
+        console.warn("[rider] expo-audio import failed:", e);
+        audioNativeLinked = false;
         return null;
       });
   }
-  return avLoadPromise;
+  return audioLoadPromise;
+}
+
+/** Play over silent mode and duck other apps' audio while the offer rings. */
+async function setRingAudioMode(audio: ExpoAudioModule): Promise<void> {
+  await audio.setAudioModeAsync({
+    playsInSilentMode: true,
+    shouldPlayInBackground: true,
+    interruptionMode: "duckOthers",
+  });
 }
 
 export function isRiderOfferAudioAvailable(): boolean {
-  return isExponentAVLinked();
+  return isExpoAudioLinked();
 }
 
 let cachedSoundUrl: string | null = null;
 let soundUrlPromise: Promise<string | null> | null = null;
-let offerSound: {
-  stopAsync: () => Promise<void>;
-  unloadAsync: () => Promise<void>;
-  playAsync: () => Promise<void>;
-} | null = null;
+let offerSound: Player | null = null;
 let startingRing = false;
 let vibrationInterval: ReturnType<typeof setInterval> | null = null;
 
@@ -155,22 +145,24 @@ export function clearRiderAlertSoundCache(): void {
 }
 
 export async function primeRiderOfferAudio(): Promise<boolean> {
-  const av = await loadExpoAV();
-  if (!av) return false;
+  const audio = await loadExpoAudio();
+  if (!audio) return false;
   try {
     const url = await loadRiderAlertSoundUrl();
     if (!url) return false;
-    await av.Audio.setAudioModeAsync({
-      playsInSilentModeIOS: true,
-      staysActiveInBackground: true,
-      shouldDuckAndroid: true,
-    });
-    const { sound } = await av.Audio.Sound.createAsync(
-      { uri: url },
-      { volume: 0.01, shouldPlay: true }
-    );
-    await sound.stopAsync();
-    await sound.unloadAsync();
+    await setRingAudioMode(audio);
+    // A near-silent blip so the first real ring starts without delay.
+    const player = audio.createAudioPlayer({ uri: url });
+    player.volume = 0.01;
+    player.play();
+    setTimeout(() => {
+      try {
+        player.pause();
+        player.remove();
+      } catch {
+        /* ignore */
+      }
+    }, 300);
     return true;
   } catch {
     return false;
@@ -182,8 +174,8 @@ export async function stopRiderOfferRing(): Promise<void> {
   stopVibrationFallback();
   if (!offerSound) return;
   try {
-    await offerSound.stopAsync();
-    await offerSound.unloadAsync();
+    offerSound.pause();
+    offerSound.remove();
   } catch {
     /* ignore */
   }
@@ -193,8 +185,8 @@ export async function stopRiderOfferRing(): Promise<void> {
 export async function startRiderOfferRing(): Promise<void> {
   if (startingRing || offerSound || vibrationInterval) return;
 
-  const av = await loadExpoAV();
-  if (!av) {
+  const audio = await loadExpoAudio();
+  if (!audio) {
     startVibrationFallback();
     return;
   }
@@ -207,18 +199,13 @@ export async function startRiderOfferRing(): Promise<void> {
 
   startingRing = true;
   try {
-    await av.Audio.setAudioModeAsync({
-      playsInSilentModeIOS: true,
-      staysActiveInBackground: true,
-      shouldDuckAndroid: true,
-    });
+    await setRingAudioMode(audio);
     await stopRiderOfferRing();
-    const { sound } = await av.Audio.Sound.createAsync(
-      { uri: url },
-      { isLooping: true, volume: 1.0, shouldPlay: true }
-    );
-    offerSound = sound;
-    await sound.playAsync();
+    const player = audio.createAudioPlayer({ uri: url });
+    player.loop = true;
+    player.volume = 1.0;
+    offerSound = player;
+    player.play();
   } catch (e) {
     console.warn("[rider] offer alert sound failed:", e);
     offerSound = null;

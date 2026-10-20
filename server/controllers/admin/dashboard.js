@@ -213,6 +213,7 @@ export const getAdminOverview = async (_req, res) => {
     noRider,
     lateRides,
     storeDebt,
+    storesToReview,
   ] = await Promise.all([
     User.countDocuments({ role: "rider", isOnline: true, deletedAt: null }),
     Ride.countDocuments({ status: { $in: ["START", "ARRIVED", "IN_PROGRESS"] } }),
@@ -257,6 +258,10 @@ export const getAdminOverview = async (_req, res) => {
       { $match: { commissionOwed: { $gt: 0.004 } } },
       { $group: { _id: null, count: { $sum: 1 }, total: { $sum: "$commissionOwed" } } },
     ]),
+    Restaurant.find({ "review.status": "pending" })
+      .select("name vertical review.submittedAt")
+      .sort({ "review.submittedAt": 1 })
+      .lean(),
   ]);
 
   const ago = (d) => Math.max(0, Math.round((now - new Date(d)) / MINUTE));
@@ -267,6 +272,15 @@ export const getAdminOverview = async (_req, res) => {
     yesterday,
     live: { onlineRiders, activeTrips, activeOrders, newCustomersToday },
     actions: {
+      storesToReview: {
+        count: storesToReview.length,
+        items: storesToReview.slice(0, 5).map((r) => ({
+          _id: r._id,
+          name: r.name,
+          vertical: r.vertical,
+          minutes: r.review?.submittedAt ? ago(r.review.submittedAt) : null,
+        })),
+      },
       pendingRiders: {
         count: pendingRiderCount,
         items: pendingRiders.map((r) => ({ _id: r._id, name: r.name || "New rider", phone: r.phone })),

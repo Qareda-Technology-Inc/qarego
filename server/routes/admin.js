@@ -62,6 +62,7 @@ import {
   adminUpdateStoreType,
   adminDeleteStoreType,
 } from '../controllers/commerceStoreType.js';
+import { adminListStoreReviews, adminReviewStore } from '../controllers/storeReview.js';
 import { registerAdminServiceZoneRoutes } from './serviceZone.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -101,6 +102,8 @@ adminRouter.get('/trips/:id', getTripById);
 adminRouter.get('/reports', getReport);
 adminRouter.post('/rides/:rideId/assign', assignRideToDriver);
 adminRouter.get('/finance', getFinanceStats);
+adminRouter.get('/store-reviews', adminListStoreReviews);
+adminRouter.post('/restaurants/:id/review', adminReviewStore);
 adminRouter.get('/settings', getSettingsAdmin);
 adminRouter.patch('/settings', updateSettingsAdmin);
 adminRouter.get('/push-templates', getPushTemplatesAdmin);

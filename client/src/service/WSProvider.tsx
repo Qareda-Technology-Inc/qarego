@@ -37,7 +37,7 @@ export const WSProvider: React.FC<{ children: React.ReactNode }> = ({
     null
   );
   const [connectNonce, setConnectNonce] = useState(0);
-  const socket = useRef<Socket>();
+  const socket = useRef<Socket | undefined>(undefined);
   const refreshingRef = useRef(false);
 
   useEffect(() => {

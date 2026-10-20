@@ -15,6 +15,7 @@ import {
   getMyLedger,
   getMyRestaurant,
   updateMyRestaurant,
+  submitMyStoreForReview,
   setAcceptingOrders,
   getMyStats,
   listMyMenuCategories,
@@ -64,6 +65,7 @@ router.get("/kitchen-alert-sound", requireMerchantRole, getKitchenAlertSound);
 // Restaurant profile
 router.get("/restaurant", loadMerchantContext, getMyRestaurant);
 router.patch("/restaurant", loadMerchantContext, requireOwner, updateMyRestaurant);
+router.post("/restaurant/submit-review", loadMerchantContext, requireOwner, submitMyStoreForReview);
 // Pause/resume orders — owner OR cook
 router.patch("/restaurant/accepting", loadMerchantContext, setAcceptingOrders);
 

@@ -17,6 +17,7 @@ import {
   ShoppingBasket,
   Store,
   UserPlus,
+  BadgeCheck,
   Users,
   UtensilsCrossed,
   Wallet,
@@ -42,6 +43,7 @@ type Overview = {
   yesterday: DayTotals;
   live: { onlineRiders: number; activeTrips: number; activeOrders: number; newCustomersToday: number };
   actions: {
+    storesToReview: { count: number; items: { _id: string; name: string; vertical: string; minutes: number | null }[] };
     pendingRiders: { count: number; items: { _id: string; name: string; phone?: string }[] };
     ridersOverLimit: { debtLimit: number; items: { _id: string; name: string; phone?: string; owed: number }[] };
     ordersWaitingAccept: { _id: string; store: string; minutes: number; total: number }[];
@@ -112,6 +114,7 @@ export default function Dashboard() {
   const yesterday = data?.yesterday;
   const a = data?.actions;
   const actionCount =
+    (a?.storesToReview?.count ?? 0) +
     (a?.pendingRiders.count ?? 0) +
     (a?.ridersOverLimit.items.length ?? 0) +
     (a?.ordersWaitingAccept.length ?? 0) +
@@ -256,6 +259,25 @@ export default function Dashboard() {
               >
                 {a.ridesSearching.map((r) => (
                   <ActionRow key={r._id} main={`${r.type} · ${r.pickup ?? "Pickup"}`} side={`${r.minutes} min`} />
+                ))}
+              </ActionGroup>
+            ) : null}
+
+            {a.storesToReview?.count ? (
+              <ActionGroup
+                icon={BadgeCheck}
+                tone="blue"
+                title={`${a.storesToReview.count} store${a.storesToReview.count === 1 ? "" : "s"} waiting for approval`}
+                hint="Check the photos, pin and licence, then put them live"
+                href="/store-approvals"
+              >
+                {a.storesToReview.items.map((s) => (
+                  <ActionRow
+                    key={s._id}
+                    main={s.name}
+                    side={s.minutes == null ? "" : s.minutes < 60 ? `${s.minutes} min` : `${Math.round(s.minutes / 60)} h`}
+                    href={`/store-approvals?id=${s._id}`}
+                  />
                 ))}
               </ActionGroup>
             ) : null}

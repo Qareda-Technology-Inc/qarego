@@ -15,9 +15,7 @@ export function isNativePushModuleAvailable(): boolean {
   return !!requireOptionalNativeModule("ExpoPushTokenManager");
 }
 
-function resolveNotificationsModule(
-  loaded: Awaited<ReturnType<typeof import("expo-notifications")>>
-): NotificationsModule | null {
+function resolveNotificationsModule(loaded: NotificationsModule): NotificationsModule | null {
   const mod = loaded as NotificationsModule & { default?: NotificationsModule };
   if (typeof mod.setNotificationHandler === "function") return mod;
   if (mod.default && typeof mod.default.setNotificationHandler === "function") {
@@ -45,7 +43,8 @@ async function ensureNotificationHandler(Notifications: NotificationsModule) {
   if (typeof Notifications.setNotificationHandler !== "function") return;
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
-      shouldShowAlert: true,
+      shouldShowBanner: true,
+      shouldShowList: true,
       shouldPlaySound: true,
       shouldSetBadge: true,
     }),

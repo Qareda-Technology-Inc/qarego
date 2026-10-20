@@ -10,6 +10,6 @@ module.exports = function (api) {
         },
       ],
     ],
-    plugins: ["react-native-reanimated/plugin"],
+    // babel-preset-expo adds the Reanimated 4 (react-native-worklets) plugin itself.
   };
 };

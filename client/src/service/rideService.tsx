@@ -1,4 +1,4 @@
-import { router } from "expo-router";
+import { router, type Href } from "expo-router";
 import { appAxios } from "./apiInterceptors";
 import { useRiderStore } from "@/store/riderStore";
 import { Alert } from "react-native";
@@ -265,9 +265,9 @@ export const resumeCustomerSession = async (options?: {
 
   const go = (pathname: string, params?: Record<string, string>) => {
     if (options?.useReset) {
-      resetAndNavigate({ pathname, params } as { pathname: string; params?: Record<string, string> });
+      resetAndNavigate({ pathname, params } as Href);
     } else {
-      router.navigate({ pathname, params } as { pathname: string; params?: Record<string, string> });
+      router.navigate({ pathname, params } as Href);
     }
   };
 
