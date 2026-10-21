@@ -80,3 +80,59 @@ export function isValidPaystackSignature(rawBody, signature) {
   const b = Buffer.from(String(signature));
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
+
+/* ---------------- Transfers (payouts to MoMo) ---------------- */
+
+/** Paystack's Ghana mobile-money network codes. */
+const GH_MOMO_CODES = { "mtn-gh": "MTN", "vodafone-gh": "VOD", "airteltigo-gh": "ATL" };
+
+/** "0241234567" from +233241234567 / 233241234567 / 0241234567. */
+function localGhPhone(phone) {
+  let d = String(phone || "").replace(/\D/g, "");
+  if (d.startsWith("233")) d = d.slice(3);
+  if (!d.startsWith("0")) d = `0${d}`;
+  return d.length === 10 ? d : null;
+}
+
+/**
+ * Send money to a Ghana MoMo wallet. `channel` is the Hubtel-style network (mtn-gh,
+ * vodafone-gh, airteltigo-gh). Returns { success, status, data, error }:
+ * success = Paystack accepted it (status "success" or "pending"; the final result comes by
+ * webhook). An "otp" status means the account still requires OTP approval for transfers.
+ */
+export async function sendPaystackMomoTransfer({ name, phone, channel, amount, reference, reason }) {
+  const account = localGhPhone(phone);
+  if (!account) return { success: false, error: "Missing or invalid MoMo number" };
+  try {
+    const recipient = await paystack("POST", "/transferrecipient", {
+      type: "mobile_money",
+      name: String(name || "QareGO payee").slice(0, 100),
+      account_number: account,
+      bank_code: GH_MOMO_CODES[channel] || "MTN",
+      currency: "GHS",
+    });
+    const transfer = await paystack("POST", "/transfer", {
+      source: "balance",
+      amount: Math.round(Number(amount) * 100),
+      recipient: recipient.recipient_code,
+      reference,
+      reason: String(reason || "QareGO payout").slice(0, 100),
+      currency: "GHS",
+    });
+    const status = String(transfer.status || "").toLowerCase();
+    if (status === "otp") {
+      return {
+        success: false,
+        status,
+        data: transfer,
+        error: "Paystack needs OTP approval for transfers. Turn off transfer OTP in the Paystack dashboard.",
+      };
+    }
+    if (status === "failed" || status === "reversed") {
+      return { success: false, status, data: transfer, error: transfer.reason || "Transfer failed" };
+    }
+    return { success: true, status, data: transfer };
+  } catch (err) {
+    return { success: false, error: err.message || "Transfer failed", data: err.paystack };
+  }
+}

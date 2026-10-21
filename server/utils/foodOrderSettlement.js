@@ -3,6 +3,7 @@
  * MoMo: Hubtel disburse restaurantNet + riderNet on delivery; platform keeps platformNet.
  * Cash POD: rider balance -= platformNet (ledger only).
  */
+import { sendMomoPayout } from "./momoPayout.js";
 import { getGasConfig } from "./gasOrders.js";
 import StoreLedgerEntry from "../models/StoreLedgerEntry.js";
 import FoodOrder from "../models/FoodOrder.js";
@@ -13,7 +14,6 @@ import Transaction from "../models/Transaction.js";
 import {
   detectGhMomoChannel,
   formatPhoneForHubtel,
-  sendPayment,
 } from "./hubtelService.js";
 import { getCommissionRateForService, getSettings } from "./tripSettlement.js";
 import { appendWebhookToken } from "../middleware/hubtelWebhookAuth.js";
@@ -165,14 +165,13 @@ async function disburseToRecipient({
     };
   }
 
-  const payout = await sendPayment({
-    RecipientName: name || "Recipient",
-    RecipientMsisdn: phone,
-    Amount: amount,
-    PrimaryCallbackUrl: getPayoutCallbackUrl() || undefined,
-    Description: description,
-    ClientReference: clientReference,
-    Channel: channel || "mtn-gh",
+  const payout = await sendMomoPayout({
+    name,
+    phone,
+    amount,
+    reference: clientReference,
+    reason: description,
+    callbackUrl: getPayoutCallbackUrl() || undefined,
   });
 
   if (!payout.success) {
@@ -342,8 +341,9 @@ async function applyMomoSettlement(order, restaurant, ride) {
 
   if (restaurantNet > 0 && legNeedsDisbursement(details.restaurant, restaurantNet)) {
     const { msisdn, name, channel } = resolveRestaurantPayoutTarget(restaurant);
+    // A failed leg gets a fresh reference: Paystack won't reuse one.
     const ref =
-      details.restaurant?.reference ||
+      (details.restaurant?.status !== "failed" && details.restaurant?.reference) ||
       makeSettlementRef("fosr_", order._id);
 
     results.restaurant = await disburseToRecipient({
@@ -367,7 +367,8 @@ async function applyMomoSettlement(order, restaurant, ride) {
       : await User.findById(riderId).select("name phone").lean();
     const msisdn = rider?.phone || "";
     const ref =
-      details.rider?.reference || makeSettlementRef("fosd_", order._id);
+      (details.rider?.status !== "failed" && details.rider?.reference) ||
+      makeSettlementRef("fosd_", order._id);
 
     results.rider = await disburseToRecipient({
       amount: riderNet,

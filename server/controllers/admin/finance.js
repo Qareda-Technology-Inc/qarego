@@ -328,7 +328,8 @@ export const creditDriverBalance = async (req, res) => {
 export const runWeeklyPayouts = async (req, res) => {
   assertMomoEnabled();
   try {
-    const { sendPayment, makeShortHubtelRef, detectGhMomoChannel } = await import('../utils/hubtelService.js');
+    const { makeShortHubtelRef } = await import('../../utils/hubtelService.js');
+    const { sendMomoPayout } = await import('../../utils/momoPayout.js');
     const baseUrl =
       process.env.BASE_URL ||
       process.env.PUBLIC_API_URL ||
@@ -342,33 +343,51 @@ export const runWeeklyPayouts = async (req, res) => {
     const results = { processed: 0, failed: 0, errors: [] };
 
     for (const driver of drivers) {
-      const amount = Number(driver.balance);
+      const amount = Math.round(Number(driver.balance) * 100) / 100;
       if (amount <= 0 || !driver.phone) continue;
 
+      // Take the money off the wallet first (only if it's still there), so a trip settling
+      // mid-run isn't lost and the same balance can't be paid twice.
+      const taken = await User.findOneAndUpdate(
+        { _id: driver._id, balance: { $gte: amount } },
+        { $inc: { balance: -amount } },
+        { new: true }
+      ).select('balance');
+      if (!taken) continue;
+      const balanceAfter = Math.round(Number(taken.balance) * 100) / 100;
+
       const clientReference = makeShortHubtelRef('po', driver._id);
-      const result = await sendPayment({
-        RecipientName: driver.name || 'Driver',
-        RecipientMsisdn: driver.phone,
-        Amount: amount,
-        PrimaryCallbackUrl: callbackUrl,
-        Description: 'QareGO Weekly Payout',
-        ClientReference: clientReference,
-        Channel: detectGhMomoChannel(driver.phone),
+      const Transaction = (await import('../../models/Transaction.js')).default;
+      await Transaction.create({
+        driver: driver._id,
+        amount: -amount,
+        type: 'PAYOUT',
+        note: 'Weekly payout',
+        reference: clientReference,
+        balanceAfter,
+      });
+      const result = await sendMomoPayout({
+        name: driver.name || 'Driver',
+        phone: driver.phone,
+        amount,
+        reference: clientReference,
+        reason: 'QareGO weekly payout',
+        callbackUrl,
       });
 
       if (result.success) {
-        await User.findByIdAndUpdate(driver._id, { balance: 0 });
-        const Transaction = (await import('../models/Transaction.js')).default;
-        await Transaction.create({
-          driver: driver._id,
-          amount: -amount,
-          type: 'PAYOUT',
-          note: 'Weekly payout (Hubtel)',
-          reference: clientReference,
-          balanceAfter: 0,
-        });
         results.processed++;
       } else {
+        // Couldn't send: give it back straight away.
+        const back = await User.findByIdAndUpdate(driver._id, { $inc: { balance: amount } }, { new: true }).select('balance');
+        await Transaction.create({
+          driver: driver._id,
+          amount,
+          type: 'MANUAL_CREDIT',
+          note: `Payout failed — balance restored (${result.error})`,
+          reference: `reversal_${clientReference}`,
+          balanceAfter: Math.round(Number(back?.balance ?? 0) * 100) / 100,
+        });
         results.failed++;
         results.errors.push({ driverId: driver._id, error: result.error });
       }

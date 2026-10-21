@@ -23,6 +23,7 @@ import {
 import { getSettings, settleTrip } from '../utils/tripSettlement.js';
 import { settleFoodOrderOnDelivery } from '../utils/foodOrderSettlement.js';
 import { appendWebhookToken } from '../middleware/hubtelWebhookAuth.js';
+import { sendMomoPayout } from '../utils/momoPayout.js';
 import {
   customerPaymentProvider,
   initializePaystackCheckout,
@@ -524,7 +525,7 @@ export const initiateCashout = async (req, res) => {
     driver: driverId,
     amount: -amount,
     type: 'PAYOUT',
-    note: 'Wallet cash out (Hubtel)',
+    note: customerPaymentProvider() === 'paystack' ? 'Wallet cash out' : 'Wallet cash out (Hubtel)',
     reference: clientReference,
     balanceAfter: newBalance,
   });
@@ -533,18 +534,17 @@ export const initiateCashout = async (req, res) => {
     `${getBaseUrl(req).replace(/\/$/, '')}/webhooks/hubtel-payout`
   );
 
-  const result = await sendPayment({
-    RecipientName: user.name || 'Driver',
-    RecipientMsisdn: user.phone,
-    Amount: amount,
-    PrimaryCallbackUrl: callbackUrl,
-    Description: 'QareGO Wallet Cash Out',
-    ClientReference: clientReference,
-    Channel: detectGhMomoChannel(user.phone),
+  const result = await sendMomoPayout({
+    name: user.name || 'Driver',
+    phone: user.phone,
+    amount,
+    reference: clientReference,
+    reason: 'QareGO wallet cash out',
+    callbackUrl,
   });
 
   if (!result.success) {
-    const restoredBalance = newBalance + amount;
+    const restoredBalance = Math.round((newBalance + amount) * 100) / 100;
     await User.findByIdAndUpdate(driverId, { balance: restoredBalance });
     await Transaction.create({
       driver: driverId,
@@ -1034,6 +1034,116 @@ function isPayoutSuccess(status, responseCode) {
  * POST /webhooks/hubtel-payout - Hubtel disbursement (Send Money) callback.
  * Reconciles merchant payouts (fop_...) and driver weekly payouts (payout_...).
  */
+/**
+ * Apply a payout's final result (Hubtel callback or Paystack transfer webhook): mark store/rider
+ * settlement legs sent or failed, and give a rider their money back when a payout fails.
+ */
+async function applyPayoutOutcome(clientReference, success, failureMsg, body) {
+  // Legacy checkout-time merchant payout (fop_).
+  if (String(clientReference).startsWith('fop_')) {
+    const payment = await FoodPayment.findOne({ payoutReference: clientReference });
+    if (payment && payment.payoutStatus !== 'sent') {
+      payment.payoutResponse = body;
+      if (success) {
+        payment.payoutStatus = 'sent';
+        payment.payoutCompletedAt = new Date();
+        payment.payoutError = null;
+      } else {
+        payment.payoutStatus = 'failed';
+        payment.payoutError = failureMsg;
+      }
+      await payment.save();
+    }
+    return;
+  }
+
+  // Delivery-time food settlement: restaurant (fosr_) or rider (fosd_) disbursement.
+  if (
+    String(clientReference).startsWith('fosr_') ||
+    String(clientReference).startsWith('fosd_')
+  ) {
+    const field =
+      String(clientReference).startsWith('fosr_') ? 'restaurant' : 'rider';
+    const order = await FoodOrder.findOne({
+      [`settlementDetails.${field}.reference`]: clientReference,
+    });
+    if (order) {
+      const details = { ...(order.settlementDetails || {}) };
+      const leg = { ...(details[field] || {}), response: body };
+      if (success) {
+        leg.status = 'sent';
+        leg.error = null;
+      } else {
+        leg.status = 'failed';
+        leg.error = failureMsg;
+      }
+      details[field] = leg;
+
+      const restaurantOk =
+        !details.restaurant ||
+        ['sent', 'not_applicable'].includes(details.restaurant.status);
+      const riderOk =
+        !details.rider || ['sent', 'not_applicable'].includes(details.rider.status);
+      const anyFailed =
+        details.restaurant?.status === 'failed' || details.rider?.status === 'failed';
+
+      order.settlementDetails = details;
+      if (restaurantOk && riderOk && !anyFailed) {
+        order.settlementStatus = 'settled';
+        order.settledAt = order.settledAt || new Date();
+        order.settlementError = null;
+      } else if (anyFailed) {
+        order.settlementStatus = 'failed';
+        order.settlementError = failureMsg;
+      }
+      await order.save();
+    }
+    return;
+  }
+
+  // Driver payout (admin weekly or rider cash-out). On failure restore balance.
+  // Legacy: payout_ / cashout_; short: po… / co…
+  if (
+    String(clientReference).startsWith('payout_') ||
+    String(clientReference).startsWith('cashout_') ||
+    String(clientReference).startsWith('po') ||
+    String(clientReference).startsWith('co')
+  ) {
+    if (!success) {
+      const reversalRef = `reversal_${clientReference}`.slice(0, 64);
+      const alreadyReversed = await Transaction.findOne({ reference: reversalRef });
+      const original = await Transaction.findOne({
+        reference: clientReference,
+        type: 'PAYOUT',
+      });
+      if (original && !alreadyReversed) {
+        const restore = Math.abs(Number(original.amount) || 0);
+        if (restore > 0) {
+          // $inc so a trip settling at the same moment isn't overwritten.
+          const updated = await User.findByIdAndUpdate(
+            original.driver,
+            { $inc: { balance: restore } },
+            { new: true }
+          ).select('balance');
+          const newBalance = Math.round(Number(updated?.balance ?? 0) * 100) / 100;
+          if (newBalance !== Number(updated?.balance)) {
+            await User.updateOne({ _id: original.driver }, { $set: { balance: newBalance } });
+          }
+          await Transaction.create({
+            driver: original.driver,
+            amount: restore,
+            type: 'MANUAL_CREDIT',
+            note: `Payout failed — balance restored (${failureMsg})`,
+            reference: reversalRef,
+            balanceAfter: newBalance,
+          });
+        }
+      }
+    }
+    return;
+  }
+}
+
 export const hubtelPayoutWebhook = async (req, res) => {
   try {
     const body = req.body || {};
@@ -1050,103 +1160,7 @@ export const hubtelPayoutWebhook = async (req, res) => {
     const failureMsg =
       body.Message || body.Data?.Description || body.Data?.Message || 'Payout failed';
 
-    // Legacy checkout-time merchant payout (fop_).
-    if (String(clientReference).startsWith('fop_')) {
-      const payment = await FoodPayment.findOne({ payoutReference: clientReference });
-      if (payment && payment.payoutStatus !== 'sent') {
-        payment.payoutResponse = body;
-        if (success) {
-          payment.payoutStatus = 'sent';
-          payment.payoutCompletedAt = new Date();
-          payment.payoutError = null;
-        } else {
-          payment.payoutStatus = 'failed';
-          payment.payoutError = failureMsg;
-        }
-        await payment.save();
-      }
-      return res.status(StatusCodes.OK).json({ received: true });
-    }
-
-    // Delivery-time food settlement: restaurant (fosr_) or rider (fosd_) disbursement.
-    if (
-      String(clientReference).startsWith('fosr_') ||
-      String(clientReference).startsWith('fosd_')
-    ) {
-      const field =
-        String(clientReference).startsWith('fosr_') ? 'restaurant' : 'rider';
-      const order = await FoodOrder.findOne({
-        [`settlementDetails.${field}.reference`]: clientReference,
-      });
-      if (order) {
-        const details = { ...(order.settlementDetails || {}) };
-        const leg = { ...(details[field] || {}), response: body };
-        if (success) {
-          leg.status = 'sent';
-          leg.error = null;
-        } else {
-          leg.status = 'failed';
-          leg.error = failureMsg;
-        }
-        details[field] = leg;
-
-        const restaurantOk =
-          !details.restaurant ||
-          ['sent', 'not_applicable'].includes(details.restaurant.status);
-        const riderOk =
-          !details.rider || ['sent', 'not_applicable'].includes(details.rider.status);
-        const anyFailed =
-          details.restaurant?.status === 'failed' || details.rider?.status === 'failed';
-
-        order.settlementDetails = details;
-        if (restaurantOk && riderOk && !anyFailed) {
-          order.settlementStatus = 'settled';
-          order.settledAt = order.settledAt || new Date();
-          order.settlementError = null;
-        } else if (anyFailed) {
-          order.settlementStatus = 'failed';
-          order.settlementError = failureMsg;
-        }
-        await order.save();
-      }
-      return res.status(StatusCodes.OK).json({ received: true });
-    }
-
-    // Driver payout (admin weekly or rider cash-out). On failure restore balance.
-    // Legacy: payout_ / cashout_; short: po… / co…
-    if (
-      String(clientReference).startsWith('payout_') ||
-      String(clientReference).startsWith('cashout_') ||
-      String(clientReference).startsWith('po') ||
-      String(clientReference).startsWith('co')
-    ) {
-      if (!success) {
-        const reversalRef = `reversal_${clientReference}`.slice(0, 64);
-        const alreadyReversed = await Transaction.findOne({ reference: reversalRef });
-        const original = await Transaction.findOne({
-          reference: clientReference,
-          type: 'PAYOUT',
-        });
-        if (original && !alreadyReversed) {
-          const restore = Math.abs(Number(original.amount) || 0);
-          if (restore > 0) {
-            const driver = await User.findById(original.driver).select('balance');
-            const newBalance = Number(driver?.balance ?? 0) + restore;
-            await User.findByIdAndUpdate(original.driver, { balance: newBalance });
-            await Transaction.create({
-              driver: original.driver,
-              amount: restore,
-              type: 'MANUAL_CREDIT',
-              note: `Payout failed — balance restored (${failureMsg})`,
-              reference: reversalRef,
-              balanceAfter: newBalance,
-            });
-          }
-        }
-      }
-      return res.status(StatusCodes.OK).json({ received: true });
-    }
-
+    await applyPayoutOutcome(clientReference, success, failureMsg, body);
     return res.status(StatusCodes.OK).json({ received: true });
   } catch (err) {
     console.error('Hubtel payout webhook error:', err);
@@ -1249,7 +1263,20 @@ export const paystackWebhook = async (req, res) => {
   const reference = req.body?.data?.reference;
   // Answer straight away; Paystack retries slow or failed webhooks.
   res.status(StatusCodes.OK).json({ received: true });
-  if (!reference || !['charge.success', 'charge.failed'].includes(event)) return;
+  if (!reference) return;
+  // Payouts (rider cash-out, weekly payouts, store settlement): the event is signed, and a
+  // failure only gives money back, so it's applied as sent.
+  if (['transfer.success', 'transfer.failed', 'transfer.reversed'].includes(event)) {
+    try {
+      const ok = event === 'transfer.success';
+      const reason = req.body?.data?.reason || req.body?.data?.gateway_response || 'Transfer failed';
+      await applyPayoutOutcome(reference, ok, ok ? null : `Paystack: ${reason}`, req.body);
+    } catch (err) {
+      console.error('[paystack] transfer webhook handling failed:', reference, err.message);
+    }
+    return;
+  }
+  if (!['charge.success', 'charge.failed'].includes(event)) return;
   try {
     const payment = await FoodPayment.findOne({ clientReference: reference });
     if (payment) {
