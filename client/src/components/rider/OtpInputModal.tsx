@@ -121,7 +121,7 @@ const OtpInputModal: React.FC<OtpInputModalProps> = ({
     >
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior="padding"
       >
         <TouchableWithoutFeedback onPress={onClose} accessible={false}>
           <View style={styles.backdrop} />

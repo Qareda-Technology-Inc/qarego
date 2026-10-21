@@ -9,7 +9,7 @@ import {
   type NativeScrollEvent,
   type NativeSyntheticEvent,
 } from "react-native";
-import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import CustomText from "@/components/shared/CustomText";
 import { Colors } from "@/utils/Constants";
@@ -70,6 +70,7 @@ export default function WelcomeSlides({
   slides?: Slide[];
 }) {
   const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const listRef = useRef<FlatList<Slide>>(null);
   const [index, setIndex] = useState(0);
   const last = index === slides.length - 1;
@@ -95,9 +96,9 @@ export default function WelcomeSlides({
       onRequestClose={onDone}
       statusBarTranslucent
     >
-      {/* A modal is a new native root, so it needs its own provider for the notch insets. */}
-      <SafeAreaProvider>
-        <SafeAreaView style={styles.root} edges={["top", "bottom"]}>
+      {/* Insets come from the screen behind: a provider inside the modal reports 0 on Android,
+          which put Skip under the status bar. */}
+        <View style={[styles.root, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
           <View style={styles.topBar}>
             {last ? (
               <View />
@@ -182,8 +183,7 @@ export default function WelcomeSlides({
               </CustomText>
             </Pressable>
           </View>
-        </SafeAreaView>
-      </SafeAreaProvider>
+        </View>
     </Modal>
   );
 }

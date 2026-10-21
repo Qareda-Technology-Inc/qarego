@@ -14,6 +14,8 @@ interface PhoneInputProps {
   countryCode?: string;
   onCountryChange?: (country: Country) => void;
   autoDetect?: boolean;
+  /** Keyboard's done/✓ key. */
+  onSubmitEditing?: () => void;
 }
 
 const PhoneInput: FC<PhoneInputProps> = ({
@@ -24,6 +26,7 @@ const PhoneInput: FC<PhoneInputProps> = ({
   countryCode,
   onCountryChange,
   autoDetect = true,
+  onSubmitEditing,
 }) => {
   const [selectedCountry, setSelectedCountry] = useState<Country>(
     getCountryFromLocale()
@@ -89,6 +92,8 @@ const PhoneInput: FC<PhoneInputProps> = ({
         onChangeText={handlePhoneChange}
         onFocus={handleFocus}
         onBlur={handleBlur}
+        returnKeyType="done"
+        onSubmitEditing={onSubmitEditing}
         placeholderTextColor="#999"
         style={styles.input}
       />

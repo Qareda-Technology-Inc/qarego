@@ -81,7 +81,7 @@ const Role = () => {
 
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior="padding"
       >
         <ScrollView
           contentContainerStyle={[
@@ -132,6 +132,9 @@ const Role = () => {
               onChangeText={setPhone}
               onCountryChange={setSelectedCountry}
               autoDetect={true}
+              onSubmitEditing={() => {
+                if (phoneReady && !loading) handleLogin();
+              }}
             />
 
             <View style={styles.ctaWrap}>

@@ -656,11 +656,19 @@ const FoodCart = () => {
                 <CustomText fontSize={13} color="#ef4444">
                   {locationError}
                 </CustomText>
-                <TouchableOpacity onPress={refreshDeliveryLocation}>
-                  <CustomText fontSize={13} color={accent} fontFamily="Medium">
-                    Try again
-                  </CustomText>
-                </TouchableOpacity>
+                <View style={{ flexDirection: "row", gap: 20, marginTop: 6 }}>
+                  <TouchableOpacity onPress={refreshDeliveryLocation} hitSlop={8}>
+                    <CustomText fontSize={13} color={accent} fontFamily="Medium">
+                      Try again
+                    </CustomText>
+                  </TouchableOpacity>
+                  {/* GPS can fail indoors or on test devices: an address always gets them through. */}
+                  <TouchableOpacity onPress={openLocationPicker} hitSlop={8}>
+                    <CustomText fontSize={13} color={accent} fontFamily="Medium">
+                      Enter an address instead
+                    </CustomText>
+                  </TouchableOpacity>
+                </View>
               </View>
             ) : hasValidDeliveryCoords(location) ? (
               <>

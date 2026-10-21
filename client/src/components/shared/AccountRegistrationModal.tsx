@@ -102,7 +102,7 @@ export default function AccountRegistrationModal({
         <Pressable style={styles.backdrop} onPress={() => {}} />
 
         <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          behavior="padding"
           style={styles.modalWrap}
         >
           <ScrollView

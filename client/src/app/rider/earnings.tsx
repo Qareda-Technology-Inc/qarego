@@ -635,7 +635,7 @@ export default function RiderEarnings() {
         onRequestClose={() => !cashoutLoading && setCashoutModalVisible(false)}
       >
         <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          behavior="padding"
           style={styles.modalOverlay}
         >
           <View style={styles.modalCard}>

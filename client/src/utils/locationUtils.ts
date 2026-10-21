@@ -45,13 +45,9 @@ function mapLocationError(error: unknown, emulator: boolean): GetLocationResult 
   if (msg.includes("permission") || msg.includes("denied")) {
     message = "Location permission is required. Please allow access in settings.";
   } else if (msg.includes("unavailable") || msg.includes("disabled")) {
-    message = emulator
-      ? "Turn on Location in the emulator (Settings → Location) and set a point under Extended controls (⋮) → Location."
-      : "Location is unavailable. Make sure location services are enabled in your device settings.";
+    message = "Location is unavailable. Turn on location in your device settings, or enter an address.";
   } else if (msg.includes("timeout") || msg.includes("could not find")) {
-    message = emulator
-      ? "Emulator GPS timed out. Open Extended controls (⋮) → Location, set lat/lng, tap Set Location, then try again."
-      : "Could not get your location in time. Try again near a window or enable GPS.";
+    message = "We couldn't find your location in time. Try again, or enter an address.";
     canOpenSettings = false;
   }
 
@@ -75,9 +71,7 @@ async function ensureLocationServicesEnabled(
 
   return {
     ok: false,
-    message: emulator
-      ? "Location is off on the emulator. Enable Settings → Location, then set coordinates in Extended controls (⋮) → Location."
-      : "Location is unavailable. Make sure location services are enabled in your device settings.",
+    message: "Location is off. Turn it on in your device settings, or enter an address.",
     canOpenSettings: true,
   };
 }

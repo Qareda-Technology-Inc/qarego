@@ -407,7 +407,7 @@ const LocationSelection = () => {
 
       <KeyboardAvoidingView
         style={styles.keyboard}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior="padding"
       >
         <View style={styles.header}>
           <TouchableOpacity

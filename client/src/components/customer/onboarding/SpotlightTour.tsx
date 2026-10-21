@@ -24,7 +24,7 @@ const MIN_VISIBLE = 160;
 /** Room the tip card needs (its usual height plus a margin). */
 const CARD_ROOM = 230;
 
-function measure(ref: TourStep["target"]): Promise<Rect | null> {
+function measureOnce(ref: TourStep["target"]): Promise<Rect | null> {
   return new Promise((resolve) => {
     const node = ref.current;
     if (!node) return resolve(null);
@@ -32,6 +32,26 @@ function measure(ref: TourStep["target"]): Promise<Rect | null> {
       resolve(width > 0 && height > 0 ? { x, y, width, height } : null);
     });
   });
+}
+
+const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Screens slide in when they open, so a control can still be moving when the tour starts.
+ * Measure until two readings agree (up to ~1.2s), else the highlight lands where it was.
+ */
+async function measure(ref: TourStep["target"]): Promise<Rect | null> {
+  let last = await measureOnce(ref);
+  for (let i = 0; i < 8 && last; i++) {
+    await wait(150);
+    const next = await measureOnce(ref);
+    if (!next) return null;
+    if (Math.abs(next.x - last.x) < 1 && Math.abs(next.y - last.y) < 1 && Math.abs(next.height - last.height) < 1) {
+      return next;
+    }
+    last = next;
+  }
+  return last;
 }
 
 /**

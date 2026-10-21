@@ -54,7 +54,7 @@ export const CenteredFormModal: FC<Props> = ({
         </TouchableWithoutFeedback>
 
         <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          behavior="padding"
           style={styles.foreground}
           pointerEvents="box-none"
         >
