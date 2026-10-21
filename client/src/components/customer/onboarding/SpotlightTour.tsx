@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Modal, Pressable, StyleSheet, View, useWindowDimensions } from "react-native";
+import { Modal, Pressable, StyleSheet, View, useWindowDimensions, Platform, StatusBar } from "react-native";
 import CustomText from "@/components/shared/CustomText";
 import { Colors } from "@/utils/Constants";
 import { DS } from "@/theme/designSystem";
@@ -29,7 +29,10 @@ function measureOnce(ref: TourStep["target"]): Promise<Rect | null> {
     const node = ref.current;
     if (!node) return resolve(null);
     node.measureInWindow((x, y, width, height) => {
-      resolve(width > 0 && height > 0 ? { x, y, width, height } : null);
+      // Android measures from below the status bar, but this overlay (statusBarTranslucent)
+      // draws from the top of the screen: shift down by the status bar or the hole sits too high.
+      const top = Platform.OS === "android" ? StatusBar.currentHeight ?? 0 : 0;
+      resolve(width > 0 && height > 0 ? { x, y: y + top, width, height } : null);
     });
   });
 }
