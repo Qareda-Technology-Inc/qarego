@@ -67,3 +67,6 @@ startup.txt
 
 # Local credentials notes
 passwords.txt
+
+# Marketing designs and videos (kept locally, too large for the repo)
+marketing/
