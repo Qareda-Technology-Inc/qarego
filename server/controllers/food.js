@@ -4,6 +4,7 @@ import MenuItem from "../models/MenuItem.js";
 import FoodOrder, { FOOD_CODE_FIELDS } from "../models/FoodOrder.js";
 import User from "../models/User.js";
 import Transaction from "../models/Transaction.js";
+import { refreshRefund, startRefundIfDue } from "../utils/orderRefunds.js";
 import { BadRequestError, NotFoundError } from "../errors/index.js";
 import { StatusCodes } from "http-status-codes";
 import {
@@ -649,6 +650,11 @@ export const adminGetFoodOrder = async (req, res) => {
     })
     .lean();
   if (!order) throw new NotFoundError("Order not found");
+  if (order.refundStatus === "DUE" && order.refund?.status === "requested") {
+    await refreshRefund(order);
+    const fresh = await FoodOrder.findById(order._id).select("refundStatus refundedAt paymentStatus refund").lean();
+    Object.assign(order, fresh);
+  }
 
   // Laundry collected by one rider and returned by another: show how the pay was split.
   const tripShare = order.collectionRide?._id
@@ -675,6 +681,14 @@ export const adminRestaurantOrderAction = async (req, res) => {
   const { action } = req.body;
   const { cancelReason } = req.body;
 
+  if (action === "retry_refund") {
+    const result = await startRefundIfDue(req.params.id);
+    if (!result) throw new BadRequestError("No automatic refund can be started for this order");
+    if (!result.started) throw new BadRequestError(`Refund failed: ${result.error}`);
+    const order = await FoodOrder.findById(req.params.id).lean();
+    return res.status(StatusCodes.OK).json({ order });
+  }
+
   if (action === "mark_refunded") {
     // Admin refunded the customer manually in Hubtel; record it.
     const order = await FoodOrder.findOneAndUpdate(
@@ -688,7 +702,7 @@ export const adminRestaurantOrderAction = async (req, res) => {
 
   const ADMIN_ACTIONS = ["accept", "reject", "ready", "assign_rider", "collected", "empty_returned"];
   if (!ADMIN_ACTIONS.includes(action)) {
-    throw new BadRequestError(`action must be one of: ${[...ADMIN_ACTIONS, "mark_refunded"].join(", ")}`);
+    throw new BadRequestError(`action must be one of: ${[...ADMIN_ACTIONS, "mark_refunded", "retry_refund"].join(", ")}`);
   }
   const { driverId } = req.body;
   if (action === "assign_rider" && !driverId) {

@@ -111,28 +111,33 @@ const RiderHome = () => {
     const startLocationUpdates = async () => {
       const status = await ensureForegroundPermission();
       if (status === "granted") {
-        locationsSubscription = await Location.watchPositionAsync(
-          {
-            accuracy: Location.Accuracy.High,
-            timeInterval: 10000,
-            distanceInterval: 10,
-          },
-          (location) => {
-            const { latitude, longitude, heading } = location.coords;
-            setLocation({
-              latitude: latitude,
-              longitude: longitude,
-              address: "Somewhere",
-              heading: heading as number,
-            });
-            // Not queued while offline: only the latest position matters.
-            emitIfConnected("updateLocation", {
-              latitude,
-              longitude,
-              heading,
-            });
-          }
-        );
+        try {
+          locationsSubscription = await Location.watchPositionAsync(
+            {
+              accuracy: Location.Accuracy.High,
+              timeInterval: 10000,
+              distanceInterval: 10,
+            },
+            (location) => {
+              const { latitude, longitude, heading } = location.coords;
+              setLocation({
+                latitude: latitude,
+                longitude: longitude,
+                address: "Somewhere",
+                heading: heading as number,
+              });
+              // Not queued while offline: only the latest position matters.
+              emitIfConnected("updateLocation", {
+                latitude,
+                longitude,
+                heading,
+              });
+            }
+          );
+        } catch (err) {
+          // Location off or unavailable: no live position this time, but keep the app running.
+          console.log("Location updates failed:", err);
+        }
       }
     };
 

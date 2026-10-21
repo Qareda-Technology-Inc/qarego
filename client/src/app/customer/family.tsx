@@ -53,9 +53,6 @@ const FamilyProfile = () => {
                             <CustomText fontFamily="Medium">{member.name}</CustomText>
                             <CustomText fontSize={12} color="#666">{member.phone} • {member.relation}</CustomText>
                         </View>
-                        <TouchableOpacity>
-                             <Ionicons name="ellipsis-vertical" size={20} color="#ccc" />
-                        </TouchableOpacity>
                     </View>
                 ))}
 

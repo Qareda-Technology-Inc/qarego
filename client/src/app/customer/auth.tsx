@@ -7,6 +7,7 @@ import {
   Image,
   Text,
 } from "react-native";
+import { openSupport } from "@/utils/support";
 import React, { useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import CustomText from "@/components/shared/CustomText";
@@ -95,7 +96,7 @@ const Auth = () => {
     <AuthSafeScreen footer={footer}>
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
-          <TouchableOpacity style={styles.helpButton} accessibilityLabel="Help">
+          <TouchableOpacity style={styles.helpButton} onPress={openSupport} accessibilityRole="button" accessibilityLabel="Help">
             <Ionicons name="help-circle-outline" size={24} color={Colors.text} />
           </TouchableOpacity>
         </View>

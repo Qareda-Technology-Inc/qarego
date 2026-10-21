@@ -11,7 +11,7 @@ import {
   Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { MOMO_AVAILABLE, openMomoComingSoon, useMomoPayAvailable } from "@/utils/momo";
+import { openMomoComingSoon, useMomoPayAvailable } from "@/utils/momo";
 import HubtelCheckoutModal from "@/components/shared/HubtelCheckoutModal";
 import React, { useState, useCallback, useRef, useEffect } from "react";
 import { commonStyles } from "@/styles/commonStyles";
@@ -497,7 +497,7 @@ export default function RiderEarnings() {
                   ? "Clear debt with MoMo or card to bring your balance back to zero"
                   : "Pay what you owe to QareGO in cash — MoMo top-up is coming soon"}
               </CustomText>
-              {topUpMessage && (
+              {!!topUpMessage && (
                 <CustomText fontSize={12} style={styles.topUpMessage}>
                   {topUpMessage}
                 </CustomText>
@@ -611,8 +611,8 @@ export default function RiderEarnings() {
           ) : (
             <TouchableOpacity
               style={[styles.stickyCashOutBtn, cashoutLoading && { opacity: 0.7 }]}
-              onPress={MOMO_AVAILABLE ? openCashOutModal : () => openMomoComingSoon("cashout")}
-              disabled={cashoutLoading || (MOMO_AVAILABLE && !canCashOut)}
+              onPress={momoPayOn ? openCashOutModal : () => openMomoComingSoon("cashout")}
+              disabled={cashoutLoading || (momoPayOn && !canCashOut)}
             >
               <Ionicons name="cash-outline" size={20} color="#1a1a1a" style={{ marginRight: 8 }} />
               <CustomText fontFamily="SemiBold" fontSize={15} style={{ color: "#1a1a1a", flex: 1 }}>

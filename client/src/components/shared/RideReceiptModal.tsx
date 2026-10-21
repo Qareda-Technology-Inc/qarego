@@ -261,7 +261,7 @@ const RideReceiptModal: FC<RideReceiptModalProps> = ({
                       </CustomText>
                     </View>
                   </View>
-                  {ride.parcelDescription && (
+                  {!!ride.parcelDescription && (
                     <View style={styles.detailRow}>
                       <Ionicons name="cube-outline" size={20} color="#666" />
                       <View style={styles.detailContent}>
@@ -273,7 +273,7 @@ const RideReceiptModal: FC<RideReceiptModalProps> = ({
                 </>
               )}
 
-              {ride.distance && (
+              {!!ride.distance && (
                 <View style={styles.detailRow}>
                   <Ionicons name="navigate-outline" size={20} color="#666" />
                   <View style={styles.detailContent}>
@@ -329,7 +329,7 @@ const RideReceiptModal: FC<RideReceiptModalProps> = ({
                   Ratings
                 </CustomText>
 
-                {ride.customerRating && (
+                {!!ride.customerRating && (
                   <View style={styles.ratingCard}>
                     <CustomText fontSize={12} color="#666" style={{ marginBottom: 4 }}>
                       Your rating to {role === "customer" ? "Rider" : "Customer"}
@@ -344,7 +344,7 @@ const RideReceiptModal: FC<RideReceiptModalProps> = ({
                         />
                       ))}
                     </View>
-                    {ride.customerReview && (
+                    {!!ride.customerReview && (
                       <CustomText fontSize={12} color="#666" style={{ marginTop: 4 }}>
                         "{ride.customerReview}"
                       </CustomText>
@@ -352,7 +352,7 @@ const RideReceiptModal: FC<RideReceiptModalProps> = ({
                   </View>
                 )}
 
-                {ride.riderRating && (
+                {!!ride.riderRating && (
                   <View style={styles.ratingCard}>
                     <CustomText fontSize={12} color="#666" style={{ marginBottom: 4 }}>
                       {role === "customer" ? "Rider" : "Customer"}'s rating to you
@@ -367,7 +367,7 @@ const RideReceiptModal: FC<RideReceiptModalProps> = ({
                         />
                       ))}
                     </View>
-                    {ride.riderReview && (
+                    {!!ride.riderReview && (
                       <CustomText fontSize={12} color="#666" style={{ marginTop: 4 }}>
                         "{ride.riderReview}"
                       </CustomText>
@@ -425,7 +425,7 @@ const RideReceiptModal: FC<RideReceiptModalProps> = ({
 
             {/* Action Buttons */}
             <View style={styles.actionButtons}>
-              {outstandingMomo && (
+              {!!outstandingMomo && (
                 <TouchableOpacity
                   style={[styles.button, styles.payButton, payBusy && { opacity: 0.7 }]}
                   onPress={handlePayNow}

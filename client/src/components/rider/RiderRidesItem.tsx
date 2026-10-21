@@ -201,7 +201,7 @@ const RiderRidesItem: FC<{ item: RideItem; removeIt: () => void; isBestOffer?: b
         </CustomText>
       ) : null}
 
-      {food && (item.restaurantName || item.foodOrderSummary) ? (
+      {!!food && (item.restaurantName || item.foodOrderSummary) ? (
         <View style={orderStyles.infoPanel}>
           {item.restaurantName ? (
             <CustomText fontSize={12} fontFamily="SemiBold" numberOfLines={1}>

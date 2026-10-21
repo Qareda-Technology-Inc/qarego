@@ -160,17 +160,22 @@ const LiveRide = () => {
         console.log("Initial courier location failed:", err);
       }
 
-      locationSubscription = await Location.watchPositionAsync(
-        {
-          accuracy: Location.Accuracy.High,
-          timeInterval: 2000,
-          distanceInterval: 8,
-        },
-        (loc) => {
-          const { latitude, longitude, heading } = loc.coords;
-          publishLocation(latitude, longitude, heading);
-        }
-      );
+      try {
+        locationSubscription = await Location.watchPositionAsync(
+          {
+            accuracy: Location.Accuracy.High,
+            timeInterval: 2000,
+            distanceInterval: 8,
+          },
+          (loc) => {
+            const { latitude, longitude, heading } = loc.coords;
+            publishLocation(latitude, longitude, heading);
+          }
+        );
+      } catch (err) {
+        // Location off or unavailable: no live position this time, but keep the app running.
+        console.log("Location updates failed:", err);
+      }
     };
 
     startLocationUpdates();

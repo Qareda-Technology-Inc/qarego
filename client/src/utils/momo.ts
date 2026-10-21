@@ -3,12 +3,9 @@ import { useEffect, useState } from "react";
 import { appAxios } from "@/service/apiInterceptors";
 
 /**
- * Mobile money availability.
- * - Customer payments ("pay") follow the server's switch (GET /features → momoEnabled), so
- *   MoMo can be turned on or off without a new app build.
- * - Rider debt top-up and cash out stay "coming soon" until they move to the new provider.
+ * Mobile money availability follows the server's switch (GET /features → momoEnabled), so
+ * customer payments, rider debt top-up and cash out turn on or off without a new app build.
  */
-export const MOMO_AVAILABLE = false;
 
 export type MomoFeature = "pay" | "topup" | "cashout";
 

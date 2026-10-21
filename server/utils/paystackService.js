@@ -136,3 +136,29 @@ export async function sendPaystackMomoTransfer({ name, phone, channel, amount, r
     return { success: false, error: err.message || "Transfer failed", data: err.paystack };
   }
 }
+
+/* ---------------- Refunds ---------------- */
+
+/**
+ * Refund a paid transaction in full. Returns { success, id, status, error }.
+ * Paystack processes it in the background; refund.processed / refund.failed webhooks follow.
+ */
+export async function refundPaystackTransaction(reference, reason) {
+  try {
+    const data = await paystack("POST", "/refund", {
+      transaction: reference,
+      merchant_note: String(reason || "Order cancelled").slice(0, 200),
+      customer_note: "Your QareGO order was cancelled. This is your refund.",
+    });
+    return { success: true, id: String(data.id || ""), status: String(data.status || "pending") };
+  } catch (err) {
+    return { success: false, error: err.message || "Refund failed", data: err.paystack };
+  }
+}
+
+/** Current state of a refund: "processed", "failed" or "pending". */
+export async function fetchPaystackRefundStatus(refundId) {
+  const data = await paystack("GET", `/refund/${encodeURIComponent(refundId)}`);
+  const s = String(data.status || "").toLowerCase();
+  return s === "processed" ? "processed" : s === "failed" ? "failed" : "pending";
+}

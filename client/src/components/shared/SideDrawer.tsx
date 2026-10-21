@@ -1,4 +1,5 @@
 import React, { FC, useEffect, useMemo, useState } from "react";
+import { openSafety, openSupport } from "@/utils/support";
 import {
   Modal,
   View,
@@ -133,14 +134,14 @@ const SideDrawer: FC<SideDrawerProps> = ({ visible, onClose, role }) => {
       label: "Safety",
       library: Ionicons,
       href: "/rider/home",
-      comingSoon: "Safety center",
+      action: openSafety,
     },
     {
       icon: "help-circle-outline",
       label: "Support",
       library: Ionicons,
       href: "/rider/home",
-      comingSoon: "Support chat",
+      action: openSupport,
     },
   ];
 
@@ -163,14 +164,14 @@ const SideDrawer: FC<SideDrawerProps> = ({ visible, onClose, role }) => {
       label: "Safety",
       library: Ionicons,
       href: "/customer/home",
-      comingSoon: "Safety center",
+      action: openSafety,
     },
     {
       icon: "help-circle-outline",
       label: "Support",
       library: Ionicons,
       href: "/customer/home",
-      comingSoon: "Support chat",
+      action: openSupport,
     },
   ];
 

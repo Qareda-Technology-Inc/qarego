@@ -150,7 +150,7 @@ const RideCard: FC<{ item: RideItem; onReBook?: () => void; role?: "customer" | 
             {/* Ratings Display */}
             {(item.customerRating || item.riderRating) && (
               <View style={styles.ratingContainer}>
-                {item.customerRating && (
+                {!!item.customerRating && (
                   <View style={styles.ratingBadge}>
                     <Ionicons name="star" size={12} color="#FFD700" />
                     <CustomText fontSize={10} fontFamily="Medium" style={{ marginLeft: 2 }}>
@@ -158,7 +158,7 @@ const RideCard: FC<{ item: RideItem; onReBook?: () => void; role?: "customer" | 
                     </CustomText>
                   </View>
                 )}
-                {item.riderRating && (
+                {!!item.riderRating && (
                   <View style={styles.ratingBadge}>
                     <Ionicons name="star" size={12} color="#FFD700" />
                     <CustomText fontSize={10} fontFamily="Medium" style={{ marginLeft: 2 }}>

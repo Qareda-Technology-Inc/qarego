@@ -1,3 +1,4 @@
+import { startRefundIfDue } from "./orderRefunds.js";
 import { laundryPickupDispatchAt } from "./laundryPickup.js";
 import Ride from "../models/Ride.js";
 import FoodOrder from "../models/FoodOrder.js";
@@ -506,6 +507,14 @@ export async function applyRestaurantAction(orderId, action, io, options = {}) {
   }
 
   await foodOrder.save();
+  // Cancelled after paying online: send the money back automatically.
+  if (foodOrder.refundStatus === "DUE") {
+    try {
+      await startRefundIfDue(foodOrder._id);
+    } catch (err) {
+      console.warn("[refund] start failed:", String(foodOrder._id), err.message);
+    }
+  }
   const populated = await emitFoodOrderUpdated(io, orderId);
 
   if (action === "collected") {

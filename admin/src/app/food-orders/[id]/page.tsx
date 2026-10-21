@@ -71,6 +71,8 @@ type OrderDetail = {
   cancelledBy?: string | null;
   cancelReason?: string | null;
   refundStatus?: "NONE" | "DUE" | "REFUNDED";
+  /** Automatic refund through Paystack. */
+  refund?: { status: "requested" | "processed" | "failed"; requestedAt?: string | null; error?: string | null } | null;
   gasMode?: "REFILL" | "EXCHANGE" | null;
   gasSizeKg?: number | null;
   gasEmptyReturnedAt?: string | null;
@@ -541,10 +543,30 @@ export default function StoreOrderDetailPage() {
                 </div>
               ) : null}
 
+              {order.refundStatus === "DUE" && order.refund?.status === "requested" ? (
+                <p className="rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-900">
+                  Refund sent to Paystack
+                  {order.refund.requestedAt ? ` ${new Date(order.refund.requestedAt).toLocaleString()}` : ""}. It
+                  marks itself refunded when Paystack confirms.
+                </p>
+              ) : null}
+              {order.refundStatus === "DUE" && order.refund?.status === "failed" ? (
+                <div className="space-y-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
+                  <p>Automatic refund failed: {order.refund.error || "unknown error"}</p>
+                  <Button disabled={busy} variant="outline" onClick={() => act("retry_refund")} className="w-full">
+                    Try the refund again
+                  </Button>
+                </div>
+              ) : null}
               {order.refundStatus === "DUE" ? (
                 <Button disabled={busy} onClick={() => act("mark_refunded")} className="w-full bg-amber-500 hover:bg-amber-600">
-                  Mark refunded
+                  {order.refund ? "Refunded by hand instead" : "Mark refunded"}
                 </Button>
+              ) : null}
+              {order.refundStatus === "REFUNDED" ? (
+                <p className="rounded-lg bg-green-50 px-3 py-2 text-xs text-green-800">
+                  Refunded{order.refund?.status === "processed" ? " automatically through Paystack" : ""}.
+                </p>
               ) : null}
 
               {open && collectFirst && order.gasStage ? (

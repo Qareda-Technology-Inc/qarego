@@ -24,6 +24,7 @@ import { getSettings, settleTrip } from '../utils/tripSettlement.js';
 import { settleFoodOrderOnDelivery } from '../utils/foodOrderSettlement.js';
 import { appendWebhookToken } from '../middleware/hubtelWebhookAuth.js';
 import { sendMomoPayout } from '../utils/momoPayout.js';
+import { applyRefundOutcome, startRefundIfDue } from '../utils/orderRefunds.js';
 import {
   customerPaymentProvider,
   initializePaystackCheckout,
@@ -83,6 +84,13 @@ async function processFoodPaymentSuccess(payment, payload) {
         order.refundStatus = 'DUE';
       }
       await order.save();
+      if (order.refundStatus === 'DUE') {
+        try {
+          await startRefundIfDue(order._id);
+        } catch (err) {
+          console.warn('[refund] start failed:', String(order._id), err.message);
+        }
+      }
     }
     if (payment.payoutStatus !== 'deferred') {
       payment.payoutStatus = 'deferred';
@@ -1263,6 +1271,18 @@ export const paystackWebhook = async (req, res) => {
   const reference = req.body?.data?.reference;
   // Answer straight away; Paystack retries slow or failed webhooks.
   res.status(StatusCodes.OK).json({ received: true });
+  // Refunds report the original payment's reference.
+  if (['refund.processed', 'refund.failed'].includes(event)) {
+    const txRef = req.body?.data?.transaction_reference || req.body?.data?.transaction?.reference;
+    if (txRef) {
+      try {
+        await applyRefundOutcome(txRef, event === 'refund.processed' ? 'processed' : 'failed', req.body?.data?.merchant_note);
+      } catch (err) {
+        console.error('[paystack] refund webhook handling failed:', txRef, err.message);
+      }
+    }
+    return;
+  }
   if (!reference) return;
   // Payouts (rider cash-out, weekly payouts, store settlement): the event is signed, and a
   // failure only gives money back, so it's applied as sent.

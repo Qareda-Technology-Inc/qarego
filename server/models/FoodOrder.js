@@ -174,6 +174,19 @@ const foodOrderSchema = new Schema(
       index: true,
     },
     refundedAt: { type: Date, default: null },
+    /** Automatic refund through the payment provider (Paystack): its id, state and any error. */
+    refund: {
+      type: new Schema(
+        {
+          providerId: { type: String, default: null },
+          status: { type: String, enum: ["requested", "processed", "failed"], default: "requested" },
+          requestedAt: { type: Date, default: null },
+          error: { type: String, default: null },
+        },
+        { _id: false }
+      ),
+      default: null,
+    },
     restaurantRating: { type: Number, min: 1, max: 5, default: null },
     restaurantReview: { type: String, default: null },
     /** Every status the order went through, with when (filled in automatically below). */
