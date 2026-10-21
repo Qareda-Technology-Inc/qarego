@@ -37,6 +37,9 @@ export async function uploadMediaUri(
 
   const res = await appAxios.post("/media/upload", formData, {
     headers: { "Content-Type": "multipart/form-data" },
+    // A stalled upload should fail with a message, not spin forever.
+    timeout: 60_000,
+    timeoutErrorMessage: "The upload took too long. Check your connection and try again.",
   });
 
   const data = res.data ?? {};

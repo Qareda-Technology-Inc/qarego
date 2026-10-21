@@ -18,7 +18,8 @@ const auth = async (req, res, next) => {
     }
 
     req.user = { id: payload.id, phone: payload.phone, role: user.role };
-    req.socket = req.io;
+    // Never overwrite req.socket (it is the TCP connection): Node needs it to keep reading
+    // request bodies, and uploads over ~128 KB hang without it. Socket.IO is on req.io.
 
     next();
   } catch (error) {
