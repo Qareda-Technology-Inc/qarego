@@ -110,6 +110,20 @@ export default function FinancePage() {
     <div className="space-y-6">
       <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Finance Overview</h1>
 
+      <Card>
+        <CardContent className="flex flex-wrap items-center justify-between gap-3 p-5">
+          <div>
+            <p className="font-semibold text-gray-900">Money movements</p>
+            <p className="text-sm text-gray-500">
+              Payments, payouts and refunds, with Paystack references to match the dashboard.
+            </p>
+          </div>
+          <Link href="/finance/money">
+            <Button variant="outline">Open</Button>
+          </Link>
+        </CardContent>
+      </Card>
+
       <RiderDebtsCard />
 
       <StoreDebtsCard />

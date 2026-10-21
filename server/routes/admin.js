@@ -1,3 +1,4 @@
+import { getMoneyMovements } from "../controllers/admin/money.js";
 import express from 'express';
 import multer from 'multer';
 import path from 'path';
@@ -108,6 +109,7 @@ adminRouter.get('/trips/:id', getTripById);
 adminRouter.get('/reports', getReport);
 adminRouter.post('/rides/:rideId/assign', assignRideToDriver);
 adminRouter.get('/finance', getFinanceStats);
+adminRouter.get('/money', getMoneyMovements);
 adminRouter.get('/store-reviews', adminListStoreReviews);
 adminRouter.post('/restaurants/:id/review', adminReviewStore);
 adminRouter.get('/settings', getSettingsAdmin);
