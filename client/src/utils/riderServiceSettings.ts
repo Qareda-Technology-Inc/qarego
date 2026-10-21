@@ -125,7 +125,7 @@ function isWithinSchedule(schedule?: ServiceSchedule, now = new Date()): boolean
 export function getEffectivePreferencesFromUser(
   user: { driverDetails?: { servicePreferences?: Record<ServiceKey, ServicePreferenceEntry> } } | null
 ): Record<ServiceKey, boolean> {
-  const prefs = user?.driverDetails?.servicePreferences || {};
+  const prefs: Partial<Record<ServiceKey, ServicePreferenceEntry>> = user?.driverDetails?.servicePreferences || {};
   return {
     RIDE: (prefs.RIDE?.enabled !== false) && isWithinSchedule(prefs.RIDE?.schedule),
     DELIVERY:

@@ -21,9 +21,6 @@ const CustomerLayout = () => {
       <Stack.Screen name="ridebooking" />
       <Stack.Screen name="liveride" />
       <Stack.Screen name="profile" />
-      <Stack.Screen name="family" />
-      <Stack.Screen name="auth" />
-      <Stack.Screen name="otp-verify" />
     </Stack>
   );
 };

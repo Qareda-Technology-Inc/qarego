@@ -208,8 +208,9 @@ const FoodOrderTracking = () => {
         const next = withDeliveredFoodOrderStatus({
           ...(prev ?? updated),
           ...updated,
-          restaurant: { ...prev?.restaurant, ...updated.restaurant },
-          ride: mergedRide,
+          // Both sides are the same order, so the merged parts keep their ids.
+          restaurant: { ...prev?.restaurant, ...updated.restaurant } as FoodOrder["restaurant"],
+          ride: mergedRide as FoodOrder["ride"],
         });
         return next;
       });

@@ -10,6 +10,7 @@ import { Colors } from "@/utils/Constants";
 import CustomText from "./CustomText";
 import { RFValue } from "react-native-responsive-fontsize";
 import { DS } from "@/theme/designSystem";
+import type { CustomButtonProps } from "@/utils/types";
 
 const CustomButton: FC<CustomButtonProps> = ({
   onPress,

@@ -10,9 +10,7 @@ const RiderLayout = () => {
       <Stack.Screen name="rides" />
       <Stack.Screen name="account" />
       <Stack.Screen name="profile" />
-      <Stack.Screen name="auth" />
       <Stack.Screen name="liveride" />
-      <Stack.Screen name="otp-verify" />
       <Stack.Screen name="earnings" />
       <Stack.Screen name="services" />
       <Stack.Screen name="reliability" />

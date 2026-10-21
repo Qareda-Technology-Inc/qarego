@@ -1,5 +1,5 @@
 
-interface CustomButtonProps {
+export interface CustomButtonProps {
     title: string;
     loading?: boolean;
     onPress?: () => void

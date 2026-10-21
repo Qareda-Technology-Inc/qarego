@@ -6,10 +6,11 @@ export const ACTIVE_RIDER_RIDE_STATUSES = ["START", "ARRIVED", "IN_PROGRESS"] as
 export type RiderOfferRide = {
   _id?: string;
   status?: string;
-  rider?: string | { _id?: string; id?: string };
-  serviceType?: "RIDE" | "DELIVERY" | "FOOD";
-  parcelMode?: "SEND" | "RECEIVE";
-  storeVertical?: "FOOD" | "GROCERY" | "PHARMACY";
+  /** Rider id, or the populated rider. Typed loosely: rides come from several API shapes. */
+  rider?: unknown;
+  serviceType?: string;
+  parcelMode?: unknown;
+  storeVertical?: string;
   restaurantName?: string;
   foodOrderSummary?: string;
 };
@@ -22,7 +23,8 @@ export function rideAssignedRiderId(ride: RiderOfferRide | null | undefined): st
   const rider = ride?.rider;
   if (!rider) return "";
   if (typeof rider === "string") return rider;
-  return String(rider._id || rider.id || "");
+  const r = rider as { _id?: string; id?: string };
+  return String(r._id || r.id || "");
 }
 
 /** Merchant-assigned or already-accepted trip — not an open offer wave. */

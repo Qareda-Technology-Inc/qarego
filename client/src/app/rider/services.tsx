@@ -57,7 +57,8 @@ const RiderServices = () => {
       setSupported(data.vehicleSupportedServices || ["RIDE", "DELIVERY", "FOOD"]);
       setVehicleCategory(data.vehicleCategory || "motorcycle");
       setEffective(data.effectivePreferences || { RIDE: true, DELIVERY: true, FOOD: true });
-      const sp = data.servicePreferences || {};
+      const sp: NonNullable<RiderServiceSettingsResponse["servicePreferences"]> | Record<string, never> =
+        data.servicePreferences || {};
       setPrefs({
         RIDE: sp.RIDE || { enabled: true },
         DELIVERY: sp.DELIVERY || { enabled: true },
@@ -308,12 +309,9 @@ const RiderServices = () => {
             );
           })}
 
-          <CustomButton
-            title={saving ? "Saving…" : "Save work mode"}
-            onPress={handleSave}
-            disabled={saving}
-            style={{ marginTop: 8, marginBottom: 32 }}
-          />
+          <View style={{ marginTop: 8, marginBottom: 32 }}>
+            <CustomButton title={saving ? "Saving…" : "Save work mode"} onPress={handleSave} disabled={saving} />
+          </View>
         </ScrollView>
       )}
     </View>

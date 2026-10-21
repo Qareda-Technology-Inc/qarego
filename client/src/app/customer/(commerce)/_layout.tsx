@@ -72,7 +72,7 @@ export default function CustomerCommerceTabsLayout() {
         listeners={({ navigation }) => ({
           tabPress: () => {
             const state = navigation.getState();
-            const storesRoute = state.routes.find((r) => r.name === "stores");
+            const storesRoute = state.routes.find((r: { name: string }) => r.name === "stores");
             const nestedIndex =
               storesRoute?.state && "index" in storesRoute.state
                 ? (storesRoute.state.index as number)
