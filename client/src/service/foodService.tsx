@@ -112,6 +112,9 @@ export type FoodOrder = {
   } | null;
   deliveryCode?: string | null;
   fulfillmentType?: "DELIVERY" | "PICKUP" | "SCHEDULED";
+  /** SCHEDULED: requested delivery time; kitchenStartAt is when the store starts cooking. */
+  scheduledFor?: string | null;
+  kitchenStartAt?: string | null;
   restaurantRating?: number | null;
   restaurantReview?: string | null;
   ride?: {

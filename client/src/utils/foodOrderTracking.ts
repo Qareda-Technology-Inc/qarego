@@ -63,8 +63,26 @@ type CancelInfo = {
   } | null;
   restaurantName?: string;
   fulfillmentType?: "DELIVERY" | "PICKUP" | "SCHEDULED";
+  scheduledFor?: string | null;
+  kitchenStartAt?: string | null;
   total?: number;
 };
+
+const clock = (iso: string) => {
+  const d = new Date(iso);
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+};
+
+/** A scheduled delivery still waiting for its time: no courier has been sent yet. */
+function scheduledWaiting(
+  orderStatus: FoodOrderStatus,
+  ride: { status?: string } | null | undefined,
+  info?: CancelInfo | null
+): string | null {
+  if (info?.fulfillmentType !== "SCHEDULED" || !info.scheduledFor || ride) return null;
+  if (!["PLACED", "CONFIRMED", "PREPARING", "READY_FOR_PICKUP"].includes(orderStatus)) return null;
+  return info.scheduledFor;
+}
 
 /** Pickup: no courier — the customer collects and pays at the counter. */
 function buildPickupSteps(orderStatus: FoodOrderStatus, info: CancelInfo): TrackingStep[] {
@@ -414,6 +432,20 @@ export function getHeroStatusLabel(
   if (order?.laundry) {
     return laundryHero(orderStatus, ride as GasRide, order);
   }
+  const scheduled = scheduledWaiting(orderStatus, ride, order);
+  if (scheduled && orderStatus !== "PLACED" && orderStatus !== "CONFIRMED") {
+    const store = order?.restaurantName || "The store";
+    const cookAt = order?.kitchenStartAt;
+    return {
+      title: `Scheduled for ${clock(scheduled)}`,
+      subtitle:
+        orderStatus === "READY_FOR_PICKUP"
+          ? "Your order is ready. A courier brings it at your time"
+          : cookAt && new Date(cookAt).getTime() > Date.now()
+            ? `${store} starts preparing it around ${clock(cookAt)}`
+            : `${store} is preparing it`,
+    };
+  }
   if (order?.fulfillmentType === "PICKUP") {
     if (orderStatus === "READY_FOR_PICKUP") {
       const pay = order.total != null ? `Pay ${formatCurrency(order.total)} at the counter` : "Pay at the counter";
@@ -448,7 +480,10 @@ export function getHeroStatusLabel(
     return { title: c.trackingStoreCooking, subtitle: c.trackingPreparingHero };
   }
   if (orderStatus === "PLACED" || orderStatus === "CONFIRMED") {
-    return { title: "Confirming order", subtitle: "Waiting for the store to accept" };
+    return {
+      title: "Confirming order",
+      subtitle: scheduled ? `Scheduled for ${clock(scheduled)}` : "Waiting for the store to accept",
+    };
   }
   return { title: c.trackingWaitingStore, subtitle: "They will confirm your order soon" };
 }
@@ -538,8 +573,15 @@ export function getFoodOrderEtaWindow(order: {
   ride?: { status?: string; gasLeg?: string | null } | null;
   laundry?: { priceStatus?: string; pickupAt?: string | null } | null;
   gasStage?: string | null;
+  fulfillmentType?: "DELIVERY" | "PICKUP" | "SCHEDULED";
+  scheduledFor?: string | null;
 }): string | null {
   if (order.status === "DELIVERED" || order.status === "CANCELLED") return null;
+  const scheduled = scheduledWaiting(order.status, order.ride, {
+    fulfillmentType: order.fulfillmentType,
+    scheduledFor: order.scheduledFor,
+  });
+  if (scheduled) return `Arrives ~${clock(scheduled)}`;
   const laundry = !!order.laundry;
   if (order.laundry?.pickupAt && isLaundryPickupBooked(order)) {
     const start = new Date(order.laundry.pickupAt);

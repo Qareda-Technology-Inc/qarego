@@ -86,6 +86,8 @@ const foodOrderSchema = new Schema(
       default: "DELIVERY",
     },
     scheduledFor: { type: Date, default: null },
+    /** SCHEDULED orders: when the kitchen should start so the food is ready for the rider. */
+    kitchenStartAt: { type: Date, default: null },
     status: {
       type: String,
       enum: [

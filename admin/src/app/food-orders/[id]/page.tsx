@@ -56,6 +56,9 @@ type OrderDetail = {
   prescriptionUrls?: string[];
   delivery?: { address?: string };
   fulfillmentType?: "DELIVERY" | "PICKUP" | "SCHEDULED";
+  scheduledFor?: string | null;
+  kitchenStartAt?: string | null;
+  courierBroadcastAt?: string | null;
   paymentMethod?: "CASH" | "MOBILE_MONEY";
   paymentStatus?: string;
   subtotal: number;
@@ -248,7 +251,12 @@ export default function StoreOrderDetailPage() {
           </div>
           <p className="mt-1 text-sm text-gray-500">
             Order #{order._id.slice(-6).toUpperCase()} · {VERTICAL_LABEL[order.restaurant?.vertical ?? "FOOD"]} ·{" "}
-            {isPickup ? "Customer pickup" : "Delivery"} · {order.paymentMethod === "MOBILE_MONEY" ? "Mobile money" : "Cash"} ·{" "}
+            {isPickup
+              ? "Customer pickup"
+              : order.fulfillmentType === "SCHEDULED" && order.scheduledFor
+                ? `Scheduled delivery for ${new Date(order.scheduledFor).toLocaleString()}`
+                : "Delivery"}{" "}
+            · {order.paymentMethod === "MOBILE_MONEY" ? "Mobile money" : "Cash"} ·{" "}
             {new Date(order.createdAt).toLocaleString()}
           </p>
         </div>

@@ -86,6 +86,11 @@ function columnSince(order: FoodOrderRow): string {
   return order.updatedAt || order.createdAt;
 }
 
+/** "19:30" */
+function clockTime(iso: string) {
+  return new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+}
+
 function minutesSince(iso: string, now: number) {
   return Math.max(0, Math.floor((now - new Date(iso).getTime()) / 60000));
 }
@@ -457,6 +462,16 @@ function OrderCard({
   const refillWaiting = order.status === "PREPARING" && collectFirst && order.gasStage !== "AT_STATION";
   const laundryAtShop = !!laundry && order.status === "PREPARING" && order.gasStage === "AT_STATION";
   // Booked for later and no rider sent yet: the board shows when the pickup is.
+  // Scheduled delivery: cook later and send the rider for the requested time.
+  const scheduledAt = order.fulfillmentType === "SCHEDULED" && order.scheduledFor ? order.scheduledFor : null;
+  const cookLater =
+    order.status === "PREPARING" && !!order.kitchenStartAt && new Date(order.kitchenStartAt).getTime() > now;
+  const waitingForSlot =
+    order.status === "READY_FOR_PICKUP" &&
+    !isPickup &&
+    !order.ride &&
+    !!order.courierBroadcastAt &&
+    new Date(order.courierBroadcastAt).getTime() > now;
   const pickupBooked =
     !!laundry?.pickupAt && !order.ride && !order.gasStage && (order.status === "PLACED" || order.status === "PREPARING");
   const canCancel =
@@ -475,7 +490,7 @@ function OrderCard({
           <p className="text-xs text-muted">#{order._id.slice(-6).toUpperCase()}</p>
         </div>
         {/* An accepted pickup waiting for its booked slot isn't late. */}
-        {pickupBooked && order.status === "PREPARING" ? null : (
+        {(pickupBooked && order.status === "PREPARING") || cookLater || waitingForSlot ? null : (
           <span className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold ${timerClass}`}>
             <Clock className="h-3 w-3" />
             {mins < 1 ? "now" : `${mins} min`}
@@ -489,6 +504,12 @@ function OrderCard({
           {isPickup ? <ShoppingBag className="h-3 w-3" /> : <Bike className="h-3 w-3" />}
           {isPickup ? "Pickup" : "Delivery"}
         </span>
+        {scheduledAt ? (
+          <span className="inline-flex items-center gap-1 rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-800">
+            <CalendarClock className="h-3 w-3" />
+            Deliver at {clockTime(scheduledAt)}
+          </span>
+        ) : null}
         {laundry ? (
           <span className="inline-flex items-center gap-1 rounded-full bg-cyan-100 px-2 py-0.5 text-xs font-medium text-cyan-800">
             <Shirt className="h-3 w-3" />
@@ -604,6 +625,12 @@ function OrderCard({
           </div>
         ) : null}
 
+        {cookLater ? (
+          <p className="flex items-center gap-1 rounded-lg bg-violet-50 px-3 py-2 text-sm text-violet-900">
+            <CalendarClock className="h-4 w-4 shrink-0" /> Scheduled. Start cooking at {clockTime(order.kitchenStartAt!)} so
+            it&apos;s ready when the rider arrives.
+          </p>
+        ) : null}
         {refillWaiting && pickupBooked ? (
           <p className="flex items-center gap-1 text-sm text-gray-600">
             <CalendarClock className="h-4 w-4" /> Pickup booked for {formatPickupWindow(laundry!.pickupAt!)}. A rider is
@@ -669,7 +696,17 @@ function OrderCard({
             </Button>
           </>
         ) : null}
-        {order.status === "READY_FOR_PICKUP" && !isPickup && !order.ride?.rider?.name ? (
+        {waitingForSlot ? (
+          <>
+            <p className="flex items-center gap-1 text-sm text-gray-600">
+              <CalendarClock className="h-4 w-4" /> Ready. A rider is sent at {clockTime(order.courierBroadcastAt!)} for
+              the {clockTime(scheduledAt ?? order.courierBroadcastAt!)} delivery.
+            </p>
+            <Button disabled={busy} variant="outline" onClick={onAssign}>
+              <Bike className="mr-1 inline h-4 w-4" /> Send a rider now
+            </Button>
+          </>
+        ) : order.status === "READY_FOR_PICKUP" && !isPickup && !order.ride?.rider?.name ? (
           <>
             <p className="flex items-center gap-1 text-sm text-gray-600">
               <Clock className="h-4 w-4" /> Finding a rider…

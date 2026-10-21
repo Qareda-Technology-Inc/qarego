@@ -15,7 +15,8 @@ let pollTimer = null;
 export async function processDueCourierBroadcasts(io) {
   const now = new Date();
   const due = await FoodOrder.find({
-    status: "PREPARING",
+    // READY_FOR_PICKUP: a scheduled order cooked early, waiting for its delivery slot.
+    status: { $in: ["PREPARING", "READY_FOR_PICKUP"] },
     fulfillmentType: { $in: ["DELIVERY", "SCHEDULED"] },
     ride: null,
     courierBroadcastAt: { $lte: now },
@@ -28,7 +29,7 @@ export async function processDueCourierBroadcasts(io) {
     const claimed = await FoodOrder.findOneAndUpdate(
       {
         _id: row._id,
-        status: "PREPARING",
+        status: { $in: ["PREPARING", "READY_FOR_PICKUP"] },
         ride: null,
         courierBroadcastSent: { $ne: true },
       },

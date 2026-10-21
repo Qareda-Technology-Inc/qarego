@@ -60,15 +60,36 @@ export function getCourierBroadcastAt(acceptedAt, prepMinutes) {
   return new Date(base + delayMs);
 }
 
+/**
+ * Scheduled orders: how long before the requested time to send a rider (to reach the store,
+ * then ride to the customer). Grows with the delivery distance.
+ */
+export function getScheduledCourierLeadMinutes(distanceKm) {
+  const km = Number(distanceKm);
+  const ride = Number.isFinite(km) && km > 0 ? km * 3 : 10;
+  return Math.round(Math.min(45, Math.max(20, 15 + ride)));
+}
+
 export function scheduleCourierBroadcast(foodOrder, restaurant) {
   if (foodOrder.fulfillmentType === "PICKUP") return;
 
   const acceptedAt = new Date();
+  const prep = getEstimatedPrepMinutes(restaurant);
   foodOrder.preparingStartedAt = acceptedAt;
-  foodOrder.courierBroadcastAt = getCourierBroadcastAt(
-    acceptedAt,
-    getEstimatedPrepMinutes(restaurant)
-  );
+  let broadcastAt = getCourierBroadcastAt(acceptedAt, prep);
+  foodOrder.kitchenStartAt = null;
+  if (foodOrder.fulfillmentType === "SCHEDULED" && foodOrder.scheduledFor) {
+    // Deliver at the requested time rather than as soon as it's cooked.
+    const lead = getScheduledCourierLeadMinutes(foodOrder.deliveryDistanceKm);
+    const timed = new Date(new Date(foodOrder.scheduledFor).getTime() - lead * 60_000);
+    if (timed > broadcastAt) {
+      broadcastAt = timed;
+      // Food is ready about when the rider arrives (same gap as an immediate order).
+      const readyAt = timed.getTime() + COURIER_BROADCAST_BEFORE_READY_MIN * 60_000;
+      foodOrder.kitchenStartAt = new Date(readyAt - prep * 60_000);
+    }
+  }
+  foodOrder.courierBroadcastAt = broadcastAt;
   foodOrder.courierBroadcastSent = false;
 }
 
@@ -411,6 +432,14 @@ export async function applyRestaurantAction(orderId, action, io, options = {}) {
       foodOrder.status = "READY_FOR_PICKUP";
       if (foodOrder.fulfillmentType !== "PICKUP") {
         const assignId = options.driverId || null;
+        // Scheduled and cooked early: the rider still goes out at the planned time.
+        const waitForSlot =
+          foodOrder.fulfillmentType === "SCHEDULED" &&
+          !assignId &&
+          !foodOrder.ride &&
+          foodOrder.courierBroadcastAt &&
+          new Date(foodOrder.courierBroadcastAt).getTime() > Date.now();
+        if (waitForSlot) break;
         if (!foodOrder.ride) {
           await createCourierRideForOrder(foodOrder, restaurant, io, {
             driverId: assignId,

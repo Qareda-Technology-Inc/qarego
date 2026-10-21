@@ -32,6 +32,12 @@ export type FoodOrderRow = {
   customer?: { name?: string; phone?: string };
   paymentMethod?: "CASH" | "MOBILE_MONEY";
   fulfillmentType?: "DELIVERY" | "PICKUP" | "SCHEDULED";
+  /** SCHEDULED: when the customer wants it delivered. */
+  scheduledFor?: string | null;
+  /** SCHEDULED: when to start cooking so it's ready as the rider arrives. */
+  kitchenStartAt?: string | null;
+  /** When the rider request goes out (scheduled orders wait for this). */
+  courierBroadcastAt?: string | null;
   deliveryCode?: string | null;
   restaurantRating?: number | null;
   ride?: {
