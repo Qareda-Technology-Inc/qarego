@@ -161,6 +161,10 @@ export const createFoodOrder = async (req, res) => {
   }
   // Laundry is collected from the customer and brought back (see utils/laundryOrders.js).
   const isLaundry = restaurant.vertical === "LAUNDRY";
+  // The price can change when the shop counts, so laundry is paid in cash when it comes back.
+  if (isLaundry && paymentMethod === "MOBILE_MONEY") {
+    throw new BadRequestError("Laundry is paid in cash when it's brought back. Please choose cash.");
+  }
   if (isLaundry && fulfillmentType !== "DELIVERY") {
     throw new BadRequestError("Laundry is collected from you and brought back, so choose delivery");
   }

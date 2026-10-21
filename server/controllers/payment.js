@@ -23,6 +23,13 @@ import {
 import { getSettings, settleTrip } from '../utils/tripSettlement.js';
 import { settleFoodOrderOnDelivery } from '../utils/foodOrderSettlement.js';
 import { appendWebhookToken } from '../middleware/hubtelWebhookAuth.js';
+import {
+  customerPaymentProvider,
+  initializePaystackCheckout,
+  isValidPaystackSignature,
+  paystackEmailFor,
+  verifyPaystackTransaction,
+} from '../utils/paystackService.js';
 
 function getBaseUrl(req) {
   if (process.env.BASE_URL) return process.env.BASE_URL;
@@ -137,6 +144,76 @@ async function processFoodPaymentSuccess(payment, payload) {
   }
 }
 
+
+/* ---------------- Paystack (customer payments) ---------------- */
+
+/** The app's payment screen closes when the checkout redirects to one of these. */
+function checkoutReturnUrls(baseUrl, reference) {
+  return {
+    returnUrl: `${baseUrl}/payments/return?ref=${reference}`,
+    cancelUrl: `${baseUrl}/payments/cancel?ref=${reference}`,
+  };
+}
+
+/** Paid at least what we asked for (cedis, to the pesewa). */
+const paidEnough = (paid, expected) => Number(paid) + 0.005 >= Number(expected);
+
+/** Ask Paystack about a food payment and apply the result. Safe to call repeatedly. */
+async function reconcilePaystackFoodPayment(payment) {
+  if (!payment || payment.status === 'success') return;
+  const result = await verifyPaystackTransaction(payment.clientReference);
+  // A declined attempt isn't final: the customer can retry on the same checkout, so only a
+  // confirmed (and big enough) payment changes anything.
+  if (result.status !== 'success') return;
+  const latest = await FoodPayment.findById(payment._id);
+  if (!latest || latest.status === 'success') return;
+  if (result.status === 'success' && paidEnough(result.amount, latest.amount)) {
+    latest.status = 'success';
+    latest.statusPayload = result.raw;
+    await latest.save();
+    // processFoodPaymentSuccess reads the old Hubtel-shaped payload.
+    await processFoodPaymentSuccess(latest, {
+      Data: {
+        CheckoutId: String(result.id || ''),
+        ClientReference: latest.clientReference,
+        Status: 'Success',
+        PaymentDetails: { PaymentType: result.channel, Channel: result.channel },
+      },
+    });
+    return;
+  }
+  // Paid less than the order total: keep it open and flag it for support.
+  latest.statusPayload = result.raw;
+  await latest.save();
+  console.warn('[paystack] food payment amount mismatch:', latest.clientReference, result.amount, latest.amount);
+}
+
+/** Ask Paystack about a ride payment and apply the result. */
+async function reconcilePaystackRidePayment(ride) {
+  if (!ride?.paymentReference || ride.paymentStatus === 'PAID') return;
+  const result = await verifyPaystackTransaction(ride.paymentReference);
+  // Declines aren't final (the checkout allows retries); only a full payment counts.
+  if (result.status !== 'success') return;
+  if (paidEnough(result.amount, ride.fare)) {
+    await processRidePaymentSuccess(ride);
+  } else {
+    console.warn('[paystack] ride payment amount mismatch:', ride.paymentReference, result.amount, ride.fare);
+  }
+}
+
+async function startPaystackCheckout(req, { amount, reference, label, metadata }) {
+  const { returnUrl, cancelUrl } = checkoutReturnUrls(getBaseUrl(req), reference);
+  const user = await User.findById(req.user.id).select('email phone').lean();
+  return initializePaystackCheckout({
+    amount,
+    email: paystackEmailFor({ ...user, id: req.user.id }),
+    reference,
+    callbackUrl: returnUrl,
+    cancelUrl,
+    metadata: { ...metadata, label },
+  });
+}
+
 function isHubtelConfigured() {
   return Boolean(
     (process.env.HUBTEL_API_ID && process.env.HUBTEL_API_KEY) ||
@@ -163,13 +240,15 @@ async function completePendingTopUp(pending, hubtelResponse = null) {
   }
 
   const currentBalance = Number(driver.balance ?? 0);
-  const newBalance = currentBalance + claimed.amount;
+  // Round to the pesewa: float leftovers (e.g. -42.230000000000004 + 42.23) must not leave a
+  // tiny "debt" that keeps the rider blocked.
+  const newBalance = Math.round((currentBalance + claimed.amount) * 100) / 100;
   await User.findByIdAndUpdate(claimed.driver, { balance: newBalance });
   await Transaction.create({
     driver: claimed.driver,
     amount: claimed.amount,
     type: 'TOP_UP',
-    note: 'Clear debt (Hubtel)',
+    note: claimed.provider === 'paystack' ? 'Clear debt (Paystack)' : 'Clear debt (Hubtel)',
     reference: claimed.clientReference,
     balanceAfter: newBalance,
   });
@@ -181,6 +260,18 @@ async function completePendingTopUp(pending, hubtelResponse = null) {
 }
 
 /** POST /ride/top-up — MoMo prompt to clear commission debt via Hubtel. */
+/** Ask Paystack about a rider top-up and credit the balance once it's paid in full. */
+async function reconcilePaystackTopUp(pending) {
+  if (!pending || pending.status !== 'pending' || pending.provider !== 'paystack') return;
+  const result = await verifyPaystackTransaction(pending.clientReference);
+  if (result.status !== 'success') return;
+  if (!paidEnough(result.amount, pending.amount)) {
+    console.warn('[paystack] top-up amount mismatch:', pending.clientReference, result.amount, pending.amount);
+    return;
+  }
+  await completePendingTopUp(pending, result.raw);
+}
+
 export const initiateTopUp = async (req, res) => {
   assertMomoEnabled();
   const driverId = req.user.id;
@@ -201,6 +292,72 @@ export const initiateTopUp = async (req, res) => {
   }
   if (!user.phone) {
     throw new BadRequestError('Add a phone number to your profile before clearing debt');
+  }
+
+  if (customerPaymentProvider() === 'paystack') {
+    // An open checkout is reused (after checking it wasn't paid meanwhile).
+    let open = await PendingTopUp.findOne({ driver: driverId, status: 'pending', provider: 'paystack' });
+    if (open) {
+      await reconcilePaystackTopUp(open);
+      open = await PendingTopUp.findById(open._id);
+    }
+    if (open?.status === 'completed') {
+      const fresh = await User.findById(driverId).select('balance');
+      return res.status(StatusCodes.OK).json({
+        message: 'Debt cleared successfully',
+        paymentRequired: false,
+        amount: open.amount,
+        balance: Number(fresh?.balance ?? 0),
+        clientReference: open.clientReference,
+      });
+    }
+    const owed = Math.round(Math.abs(balance) * 100) / 100;
+    if (open?.checkoutUrl && Math.abs(open.amount - owed) < 0.005) {
+      return res.status(StatusCodes.OK).json({
+        message: 'Pay on the secure page to clear your debt.',
+        paymentRequired: true,
+        pending: true,
+        clientReference: open.clientReference,
+        checkoutUrl: open.checkoutUrl,
+        amount: open.amount,
+        balance,
+      });
+    }
+    // The debt changed since that checkout was made: retire it and start a fresh one.
+    if (open) await PendingTopUp.updateOne({ _id: open._id, status: 'pending' }, { $set: { status: 'failed' } });
+
+    const requested = requestedAmount ? Math.abs(Number(requestedAmount)) : 0;
+    if (requestedAmount != null && (!Number.isFinite(requested) || requested <= 0)) {
+      throw new BadRequestError('Invalid amount');
+    }
+    const amount = Math.round((requested > 0 ? Math.min(requested, owed) : owed) * 100) / 100;
+    const reference = makeShortHubtelRef('tu', driverId);
+    let checkout;
+    try {
+      checkout = await startPaystackCheckout(req, {
+        amount,
+        reference,
+        label: 'QareGO commission debt',
+        metadata: { kind: 'top_up', driverId: String(driverId) },
+      });
+    } catch (err) {
+      throw new BadRequestError(err.message || 'Could not start the payment. Please try again.');
+    }
+    await PendingTopUp.create({
+      driver: driverId,
+      amount,
+      clientReference: reference,
+      provider: 'paystack',
+      checkoutUrl: checkout.authorizationUrl,
+    });
+    return res.status(StatusCodes.OK).json({
+      message: 'Pay on the secure page to clear your debt.',
+      paymentRequired: true,
+      clientReference: reference,
+      checkoutUrl: checkout.authorizationUrl,
+      amount,
+      balance,
+    });
   }
 
   const existingPending = await PendingTopUp.findOne({ driver: driverId, status: 'pending' });
@@ -287,6 +444,15 @@ export const getTopUpStatus = async (req, res) => {
     pending = await PendingTopUp.findOne({ driver: driverId }).sort({ createdAt: -1 });
     if (!pending) {
       return res.status(StatusCodes.OK).json({ status: 'none' });
+    }
+  }
+
+  if (pending.status === 'pending' && pending.provider === 'paystack') {
+    try {
+      await reconcilePaystackTopUp(pending);
+      pending = await PendingTopUp.findById(pending._id);
+    } catch (err) {
+      console.warn('[paystack] top-up status check failed:', err.message);
     }
   }
 
@@ -422,6 +588,75 @@ export const initiateFoodOrderPayment = async (req, res) => {
     });
   }
 
+  if (customerPaymentProvider() === 'paystack') {
+    let payment = await FoodPayment.findOne({ order: order._id });
+    // An open checkout is reused; a failed one gets a fresh reference (Paystack refuses repeats).
+    if (payment?.status === 'pending' && payment.checkoutUrl) {
+      await reconcilePaystackFoodPayment(payment);
+      payment = await FoodPayment.findById(payment._id);
+    }
+    if (payment?.status === 'pending' && payment.checkoutUrl) {
+      return res.status(StatusCodes.OK).json({
+        message: 'Payment already initiated',
+        payment: {
+          status: 'pending',
+          clientReference: payment.clientReference,
+          checkoutUrl: payment.checkoutUrl,
+          checkoutDirectUrl: payment.checkoutUrl,
+        },
+      });
+    }
+    if (payment?.status === 'success') {
+      return res.status(StatusCodes.OK).json({
+        message: 'Order already paid',
+        payment: { status: 'success', clientReference: payment.clientReference },
+      });
+    }
+    const reference = makeFoodReference(order._id);
+    let checkout;
+    try {
+      checkout = await startPaystackCheckout(req, {
+        amount: order.total,
+        reference,
+        label: `QareGO order ${order._id}`,
+        metadata: { kind: 'food_order', orderId: String(order._id) },
+      });
+    } catch (err) {
+      throw new BadRequestError(err.message || 'Could not start the payment. Please try again.');
+    }
+    if (!payment) {
+      payment = new FoodPayment({
+        order: order._id,
+        customer: order.customer,
+        restaurant: order.restaurant?._id || order.restaurant,
+        amount: Number(order.total),
+        clientReference: reference,
+      });
+    }
+    payment.clientReference = reference;
+    payment.amount = Number(order.total);
+    payment.checkoutId = checkout.accessCode;
+    payment.checkoutUrl = checkout.authorizationUrl;
+    payment.checkoutDirectUrl = checkout.authorizationUrl;
+    payment.status = 'pending';
+    payment.callbackPayload = null;
+    payment.statusPayload = null;
+    await payment.save();
+    order.paymentStatus = 'PENDING';
+    order.paymentReference = reference;
+    await order.save();
+    return res.status(StatusCodes.OK).json({
+      message: 'Checkout initiated',
+      payment: {
+        status: 'pending',
+        clientReference: reference,
+        checkoutId: checkout.accessCode,
+        checkoutUrl: checkout.authorizationUrl,
+        checkoutDirectUrl: checkout.authorizationUrl,
+      },
+    });
+  }
+
   const accountNumber = process.env.HUBTEL_MERCHANT_ACCOUNT_NUMBER;
   if (!accountNumber) {
     throw new BadRequestError('Hubtel merchant account number is missing on server');
@@ -520,6 +755,26 @@ export const getFoodOrderPaymentStatus = async (req, res) => {
     });
   }
 
+  if (customerPaymentProvider() === 'paystack') {
+    const since = payment.lastStatusCheckAt ? Date.now() - new Date(payment.lastStatusCheckAt).getTime() : Infinity;
+    if (payment.status === 'pending' && since >= 4000) {
+      await FoodPayment.updateOne({ _id: payment._id }, { $set: { lastStatusCheckAt: new Date() } });
+      try {
+        await reconcilePaystackFoodPayment(payment);
+      } catch (err) {
+        console.warn('[paystack] food status check failed:', err.message);
+      }
+    }
+    const freshOrder = await FoodOrder.findById(order._id).select('paymentStatus').lean();
+    const freshPayment = await FoodPayment.findById(payment._id)
+      .select('status clientReference checkoutId checkoutUrl checkoutDirectUrl payoutStatus payoutError')
+      .lean();
+    return res.status(StatusCodes.OK).json({
+      orderPaymentStatus: freshOrder?.paymentStatus || order.paymentStatus,
+      payment: freshPayment,
+    });
+  }
+
   // Status-check reconciliation: don't rely solely on the async callback (it may
   // land on a different environment). Reconcile on poll, throttled to ~12s.
   const lastCheck = payment.lastStatusCheckAt
@@ -602,6 +857,56 @@ export const initiateRidePayment = async (req, res) => {
     });
   }
 
+  if (customerPaymentProvider() === 'paystack') {
+    if (ride.paymentStatus === 'PENDING' && ride.paymentReference && ride.paymentCheckoutUrl) {
+      await reconcilePaystackRidePayment(ride);
+      if (ride.paymentStatus === 'PAID') {
+        return res.status(StatusCodes.OK).json({
+          message: 'Ride already paid',
+          payment: { status: 'success', clientReference: ride.paymentReference },
+        });
+      }
+      if (ride.paymentStatus === 'PENDING') {
+        return res.status(StatusCodes.OK).json({
+          message: 'Payment already initiated',
+          payment: {
+            status: 'pending',
+            clientReference: ride.paymentReference,
+            checkoutUrl: ride.paymentCheckoutUrl,
+            checkoutDirectUrl: ride.paymentCheckoutUrl,
+          },
+        });
+      }
+    }
+    const reference = makeRideReference(ride._id);
+    const label = ride.serviceType === 'DELIVERY' ? 'parcel delivery' : 'ride';
+    let checkout;
+    try {
+      checkout = await startPaystackCheckout(req, {
+        amount: ride.fare,
+        reference,
+        label: `QareGO ${label} ${ride._id}`,
+        metadata: { kind: 'ride', rideId: String(ride._id) },
+      });
+    } catch (err) {
+      throw new BadRequestError(err.message || 'Could not start the payment. Please try again.');
+    }
+    ride.paymentReference = reference;
+    ride.paymentCheckoutUrl = checkout.authorizationUrl;
+    ride.paymentStatus = 'PENDING';
+    await ride.save();
+    return res.status(StatusCodes.OK).json({
+      message: 'Checkout initiated',
+      payment: {
+        status: 'pending',
+        clientReference: reference,
+        checkoutId: checkout.accessCode,
+        checkoutUrl: checkout.authorizationUrl,
+        checkoutDirectUrl: checkout.authorizationUrl,
+      },
+    });
+  }
+
   const accountNumber = process.env.HUBTEL_MERCHANT_ACCOUNT_NUMBER;
   if (!accountNumber) {
     throw new BadRequestError('Hubtel merchant account number is missing on server');
@@ -658,6 +963,25 @@ export const getRidePaymentStatus = async (req, res) => {
   if (!ride) throw new NotFoundError('Ride not found');
   if (String(ride.customer) !== String(req.user.id)) {
     throw new NotFoundError('Ride not found');
+  }
+
+  if (customerPaymentProvider() === 'paystack') {
+    const since = ride.paymentLastCheckAt ? Date.now() - new Date(ride.paymentLastCheckAt).getTime() : Infinity;
+    if (ride.paymentStatus === 'PENDING' && ride.paymentReference && since >= 4000) {
+      ride.paymentLastCheckAt = new Date();
+      await ride.save();
+      try {
+        await reconcilePaystackRidePayment(ride);
+      } catch (err) {
+        console.warn('[paystack] ride status check failed:', err.message);
+      }
+    }
+    const fresh = await Ride.findById(ride._id).select('paymentStatus paymentMethod paymentReference').lean();
+    return res.status(StatusCodes.OK).json({
+      ridePaymentStatus: fresh?.paymentStatus || ride.paymentStatus,
+      paymentMethod: fresh?.paymentMethod || ride.paymentMethod,
+      paymentReference: fresh?.paymentReference || ride.paymentReference,
+    });
   }
 
   const lastCheck = ride.paymentLastCheckAt
@@ -911,4 +1235,35 @@ export const hubtelWebhook = async (req, res) => {
     console.error('Hubtel webhook error:', err);
   }
   res.status(StatusCodes.OK).json({ received: true });
+};
+
+/**
+ * POST /webhooks/paystack — Paystack's signed event. The payload is only a hint: the
+ * transaction is re-checked with Paystack before anything is marked paid.
+ */
+export const paystackWebhook = async (req, res) => {
+  if (!isValidPaystackSignature(req.rawBody, req.headers['x-paystack-signature'])) {
+    return res.status(StatusCodes.UNAUTHORIZED).json({ message: 'Invalid signature' });
+  }
+  const event = req.body?.event;
+  const reference = req.body?.data?.reference;
+  // Answer straight away; Paystack retries slow or failed webhooks.
+  res.status(StatusCodes.OK).json({ received: true });
+  if (!reference || !['charge.success', 'charge.failed'].includes(event)) return;
+  try {
+    const payment = await FoodPayment.findOne({ clientReference: reference });
+    if (payment) {
+      await reconcilePaystackFoodPayment(payment);
+      return;
+    }
+    const ride = await Ride.findOne({ paymentReference: reference });
+    if (ride) {
+      await reconcilePaystackRidePayment(ride);
+      return;
+    }
+    const topUp = await PendingTopUp.findOne({ clientReference: reference });
+    if (topUp) await reconcilePaystackTopUp(topUp);
+  } catch (err) {
+    console.error('[paystack] webhook handling failed:', reference, err.message);
+  }
 };

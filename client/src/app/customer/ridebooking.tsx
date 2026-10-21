@@ -7,7 +7,7 @@ import {
   useWindowDimensions,
   Alert,
 } from "react-native";
-import { MOMO_AVAILABLE, openMomoComingSoon } from "@/utils/momo";
+import { openMomoComingSoon, useMomoPayAvailable } from "@/utils/momo";
 import SoonTag from "@/components/shared/SoonTag";
 import React, { memo, useCallback, useMemo, useState, useEffect, useRef } from "react";
 import { useLocalSearchParams } from "expo-router";
@@ -38,6 +38,7 @@ import { useRequestId } from "@/utils/useRequestId";
 import SpotlightTour, { type TourStep } from "@/components/customer/onboarding/SpotlightTour";
 import { onboardingUserId, useOnboardingStore } from "@/store/onboardingStore";
 const RideBooking = () => {
+  const momoPayAvailable = useMomoPayAvailable();
   const { height: windowHeight } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const route = useRoute() as any;
@@ -728,7 +729,7 @@ const RideBooking = () => {
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={() =>
-                    MOMO_AVAILABLE ? setPaymentMethod("MOBILE_MONEY") : openMomoComingSoon("pay")
+                    momoPayAvailable ? setPaymentMethod("MOBILE_MONEY") : openMomoComingSoon("pay")
                   }
                   style={[
                     styles.paymentSeg,
@@ -753,7 +754,7 @@ const RideBooking = () => {
                   >
                     MoMo
                   </CustomText>
-                  {!MOMO_AVAILABLE ? <SoonTag /> : null}
+                  {!momoPayAvailable ? <SoonTag /> : null}
                 </TouchableOpacity>
               </View>
             </View>

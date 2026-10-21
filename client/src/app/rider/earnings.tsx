@@ -11,7 +11,8 @@ import {
   Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { MOMO_AVAILABLE, openMomoComingSoon } from "@/utils/momo";
+import { MOMO_AVAILABLE, openMomoComingSoon, useMomoPayAvailable } from "@/utils/momo";
+import HubtelCheckoutModal from "@/components/shared/HubtelCheckoutModal";
 import React, { useState, useCallback, useRef, useEffect } from "react";
 import { commonStyles } from "@/styles/commonStyles";
 import CustomText from "@/components/shared/CustomText";
@@ -146,6 +147,9 @@ export default function RiderEarnings() {
   const [topUpLoading, setTopUpLoading] = useState(false);
   const [topUpPolling, setTopUpPolling] = useState(false);
   const [topUpMessage, setTopUpMessage] = useState<string | null>(null);
+  // Debt is paid on the payment provider's secure page (server switch decides if MoMo is on).
+  const momoPayOn = useMomoPayAvailable();
+  const [topUpCheckout, setTopUpCheckout] = useState<{ url: string; ref: string } | null>(null);
   const [cashoutLoading, setCashoutLoading] = useState(false);
   const [cashoutMessage, setCashoutMessage] = useState<string | null>(null);
   const [cashoutMessageIsError, setCashoutMessageIsError] = useState(false);
@@ -256,7 +260,9 @@ export default function RiderEarnings() {
       const res = await appAxios.post("/ride/top-up", {
         amount: Math.abs(balance),
       });
-      if (res.data?.paymentRequired) {
+      if (res.data?.paymentRequired && res.data?.checkoutUrl && res.data?.clientReference) {
+        setTopUpCheckout({ url: res.data.checkoutUrl, ref: res.data.clientReference });
+      } else if (res.data?.paymentRequired) {
         setTopUpMessage(
           res.data?.message || "Approve the MoMo prompt on your phone."
         );
@@ -487,8 +493,8 @@ export default function RiderEarnings() {
           {isDebt && (
             <>
               <CustomText fontSize={12} style={styles.debtHint}>
-                {MOMO_AVAILABLE
-                  ? "Clear debt with MoMo to bring your balance back to zero"
+                {momoPayOn
+                  ? "Clear debt with MoMo or card to bring your balance back to zero"
                   : "Pay what you owe to QareGO in cash — MoMo top-up is coming soon"}
               </CustomText>
               {topUpMessage && (
@@ -498,7 +504,7 @@ export default function RiderEarnings() {
               )}
               <TouchableOpacity
                 style={[styles.clearDebtButton, topUpBusy && styles.clearDebtButtonDisabled]}
-                onPress={MOMO_AVAILABLE ? handleClearDebt : () => openMomoComingSoon("topup")}
+                onPress={momoPayOn ? handleClearDebt : () => openMomoComingSoon("topup")}
                 disabled={topUpBusy}
               >
                 <CustomText fontFamily="SemiBold" fontSize={14} style={styles.clearDebtButtonText}>
@@ -689,6 +695,27 @@ export default function RiderEarnings() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      <HubtelCheckoutModal
+        visible={!!topUpCheckout}
+        checkoutUrl={topUpCheckout?.url ?? null}
+        onSuccess={() => {
+          const ref = topUpCheckout?.ref;
+          setTopUpCheckout(null);
+          setTopUpMessage("Confirming your payment…");
+          if (ref) void pollTopUpStatus(ref);
+        }}
+        onCancel={() => {
+          setTopUpCheckout(null);
+          setTopUpMessage("Payment not completed. Tap Clear Debt Now to try again.");
+        }}
+        onClose={() => {
+          const ref = topUpCheckout?.ref;
+          setTopUpCheckout(null);
+          // Closed by hand: they may still have paid, so check once more.
+          if (ref) void pollTopUpStatus(ref);
+        }}
+      />
     </View>
   );
 }

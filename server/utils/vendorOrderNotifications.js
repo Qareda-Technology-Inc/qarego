@@ -1,3 +1,4 @@
+import { merchantPortalBase } from "./portalOrigins.js";
 import Restaurant from "../models/Restaurant.js";
 import User from "../models/User.js";
 import { sendPushToUserId } from "./pushNotifications.js";
@@ -28,7 +29,7 @@ function formatItemSummary(order) {
 }
 
 function merchantOrdersUrl() {
-  const base = (process.env.MERCHANT_ORIGIN || "http://localhost:3001").replace(/\/$/, "");
+  const base = merchantPortalBase() || "http://localhost:3001";
   return `${base}/orders`;
 }
 

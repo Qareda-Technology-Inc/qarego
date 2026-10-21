@@ -49,6 +49,7 @@ if (!fs.existsSync(publicSoundsDir)) fs.mkdirSync(publicSoundsDir, { recursive: 
 // Import socket handler
 import handleSocketConnection from './controllers/sockets.js';
 import { isMomoEnabled } from "./utils/momoAvailability.js";
+import { adminOrigins, merchantOrigins } from "./utils/portalOrigins.js";
 import { ensureGasInExistingZones, ensureLaundryInExistingZones } from "./utils/serviceZones.js";
 import { fixStoreVerticalsFromTags } from "./utils/commerceStoreTypes.js";
 
@@ -101,8 +102,8 @@ const allowedOrigins = [
   "http://127.0.0.1:3000",
   "http://localhost:3001",
   "http://127.0.0.1:3001",
-  process.env.ADMIN_ORIGIN,
-  process.env.MERCHANT_ORIGIN,
+  ...adminOrigins(),
+  ...merchantOrigins(),
 ].filter(Boolean);
 
 const corsOptions = {
@@ -129,7 +130,14 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 app.options("*", cors(corsOptions));
-app.use(express.json());
+app.use(
+  express.json({
+    // Paystack signs the exact bytes it sent; keep them for the webhook's signature check.
+    verify: (req, _res, buf) => {
+      if (req.originalUrl?.startsWith("/webhooks/paystack")) req.rawBody = buf;
+    },
+  })
+);
 
 const server = http.createServer(app);
 
@@ -176,6 +184,26 @@ app.use('/sounds', express.static(path.join(__dirname, 'public', 'sounds')));
 /** Public ping for phone/browser — GET http://YOUR_MAC_IP:2026/health */
 app.get("/health", (_req, res) => {
   res.status(200).json({ ok: true, service: "qarego-api" });
+});
+
+/**
+ * Where the payment checkout sends the customer back. The app's payment screen closes on these
+ * links before they load; this page is only for a checkout opened in a normal browser.
+ */
+const paymentReturnPage = (title, text) => `<!doctype html><html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title></head>
+<body style="font-family:system-ui,sans-serif;display:flex;min-height:90vh;align-items:center;justify-content:center;background:#f8fafc;margin:0">
+<div style="text-align:center;padding:24px;max-width:360px"><h1 style="font-size:22px;color:#0f172a">${title}</h1>
+<p style="color:#475569;line-height:1.5">${text}</p></div></body></html>`;
+app.get("/payments/return", (_req, res) => {
+  res.status(200).type("html").send(
+    paymentReturnPage("Payment received", "Thanks! Go back to the QareGO app to see your order update.")
+  );
+});
+app.get("/payments/cancel", (_req, res) => {
+  res.status(200).type("html").send(
+    paymentReturnPage("Payment not completed", "No money was taken. Go back to the QareGO app to try again or choose cash.")
+  );
 });
 
 /** Feature switches the web portals read, so a paused feature hides everywhere at once. */

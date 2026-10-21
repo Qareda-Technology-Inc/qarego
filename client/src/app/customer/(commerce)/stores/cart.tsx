@@ -10,7 +10,7 @@ import {
   Pressable,
   Image,
 } from "react-native";
-import { MOMO_AVAILABLE, openMomoComingSoon } from "@/utils/momo";
+import { openMomoComingSoon, useMomoPayAvailable } from "@/utils/momo";
 import SoonTag from "@/components/shared/SoonTag";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
@@ -60,6 +60,7 @@ const SCHEDULE_OPTIONS = [
 ];
 
 const FoodCart = () => {
+  const momoPayServer = useMomoPayAvailable();
   const insets = useSafeAreaInsets();
   const { vertical: verticalParam } = useLocalSearchParams<{ vertical?: string }>();
   // Prefer the cart's store's own type (loaded below) over the link's; see the store page.
@@ -121,6 +122,8 @@ const FoodCart = () => {
   // Laundry collection time: null = as soon as the shop accepts, otherwise a booked window start.
   const [laundryPickupAt, setLaundryPickupAt] = useState<string | null>(null);
   const [laundryPickupReady, setLaundryPickupReady] = useState(false);
+  // Laundry is priced after the shop counts, so it's paid in cash when it comes back.
+  const momoPayAvailable = momoPayServer && !isLaundry;
   const requiresPrescription = useMemo(() => {
     if (!isPharmacy) return false;
     const byId = new Map(menuItems.map((item) => [item._id, item]));
@@ -950,10 +953,11 @@ const FoodCart = () => {
             />
             <CustomText fontSize={13}>Cash</CustomText>
           </TouchableOpacity>
+          {isLaundry ? null : (
           <TouchableOpacity
             style={[styles.payOpt, paymentMethod === "MOBILE_MONEY" && { borderColor: accent }]}
             onPress={() =>
-              MOMO_AVAILABLE ? setPaymentMethod("MOBILE_MONEY") : openMomoComingSoon("pay")
+              momoPayAvailable ? setPaymentMethod("MOBILE_MONEY") : openMomoComingSoon("pay")
             }
           >
             <Ionicons
@@ -962,8 +966,9 @@ const FoodCart = () => {
               color={paymentMethod === "MOBILE_MONEY" ? accent : "#666"}
             />
             <CustomText fontSize={13}>MoMo</CustomText>
-            {!MOMO_AVAILABLE ? <SoonTag /> : null}
+            {!momoPayAvailable ? <SoonTag /> : null}
           </TouchableOpacity>
+          )}
         </View>
 
         {loading ? (

@@ -1,5 +1,6 @@
 // Vendor (merchant) logins: QareGO issues a temporary password and texts it; the vendor
 // must choose their own the first time they sign in.
+import { merchantPortalBase } from "./portalOrigins.js";
 import crypto from "crypto";
 import User from "../models/User.js";
 import { sendSMS } from "./smsService.js";
@@ -31,7 +32,7 @@ export async function uniqueUsernameFrom(name) {
 }
 
 export function merchantPortalUrl() {
-  const origin = String(process.env.MERCHANT_ORIGIN || "").trim().replace(/\/$/, "");
+  const origin = merchantPortalBase();
   return origin ? `${origin}/login` : null;
 }
 

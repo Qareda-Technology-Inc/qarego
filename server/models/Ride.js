@@ -89,6 +89,8 @@ const rideSchema = new Schema(
     },
     paymentReference: { type: String, default: null, index: true },
     paymentLastCheckAt: { type: Date, default: null },
+    /** Paystack hosted checkout for this ride's MoMo/card payment (reused while unpaid). */
+    paymentCheckoutUrl: { type: String, default: null },
     customer: {
       type: Schema.Types.ObjectId,
       ref: "User",

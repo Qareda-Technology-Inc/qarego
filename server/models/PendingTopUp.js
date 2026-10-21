@@ -10,6 +10,9 @@ const pendingTopUpSchema = new Schema(
     clientReference: { type: String, required: true, unique: true },
     status: { type: String, enum: ['pending', 'completed', 'failed'], default: 'pending' },
     hubtelResponse: { type: Schema.Types.Mixed },
+    /** Paystack checkout the rider pays on (reused while unpaid). */
+    provider: { type: String, enum: ['hubtel', 'paystack'], default: 'hubtel' },
+    checkoutUrl: { type: String, default: null },
   },
   { timestamps: true }
 );
