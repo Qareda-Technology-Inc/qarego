@@ -61,13 +61,19 @@ export async function uploadMediaFile(
     });
   } catch (err) {
     if (err instanceof Error && err.message === "Session expired") throw err;
+    // Only on a local machine is "start the API" the answer; on the live site it's the connection.
+    const local = typeof window !== "undefined" && isLocalDevHost(window.location.hostname);
     if (err instanceof Error && err.name === "TimeoutError") {
       throw new Error(
-        `Upload timed out. Check the API is running at ${getMediaUploadBaseUrl()}.`
+        local
+          ? `Upload timed out. Check the API is running at ${getMediaUploadBaseUrl()}.`
+          : "The upload took too long. Check your connection, or try a smaller photo."
       );
     }
     throw new Error(
-      `Could not reach the API at ${getMediaUploadBaseUrl()}. Start the server on port ${API_PORT}.`
+      local
+        ? `Could not reach the API at ${getMediaUploadBaseUrl()}. Start the server on port ${API_PORT}.`
+        : "Couldn't reach QareGO to upload the file. Check your connection and try again."
     );
   }
 
