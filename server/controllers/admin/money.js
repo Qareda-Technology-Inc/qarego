@@ -105,7 +105,7 @@ export const getMoneyMovements = async (req, res) => {
     })),
   ].sort((a, b) => new Date(b.at) - new Date(a.at));
 
-  const legStatus = (s) => (s === "sent" ? "sent" : s === "failed" ? "failed" : s === "pending" ? "pending" : null);
+  const legStatus = (s) => (["sent", "failed", "pending", "wallet"].includes(s) ? s : null);
   const moneyOut = [
     ...payoutTx.map((t) => ({
       kind: /weekly/i.test(t.note || "") ? "Weekly payout" : "Rider cash-out",
@@ -130,7 +130,10 @@ export const getMoneyMovements = async (req, res) => {
             status,
             reference: d.reference,
             who: leg === "restaurant" ? o.restaurantName || "Store" : "Rider",
-            detail: `Order ${shortId(o._id)}${d.error ? ` · ${d.error}` : ""}`,
+            detail:
+              status === "wallet"
+                ? `Order ${shortId(o._id)} · MoMo transfer failed, added to the rider's wallet${d.error ? ` (${d.error})` : ""}`
+                : `Order ${shortId(o._id)}${d.error ? ` · ${d.error}` : ""}`,
             link: `/food-orders/${o._id}`,
           };
         })

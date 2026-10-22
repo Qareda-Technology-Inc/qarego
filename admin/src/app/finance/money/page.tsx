@@ -37,6 +37,7 @@ const STATUS_TONE: Record<string, string> = {
   failed: "bg-red-100 text-red-800",
   cancelled: "bg-gray-100 text-gray-700",
   unpaid: "bg-gray-100 text-gray-700",
+  wallet: "bg-amber-100 text-amber-800",
 };
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
@@ -219,7 +220,7 @@ export default function MoneyPage() {
                             STATUS_TONE[r.status] ?? "bg-gray-100 text-gray-700"
                           }`}
                         >
-                          {r.status}
+                          {r.status === "wallet" ? "To wallet" : r.status}
                         </span>
                       </td>
                       <td className="py-2.5">

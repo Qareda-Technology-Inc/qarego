@@ -70,6 +70,10 @@ type OrderDetail = {
   platformNet?: number | null;
   cancelledBy?: string | null;
   cancelReason?: string | null;
+  settlementStatus?: "pending" | "processing" | "settled" | "failed" | "not_required";
+  settlementError?: string | null;
+  /** MoMo orders: the transfers to the store and the rider, sent on delivery. */
+  settlementDetails?: { restaurant?: PayoutLeg; rider?: PayoutLeg } | null;
   refundStatus?: "NONE" | "DUE" | "REFUNDED";
   /** Automatic refund through Paystack. */
   refund?: { status: "requested" | "processed" | "failed"; requestedAt?: string | null; error?: string | null } | null;
@@ -78,6 +82,12 @@ type OrderDetail = {
   gasEmptyReturnedAt?: string | null;
   createdAt: string;
   timeline: { status: string; at: string; approximate?: boolean }[];
+};
+type PayoutLeg = {
+  amount?: number;
+  reference?: string | null;
+  status?: "pending" | "sent" | "failed" | "not_applicable" | "wallet";
+  error?: string | null;
 };
 type Rider = { _id: string; name?: string; phone?: string; isOnline?: boolean; vehicle?: string };
 
@@ -130,6 +140,14 @@ const LAUNDRY_PRICE: Record<string, { label: string; tone: string }> = {
   awaiting_customer: { label: "Waiting for customer to approve", tone: "bg-amber-100 text-amber-800" },
   approved: { label: "Price agreed", tone: "bg-green-100 text-green-800" },
   declined: { label: "Declined · returning unwashed", tone: "bg-red-100 text-red-800" },
+};
+
+const PAYOUT_LEG: Record<string, { label: string; tone: string }> = {
+  pending: { label: "Sending", tone: "bg-blue-100 text-blue-800" },
+  sent: { label: "Sent", tone: "bg-green-100 text-green-800" },
+  failed: { label: "Failed", tone: "bg-red-100 text-red-800" },
+  wallet: { label: "Added to rider's wallet", tone: "bg-amber-100 text-amber-800" },
+  not_applicable: { label: "Nothing due", tone: "bg-gray-100 text-gray-700" },
 };
 
 function gapLabel(fromIso: string, toIso: string) {
@@ -187,6 +205,22 @@ export default function StoreOrderDetailPage() {
       await load();
     } catch (e) {
       alert(e instanceof Error ? e.message : "Action failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const retryPayouts = async () => {
+    setBusy(true);
+    try {
+      const data = await fetcher(`/food/admin/orders/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ action: "retry_payout" }),
+      });
+      await load();
+      if (data?.message) alert(data.message);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Retry failed");
     } finally {
       setBusy(false);
     }
@@ -485,6 +519,44 @@ export default function StoreOrderDetailPage() {
               )}
             </CardContent>
           </Card>
+
+          {order.paymentMethod === "MOBILE_MONEY" && order.settlementDetails ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Payouts</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 text-sm">
+                {(
+                  [
+                    ["restaurant", storeName],
+                    ["rider", rider?.name || "Rider"],
+                  ] as const
+                ).map(([key, who]) => {
+                  const leg = order.settlementDetails?.[key];
+                  if (!leg) return null;
+                  const tone = PAYOUT_LEG[leg.status ?? ""] ?? { label: leg.status ?? "—", tone: "bg-gray-100 text-gray-700" };
+                  return (
+                    <div key={key} className="space-y-1 rounded-lg border p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-medium text-gray-900">
+                          {key === "restaurant" ? "Store" : "Rider"} · {who}
+                        </span>
+                        <span className="font-semibold text-gray-900">{formatCurrency(leg.amount ?? 0)}</span>
+                      </div>
+                      <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${tone.tone}`}>{tone.label}</span>
+                      {leg.reference ? <p className="break-all font-mono text-xs text-gray-500">{leg.reference}</p> : null}
+                      {leg.error ? <p className="text-xs text-red-700">{leg.error}</p> : null}
+                    </div>
+                  );
+                })}
+                {order.settlementStatus === "failed" || order.settlementStatus === "processing" ? (
+                  <Button disabled={busy} variant="outline" onClick={retryPayouts} className="w-full">
+                    {order.settlementStatus === "failed" ? "Retry failed payout" : "Check and retry payouts"}
+                  </Button>
+                ) : null}
+              </CardContent>
+            </Card>
+          ) : null}
 
           <Card>
             <CardHeader>

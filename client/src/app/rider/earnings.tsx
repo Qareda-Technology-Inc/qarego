@@ -95,6 +95,8 @@ function getTxLabel(type: string, note?: string): string {
     CANCELLATION_CREDIT: "Cancellation pay",
     TRIP_SHARE_CREDIT: "Trip share",
     TRIP_SHARE_DEBIT: "Trip share (other rider)",
+    DELIVERY_PAY: "Delivery pay",
+    DIRECT_PAYOUT: "Sent to your MoMo",
   };
   return labels[type] ?? type;
 }
@@ -108,10 +110,12 @@ function getTxIcon(type: string): keyof typeof Ionicons.glyphMap {
     type === "TOP_UP" ||
     type === "MANUAL_CREDIT" ||
     type === "CANCELLATION_CREDIT" ||
-    type === "TRIP_SHARE_CREDIT"
+    type === "TRIP_SHARE_CREDIT" ||
+    type === "DELIVERY_PAY"
   ) {
     return "add-circle-outline";
   }
+  if (type === "DIRECT_PAYOUT") return "phone-portrait-outline";
   return "wallet-outline";
 }
 
@@ -539,11 +543,19 @@ export default function RiderEarnings() {
             </View>
           ) : (
             transactions.map((tx) => {
+              // Pay sent straight to the rider's MoMo: shown for the record, not added to the wallet.
+              const isDirect = tx.type === "DIRECT_PAYOUT";
               const isCredit = tx.amount >= 0;
+              const tone = isDirect ? "#2563eb" : isCredit ? "#16a34a" : "#dc2626";
               const breakdown = tx.earningsBreakdown;
               return (
                 <View key={tx._id} style={styles.txCard}>
-                  <View style={[styles.txAccent, isCredit ? styles.txAccentCredit : styles.txAccentDebit]} />
+                  <View
+                    style={[
+                      styles.txAccent,
+                      isDirect ? { backgroundColor: tone } : isCredit ? styles.txAccentCredit : styles.txAccentDebit,
+                    ]}
+                  />
                   <View style={styles.txBodyColumn}>
                     <View style={styles.txBody}>
                       <View style={styles.txLeft}>
@@ -551,13 +563,18 @@ export default function RiderEarnings() {
                           <Ionicons
                             name={getTxIcon(tx.type)}
                             size={20}
-                            color={isCredit ? "#16a34a" : "#dc2626"}
+                            color={tone}
                           />
                         </View>
                         <View style={{ flex: 1 }}>
                           <CustomText fontFamily="Medium" fontSize={14}>
                             {getTxLabel(tx.type, tx.note)}
                           </CustomText>
+                          {(isDirect || tx.type === "DELIVERY_PAY") && tx.note ? (
+                            <CustomText fontSize={12} color="#666">
+                              {tx.note}
+                            </CustomText>
+                          ) : null}
                           <CustomText fontSize={12} color="#888">
                             {formatRelativeTime(tx.createdAt)}
                           </CustomText>
@@ -566,9 +583,9 @@ export default function RiderEarnings() {
                       <CustomText
                         fontFamily="SemiBold"
                         fontSize={15}
-                        style={{ color: isCredit ? "#16a34a" : "#dc2626" }}
+                        style={{ color: tone }}
                       >
-                        {isCredit ? "+" : ""}{formatCurrency(tx.amount)}
+                        {isCredit && !isDirect ? "+" : ""}{formatCurrency(tx.amount)}
                       </CustomText>
                     </View>
                     {breakdown && tx.type === "COMMISSION_DEBIT" ? (

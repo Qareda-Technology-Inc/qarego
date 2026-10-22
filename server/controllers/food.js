@@ -13,7 +13,7 @@ import {
   parseCoord,
 } from "../utils/deliveryFare.js";
 import { getSettings } from "../utils/tripSettlement.js";
-import { computeFoodOrderSplit } from "../utils/foodOrderSettlement.js";
+import { computeFoodOrderSplit, retryFoodOrderSettlement } from "../utils/foodOrderSettlement.js";
 import { computeFoodServiceFee } from "../utils/foodServiceFee.js";
 import { assertServiceAvailableAt } from "../utils/serviceZones.js";
 import { applyLaundryCustomerDecision, applyRestaurantAction } from "../utils/foodOrderFlow.js";
@@ -689,6 +689,13 @@ export const adminRestaurantOrderAction = async (req, res) => {
     return res.status(StatusCodes.OK).json({ order });
   }
 
+  if (action === "retry_payout") {
+    assertMomoEnabled();
+    const { order, message } = await retryFoodOrderSettlement(req.params.id);
+    if (!order) throw new NotFoundError("Order not found");
+    return res.status(StatusCodes.OK).json({ order, message });
+  }
+
   if (action === "mark_refunded") {
     // Admin refunded the customer manually in Hubtel; record it.
     const order = await FoodOrder.findOneAndUpdate(
@@ -702,7 +709,7 @@ export const adminRestaurantOrderAction = async (req, res) => {
 
   const ADMIN_ACTIONS = ["accept", "reject", "ready", "assign_rider", "collected", "empty_returned"];
   if (!ADMIN_ACTIONS.includes(action)) {
-    throw new BadRequestError(`action must be one of: ${[...ADMIN_ACTIONS, "mark_refunded", "retry_refund"].join(", ")}`);
+    throw new BadRequestError(`action must be one of: ${[...ADMIN_ACTIONS, "mark_refunded", "retry_refund", "retry_payout"].join(", ")}`);
   }
   const { driverId } = req.body;
   if (action === "assign_rider" && !driverId) {

@@ -5,6 +5,21 @@ import StoreLedgerEntry from "../../models/StoreLedgerEntry.js";
 import { StatusCodes } from "http-status-codes";
 import { BadRequestError } from "../../errors/index.js";
 
+// A MoMo order pays the store and the rider separately. The store sees only its own payout, so
+// a failed rider transfer doesn't show as "failed" on an order the store was paid for.
+const STORE_LEG_TO_STATUS = { sent: "settled", not_applicable: "settled", pending: "processing", failed: "failed" };
+const STORE_PAYOUT_STATUS = {
+  $switch: {
+    branches: Object.entries(STORE_LEG_TO_STATUS).map(([leg, status]) => ({
+      case: { $eq: ["$settlementDetails.restaurant.status", leg] },
+      then: status,
+    })),
+    default: { $ifNull: ["$settlementStatus", "pending"] },
+  },
+};
+const storePayoutStatus = (o) =>
+  STORE_LEG_TO_STATUS[o.settlementDetails?.restaurant?.status] || o.settlementStatus;
+
 /**
  * GET /merchant/finance — owner earnings across all stores or one store.
  * Query: from, to (YYYY-MM-DD), restaurantId=all|<id>, page, limit
@@ -120,7 +135,7 @@ export const getMyFinance = async (req, res) => {
           netEarnings: { $sum: moneyFields.net },
           settled: {
             $sum: {
-              $cond: [{ $eq: ["$settlementStatus", "settled"] }, moneyFields.net, 0],
+              $cond: [{ $eq: [STORE_PAYOUT_STATUS, "settled"] }, moneyFields.net, 0],
             },
           },
           pendingSettlement: {
@@ -128,7 +143,7 @@ export const getMyFinance = async (req, res) => {
               $cond: [
                 {
                   $in: [
-                    { $ifNull: ["$settlementStatus", "pending"] },
+                    STORE_PAYOUT_STATUS,
                     ["pending", "processing", "failed"],
                   ],
                 },
@@ -166,7 +181,7 @@ export const getMyFinance = async (req, res) => {
     FoodOrder.countDocuments(match),
     FoodOrder.find(match)
       .select(
-        "restaurant status paymentMethod paymentStatus subtotal restaurantCommission restaurantNet settlementStatus settledAt createdAt customer"
+        "restaurant status paymentMethod paymentStatus subtotal restaurantCommission restaurantNet settlementStatus settlementDetails.restaurant.status settledAt createdAt customer"
       )
       .populate("customer", "name phone")
       .populate("restaurant", "name imageEmoji")
@@ -248,7 +263,7 @@ export const getMyFinance = async (req, res) => {
       status: o.status,
       paymentMethod: o.paymentMethod,
       paymentStatus: o.paymentStatus,
-      settlementStatus: o.settlementStatus,
+      settlementStatus: storePayoutStatus(o),
       settledAt: o.settledAt,
       subtotal: gross,
       restaurantCommission: commission,

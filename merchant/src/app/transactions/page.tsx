@@ -522,7 +522,14 @@ function SettlementPill({ status }: { status?: string }) {
   };
   return (
     <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full w-fit ${map[status] || "bg-gray-50 text-gray-600"}`}>
-      {status}
+      {SETTLEMENT_LABEL[status] ?? status}
     </span>
   );
 }
+
+const SETTLEMENT_LABEL: Record<string, string> = {
+  settled: "Paid",
+  pending: "Pending",
+  processing: "Sending",
+  failed: "Payout failed",
+};

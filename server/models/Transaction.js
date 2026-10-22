@@ -20,6 +20,11 @@ const TRANSACTION_TYPES = [
   // (who took the customer's cash) to the one who collected the bag.
   'TRIP_SHARE_CREDIT',
   'TRIP_SHARE_DEBIT',
+  // MoMo store orders: the rider's delivery pay. DELIVERY_PAY is a wallet credit, used when the
+  // MoMo transfer failed. DIRECT_PAYOUT only shows the rider the pay sent straight to their MoMo:
+  // it does not change the balance.
+  'DELIVERY_PAY',
+  'DIRECT_PAYOUT',
 ];
 
 const transactionSchema = new Schema(
@@ -64,6 +69,16 @@ const transactionSchema = new Schema(
 
 transactionSchema.index({ driver: 1, createdAt: -1 });
 transactionSchema.index({ ride: 1 });
+// One wallet credit and one MoMo line per payout, however often settlement runs. (Different key
+// orders so older MongoDB versions accept two partial indexes on the same fields.)
+transactionSchema.index(
+  { reference: 1, type: 1 },
+  { unique: true, partialFilterExpression: { type: 'DELIVERY_PAY' }, name: 'uniq_delivery_pay' }
+);
+transactionSchema.index(
+  { type: 1, reference: 1 },
+  { unique: true, partialFilterExpression: { type: 'DIRECT_PAYOUT' }, name: 'uniq_direct_payout' }
+);
 
 const Transaction = mongoose.model('Transaction', transactionSchema);
 export default Transaction;

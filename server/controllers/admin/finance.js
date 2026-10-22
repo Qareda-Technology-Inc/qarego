@@ -10,7 +10,7 @@ import { getSettings } from "../../utils/tripSettlement.js";
 import { appendWebhookToken } from "../../middleware/hubtelWebhookAuth.js";
 import FoodPayment from "../../models/FoodPayment.js";
 import FoodOrder from "../../models/FoodOrder.js";
-import { settleFoodOrderOnDelivery } from "../../utils/foodOrderSettlement.js";
+import { retryFoodOrderSettlement } from "../../utils/foodOrderSettlement.js";
 import { sendPayment } from "../../utils/hubtelService.js";
 
 const money = (n) => Math.round((Number(n) || 0) * 100) / 100;
@@ -197,7 +197,7 @@ export const getFoodPaymentsAdmin = async (req, res) => {
         .limit(nLimit)
         .populate("restaurant", "name payoutConfig")
         .populate("customer", "name phone")
-        .populate("order", "status total subtotal paymentStatus settlementStatus settledAt createdAt")
+        .populate("order", "status total subtotal paymentStatus settlementStatus settlementError settledAt createdAt")
         .lean(),
       FoodPayment.countDocuments(query),
     ]);
@@ -220,72 +220,18 @@ export const getFoodPaymentsAdmin = async (req, res) => {
 export const retryFoodPaymentPayoutAdmin = async (req, res) => {
   // Payouts go out by mobile money, which is paused until the new provider is live.
   assertMomoEnabled();
-  try {
-    const payment = await FoodPayment.findById(req.params.id);
-    if (!payment) {
-      return res.status(StatusCodes.NOT_FOUND).json({ message: "Payment not found" });
-    }
-    if (payment.status !== "success") {
-      return res
-        .status(StatusCodes.BAD_REQUEST)
-        .json({ message: "Cannot retry payout before payment success" });
-    }
-
-    const order = await FoodOrder.findById(payment.order);
-    if (!order) {
-      return res.status(StatusCodes.BAD_REQUEST).json({ message: "Order not found" });
-    }
-
-    if (order.settlementStatus === "settled") {
-      return res.status(StatusCodes.OK).json({
-        message: "Order already settled",
-        order,
-        payment,
-      });
-    }
-
-    if (order.settlementStatus === "failed" || order.settlementStatus === "processing") {
-      // Allow reclaim when a leg failed, or when Hubtel accepted but callback never arrived.
-      const details = { ...(order.settlementDetails || {}) };
-      for (const field of ["restaurant", "rider"]) {
-        if (details[field]?.status === "pending") {
-          details[field] = {
-            ...details[field],
-            status: "failed",
-            error: "Retry: previous payout unconfirmed",
-            // New ClientReference on next send (Hubtel may reject duplicate refs).
-            reference: null,
-          };
-        }
-      }
-      order.settlementDetails = details;
-      order.settlementStatus = "pending";
-      order.settlementError = null;
-      await order.save();
-    }
-
-    const result = await settleFoodOrderOnDelivery(order._id);
-    const refreshedOrder = await FoodOrder.findById(order._id).lean();
-
-    res.status(StatusCodes.OK).json({
-      message:
-        refreshedOrder?.settlementStatus === "settled"
-          ? "Settlement completed"
-          : refreshedOrder?.settlementStatus === "failed"
-            ? "Settlement failed — check restaurant/rider payout phones and Hubtel balance"
-            : refreshedOrder?.settlementStatus === "processing"
-              ? "Disbursement submitted — waiting for Hubtel payout callback"
-              : "Settlement pending — order may not be delivered yet",
-      result,
-      order: refreshedOrder,
-      payment,
-    });
-  } catch (error) {
-    console.error("Retry food payout admin error:", error);
-    res
-      .status(StatusCodes.INTERNAL_SERVER_ERROR)
-      .json({ message: "Failed to retry food settlement" });
+  const payment = await FoodPayment.findById(req.params.id).lean();
+  if (!payment) {
+    return res.status(StatusCodes.NOT_FOUND).json({ message: "Payment not found" });
   }
+  if (payment.status !== "success") {
+    return res
+      .status(StatusCodes.BAD_REQUEST)
+      .json({ message: "Cannot retry payout before payment success" });
+  }
+  const { order, message } = await retryFoodOrderSettlement(payment.order);
+  if (!order) return res.status(StatusCodes.BAD_REQUEST).json({ message });
+  res.status(StatusCodes.OK).json({ message, order, payment });
 };
 
 /** POST /admin/drivers/:id/credit - Manual adjustment (credit driver balance) */

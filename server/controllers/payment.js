@@ -21,7 +21,7 @@ import {
   sendPayment,
 } from '../utils/hubtelService.js';
 import { getSettings, settleTrip } from '../utils/tripSettlement.js';
-import { settleFoodOrderOnDelivery } from '../utils/foodOrderSettlement.js';
+import { settleFoodOrderOnDelivery, settlementStatusFor, syncRiderDeliveryPay } from '../utils/foodOrderSettlement.js';
 import { appendWebhookToken } from '../middleware/hubtelWebhookAuth.js';
 import { sendMomoPayout } from '../utils/momoPayout.js';
 import { applyRefundOutcome, startRefundIfDue } from '../utils/orderRefunds.js';
@@ -1086,23 +1086,21 @@ async function applyPayoutOutcome(clientReference, success, failureMsg, body) {
         leg.error = failureMsg;
       }
       details[field] = leg;
-
-      const restaurantOk =
-        !details.restaurant ||
-        ['sent', 'not_applicable'].includes(details.restaurant.status);
-      const riderOk =
-        !details.rider || ['sent', 'not_applicable'].includes(details.rider.status);
-      const anyFailed =
-        details.restaurant?.status === 'failed' || details.rider?.status === 'failed';
+      // A rider transfer that failed puts the pay in their wallet instead.
+      if (field === 'rider') {
+        try {
+          await syncRiderDeliveryPay(order, details);
+        } catch (err) {
+          console.error('[payout] rider pay record failed for order', String(order._id), err.message);
+        }
+      }
 
       order.settlementDetails = details;
-      if (restaurantOk && riderOk && !anyFailed) {
-        order.settlementStatus = 'settled';
-        order.settledAt = order.settledAt || new Date();
-        order.settlementError = null;
-      } else if (anyFailed) {
-        order.settlementStatus = 'failed';
-        order.settlementError = failureMsg;
+      const next = settlementStatusFor(details);
+      if (next && next.status !== 'processing') {
+        order.settlementStatus = next.status;
+        order.settlementError = next.error;
+        if (next.status === 'settled') order.settledAt = order.settledAt || new Date();
       }
       await order.save();
     }

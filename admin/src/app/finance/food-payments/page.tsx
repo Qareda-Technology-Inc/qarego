@@ -20,7 +20,22 @@ type FoodPaymentRow = {
   createdAt?: string;
   restaurant?: { _id: string; name?: string };
   customer?: { _id: string; name?: string; phone?: string };
-  order?: { _id: string; status?: string; total?: number; paymentStatus?: string };
+  order?: {
+    _id: string;
+    status?: string;
+    total?: number;
+    paymentStatus?: string;
+    settlementStatus?: string;
+    settlementError?: string | null;
+  };
+};
+
+const PAYOUT_LABEL: Record<string, string> = {
+  pending: "Waiting for delivery",
+  processing: "Sending",
+  settled: "Paid out",
+  failed: "Failed",
+  not_required: "Not needed",
 };
 
 export default function FoodPaymentsPage() {
@@ -52,11 +67,12 @@ export default function FoodPaymentsPage() {
   }, [query, status, payoutStatus]);
 
   useEffect(() => {
-    load();
+    const t = setTimeout(load, 0);
+    return () => clearTimeout(t);
   }, [load]);
 
   const retryCount = useMemo(
-    () => rows.filter((r) => r.payoutStatus === "failed").length,
+    () => rows.filter((r) => r.order?.settlementStatus === "failed").length,
     [rows]
   );
 
@@ -173,7 +189,9 @@ export default function FoodPaymentsPage() {
                 </thead>
                 <tbody className="divide-y divide-gray-100 bg-white">
                   {rows.map((row) => {
-                    const retryable = row.status === "success" && row.payoutStatus === "failed";
+                    // Payouts run on delivery and are tracked on the order (store + rider).
+                    const payout = row.order?.settlementStatus;
+                    const retryable = row.status === "success" && (payout === "failed" || payout === "processing");
                     return (
                       <tr key={row._id}>
                         <td className="px-4 py-3">
@@ -197,15 +215,10 @@ export default function FoodPaymentsPage() {
                           </span>
                         </td>
                         <td className="px-4 py-3">
-                          <div className="text-gray-800">{row.payoutStatus}</div>
-                          {row.payoutAmount ? (
-                            <div className="text-xs text-gray-500">
-                              {formatCurrency(row.payoutAmount)}
-                            </div>
-                          ) : null}
-                          {row.payoutError ? (
+                          <div className="text-gray-800">{PAYOUT_LABEL[payout ?? ""] ?? payout ?? "—"}</div>
+                          {row.order?.settlementError ? (
                             <div className="text-xs text-red-600 max-w-xs truncate">
-                              {row.payoutError}
+                              {row.order.settlementError}
                             </div>
                           ) : null}
                         </td>

@@ -1,9 +1,12 @@
 /**
  * Food order money split and delivery-time settlement.
- * MoMo: Hubtel disburse restaurantNet + riderNet on delivery; platform keeps platformNet.
+ * MoMo: send restaurantNet + riderNet by MoMo on delivery; platform keeps platformNet. If the
+ * rider's transfer fails, their pay goes to their wallet instead (leg status "wallet").
  * Cash POD: rider balance -= platformNet (ledger only).
  */
 import { sendMomoPayout } from "./momoPayout.js";
+import { sendPushToUserId } from "./pushNotifications.js";
+import { fetchPaystackTransferStatus, isPaystackConfigured } from "./paystackService.js";
 import { getGasConfig } from "./gasOrders.js";
 import StoreLedgerEntry from "../models/StoreLedgerEntry.js";
 import FoodOrder from "../models/FoodOrder.js";
@@ -128,20 +131,114 @@ function resolveRestaurantPayoutTarget(restaurant) {
   return { msisdn, name, channel };
 }
 
+/** Leg states that need nothing more: paid, nothing due, or (rider only) put in their wallet. */
+export const SETTLED_LEG_STATUSES = ["sent", "not_applicable", "wallet"];
+
 function legSucceeded(leg, amountDue) {
   if (amountDue <= 0) return true;
   if (!leg) return false;
-  // "sent" = Hubtel payout webhook confirmed. "pending" = API accepted, awaiting callback.
-  if (leg.status === "sent" || leg.status === "pending") return true;
+  // "sent" = payout confirmed. "pending" = accepted, awaiting the webhook.
+  if (["sent", "pending", "wallet"].includes(leg.status)) return true;
   return Boolean(leg.success);
 }
 
 function legNeedsDisbursement(leg, amountDue) {
   if (amountDue <= 0) return false;
   if (!leg) return true;
-  // Do not re-send while Hubtel is in-flight or already confirmed.
-  if (leg.status === "sent" || leg.status === "pending") return false;
+  // Do not re-send while a transfer is in flight, confirmed, or already paid to the wallet.
+  if (["sent", "pending", "wallet"].includes(leg.status)) return false;
   return true;
+}
+
+/**
+ * Order settlement status from its two MoMo legs: settled once both are done, failed if either
+ * failed, processing while a transfer awaits its webhook. Null when no leg has been sent yet.
+ */
+export function settlementStatusFor(details) {
+  const legs = [details?.restaurant, details?.rider].filter(Boolean);
+  if (!legs.length) return null;
+  const failed = legs.find((l) => l.status === "failed");
+  if (failed) return { status: "failed", error: failed.error || "Payout failed" };
+  if (legs.every((l) => SETTLED_LEG_STATUSES.includes(l.status))) return { status: "settled", error: null };
+  if (legs.every((l) => SETTLED_LEG_STATUSES.includes(l.status) || l.status === "pending")) {
+    return { status: "processing", error: null };
+  }
+  return null;
+}
+
+const orderNo = (order) => String(order._id).slice(-8).toUpperCase();
+
+/**
+ * The rider's pay on a MoMo order goes straight to their MoMo and never touches their wallet.
+ * Show it in their history (a DIRECT_PAYOUT line, no balance change). If the transfer failed,
+ * put the money in their wallet instead so it can't get stuck. Updates details.rider in place.
+ * Safe to call more than once: the unique indexes on Transaction stop a second line or credit.
+ */
+export async function syncRiderDeliveryPay(order, details) {
+  const leg = details?.rider;
+  const amount = roundMoney(leg?.amount ?? 0);
+  if (!leg || amount <= 0 || !["pending", "sent", "failed"].includes(leg.status)) return;
+  const ride = order.ride ? await Ride.findById(order.ride._id || order.ride).select("rider").lean() : null;
+  const riderId = ride?.rider;
+  if (!riderId) return;
+
+  if (leg.status === "failed") {
+    const reference = `wallet_${order._id}`;
+    try {
+      await Transaction.create({
+        ride: ride._id,
+        driver: riderId,
+        amount,
+        type: "DELIVERY_PAY",
+        note: `Delivery pay for order #${orderNo(order)}. The MoMo transfer didn't go through, so it was added to your wallet.`,
+        reference,
+      });
+    } catch (err) {
+      if (err?.code !== 11000) throw err;
+      // Already credited by an earlier call.
+      details.rider = { ...leg, status: "wallet", walletReference: reference };
+      return;
+    }
+    const updated = await User.findByIdAndUpdate(riderId, { $inc: { balance: amount } }, { new: true }).select(
+      "balance driverDetails.status"
+    );
+    const balance = roundMoney(updated?.balance ?? amount);
+    await Transaction.updateOne({ reference, type: "DELIVERY_PAY" }, { $set: { balanceAfter: balance } });
+    // Same rule as a top-up: clearing the debt lifts a debt suspension.
+    if (updated?.driverDetails?.status === "suspended_debt" && balance >= 0) {
+      await User.updateOne({ _id: riderId }, { $set: { "driverDetails.status": "active" } });
+    }
+    // A "sent to your MoMo" line from before the transfer failed would now be wrong.
+    await Transaction.deleteMany({ ride: ride._id, type: "DIRECT_PAYOUT" });
+    details.rider = { ...leg, status: "wallet", walletReference: reference, walletCreditedAt: new Date() };
+    void sendPushToUserId(riderId, {
+      title: `GH₵${amount.toFixed(2)} added to your wallet`,
+      body: `Your delivery pay for order #${orderNo(order)} couldn't be sent to your MoMo, so it's in your QareGO wallet. Cash out any time.`,
+      data: { type: "rider_wallet" },
+    }).catch(() => {});
+    return;
+  }
+
+  try {
+    const user = await User.findById(riderId).select("balance").lean();
+    await Transaction.create({
+      ride: ride._id,
+      driver: riderId,
+      amount,
+      type: "DIRECT_PAYOUT",
+      note: `Delivery pay for order #${orderNo(order)}, sent to your MoMo`,
+      reference: leg.reference,
+      balanceAfter: roundMoney(user?.balance ?? 0),
+    });
+  } catch (err) {
+    if (err?.code === 11000) return; // already recorded
+    throw err;
+  }
+  void sendPushToUserId(riderId, {
+    title: `GH₵${amount.toFixed(2)} sent to your MoMo`,
+    body: `Your delivery pay for order #${orderNo(order)} is on its way to your mobile money.`,
+    data: { type: "rider_wallet" },
+  }).catch(() => {});
 }
 
 async function disburseToRecipient({
@@ -175,7 +272,7 @@ async function disburseToRecipient({
   });
 
   if (!payout.success) {
-    console.error("[food-settlement] Hubtel send failed:", {
+    console.error("[food-settlement] payout failed:", {
       clientReference,
       amount,
       error: payout.error,
@@ -403,7 +500,10 @@ async function applyMomoSettlement(order, restaurant, ride) {
 function buildSettlementDetails(momoResult) {
   const details = {};
   const r = momoResult?.results?.restaurant;
-  if (r) {
+  // A leg that wasn't re-sent comes back as the stored leg (it has a status): keep it as is.
+  if (r?.status) {
+    details.restaurant = r;
+  } else if (r) {
     details.restaurant = {
       amount: r.amount ?? 0,
       reference: r.reference || null,
@@ -414,7 +514,9 @@ function buildSettlementDetails(momoResult) {
     };
   }
   const d = momoResult?.results?.rider;
-  if (d) {
+  if (d?.status) {
+    details.rider = d;
+  } else if (d) {
     details.rider = {
       amount: d.amount ?? 0,
       reference: d.reference || null,
@@ -489,39 +591,19 @@ export async function settleFoodOrderOnDelivery(orderId) {
       ...(order.settlementDetails || {}),
       ...buildSettlementDetails(outcome),
     };
+    try {
+      await syncRiderDeliveryPay(order, details);
+    } catch (err) {
+      console.error("[food-settlement] rider pay record failed for order", order._id, err);
+    }
     order.settlementDetails = details;
     order.settlementMethod = "momo";
 
-    const restaurantOk =
-      !details.restaurant ||
-      ["sent", "not_applicable", "pending"].includes(details.restaurant.status);
-    const riderOk =
-      !details.rider ||
-      ["sent", "not_applicable", "pending"].includes(details.rider.status);
-    const anyFailed =
-      details.restaurant?.status === "failed" || details.rider?.status === "failed";
-    const anyPending =
-      details.restaurant?.status === "pending" || details.rider?.status === "pending";
-    const allConfirmed =
-      (!details.restaurant || ["sent", "not_applicable"].includes(details.restaurant.status)) &&
-      (!details.rider || ["sent", "not_applicable"].includes(details.rider.status));
-
-    if (allConfirmed && !anyFailed) {
-      // Both legs already confirmed (e.g. zero amounts / prior webhook).
-      order.settlementStatus = "settled";
-      order.settledAt = new Date();
-      order.settlementError = null;
-    } else if (anyFailed) {
-      order.settlementStatus = "failed";
-      order.settlementError =
-        outcome.error ||
-        details.restaurant?.error ||
-        details.rider?.error ||
-        "Disbursement failed";
-    } else if (anyPending && restaurantOk && riderOk) {
-      // Hubtel accepted — wait for payout webhook before marking settled.
-      order.settlementStatus = "processing";
-      order.settlementError = null;
+    const next = settlementStatusFor(details);
+    if (next) {
+      order.settlementStatus = next.status;
+      order.settlementError = next.error;
+      if (next.status === "settled") order.settledAt = order.settledAt || new Date();
     } else {
       order.settlementStatus = "pending";
       order.settlementError = outcome.error || "Payment required before disbursement";
@@ -571,4 +653,56 @@ export async function settleFoodOrderOnDelivery(orderId) {
     settlementError: order.settlementError,
     outcome,
   };
+}
+
+/**
+ * Admin retry of a MoMo order's payouts. A failed leg is sent again; a leg stuck on "pending"
+ * (no webhook came back) is sent again with a new reference.
+ * @returns {{ order, message }}
+ */
+export async function retryFoodOrderSettlement(orderId) {
+  const order = await FoodOrder.findById(orderId);
+  if (!order) return { order: null, message: "Order not found" };
+  if (order.paymentMethod !== "MOBILE_MONEY" || order.paymentStatus !== "PAID") {
+    return { order: order.toObject(), message: "Only paid MoMo orders have payouts to retry" };
+  }
+  if (order.settlementStatus === "settled") {
+    return { order: order.toObject(), message: "Already paid out" };
+  }
+  if (["failed", "processing"].includes(order.settlementStatus)) {
+    const details = { ...(order.settlementDetails || {}) };
+    for (const field of ["restaurant", "rider"]) {
+      const leg = details[field];
+      if (leg?.status !== "pending") continue;
+      if (isPaystackConfigured() && leg.reference) {
+        // Ask Paystack first so a transfer that did go through isn't sent twice.
+        const { status } = await fetchPaystackTransferStatus(leg.reference);
+        if (status === "success") details[field] = { ...leg, status: "sent", error: null };
+        else if (status === "failed") details[field] = { ...leg, status: "failed", error: "Transfer failed at Paystack" };
+        continue; // still pending: leave it alone
+      }
+      details[field] = {
+        ...leg,
+        status: "failed",
+        error: "Retry: previous payout unconfirmed",
+        reference: null,
+      };
+    }
+    order.settlementDetails = details;
+    order.settlementStatus = "pending";
+    order.settlementError = null;
+    await order.save();
+  }
+
+  await settleFoodOrderOnDelivery(order._id);
+  const fresh = await FoodOrder.findById(order._id).lean();
+  const message =
+    fresh?.settlementStatus === "settled"
+      ? "Payouts completed"
+      : fresh?.settlementStatus === "failed"
+        ? `Payout failed: ${fresh.settlementError || "check the store's MoMo number and the Paystack balance"}`
+        : fresh?.settlementStatus === "processing"
+          ? "Sent. Waiting for Paystack to confirm."
+          : "Not ready yet. The order may not be delivered.";
+  return { order: fresh, message };
 }

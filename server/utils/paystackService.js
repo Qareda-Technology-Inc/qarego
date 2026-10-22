@@ -137,6 +137,19 @@ export async function sendPaystackMomoTransfer({ name, phone, channel, amount, r
   }
 }
 
+/** Current state of a transfer by our reference: "success", "failed" or "pending". */
+export async function fetchPaystackTransferStatus(reference) {
+  try {
+    const data = await paystack("GET", `/transfer/verify/${encodeURIComponent(reference)}`);
+    const s = String(data.status || "").toLowerCase();
+    return { status: s === "success" ? "success" : ["failed", "reversed", "abandoned"].includes(s) ? "failed" : "pending", raw: data };
+  } catch (err) {
+    // Paystack never received it.
+    if (err.statusCode === 400 || err.statusCode === 404) return { status: "failed", raw: err.paystack };
+    throw err;
+  }
+}
+
 /* ---------------- Refunds ---------------- */
 
 /**

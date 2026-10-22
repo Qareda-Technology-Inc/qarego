@@ -113,6 +113,13 @@ export function PushNotificationBootstrap() {
       if (!pathname.startsWith("/rider/liveride") && pathname !== "/rider/home") {
         router.navigate("/rider/home");
       }
+      return;
+    }
+    if (pending.type === "rider_wallet" && role === "rider") {
+      // Delivery pay sent to MoMo or added to the wallet. Don't interrupt a trip.
+      if (!pathname.startsWith("/rider/liveride") && pathname !== "/rider/earnings") {
+        router.push("/rider/earnings" as never);
+      }
     }
   }, [pending, pathname]);
 
