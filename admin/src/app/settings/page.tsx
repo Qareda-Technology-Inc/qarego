@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { CURRENCY_SYMBOL } from '@/lib/currency';
-import { fetcher, getApiBaseUrl } from '@/lib/api';
+import { authFetch, fetcher, getApiBaseUrl } from '@/lib/api';
 import { notify } from '@/lib/notify';
 import { Save, Loader2, Volume2, Receipt, Percent, Radar, PauseCircle, Store, Bell, RotateCcw } from 'lucide-react';
 import { SettingsCheckboxOption } from '@/components/SettingsCheckboxOption';
@@ -329,12 +329,7 @@ function SettingsTabs() {
     try {
       const body = new FormData();
       body.append('sound', file);
-      const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
-      const res = await fetch(`${getApiBaseUrl()}/admin/settings/${endpoint}`, {
-        method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        body,
-      });
+      const res = await authFetch(`${getApiBaseUrl()}/admin/settings/${endpoint}`, { method: 'POST', body });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.message || 'Upload failed');
       onDone(data.kitchenAlertSoundUrl || data.riderAlertSoundUrl);

@@ -1,4 +1,4 @@
-import { getApiBaseUrl, logoutOn401 } from "./api";
+import { authFetch, getApiBaseUrl } from "./api";
 import { assertImageFileUnderLimit } from "./mediaLimits";
 
 export type UploadMediaResult = {
@@ -43,8 +43,7 @@ export async function uploadMediaFile(
 ): Promise<UploadMediaResult> {
   assertImageFileUnderLimit(file);
 
-  const token = typeof window !== "undefined" ? localStorage.getItem("accessToken") : null;
-  if (!token) {
+  if (typeof window !== "undefined" && !localStorage.getItem("accessToken")) {
     throw new Error("Please sign in again to upload files.");
   }
 
@@ -57,13 +56,13 @@ export async function uploadMediaFile(
 
   let res: Response;
   try {
-    res = await fetch(uploadUrl, {
+    res = await authFetch(uploadUrl, {
       method: "POST",
-      headers: { Authorization: `Bearer ${token}` },
       body: formData,
       signal: AbortSignal.timeout(timeoutMs),
     });
   } catch (err) {
+    if (err instanceof Error && err.message === "Session expired") throw err;
     if (err instanceof Error && err.name === "TimeoutError") {
       throw new Error(
         `Upload timed out. Check the API is running at ${getMediaUploadBaseUrl()}.`
@@ -75,10 +74,6 @@ export async function uploadMediaFile(
   }
 
   const data = await res.json().catch(() => ({}));
-  if (res.status === 401) {
-    logoutOn401();
-    throw new Error("Session expired — sign in again.");
-  }
   if (!res.ok) {
     throw new Error(
       data.message ||

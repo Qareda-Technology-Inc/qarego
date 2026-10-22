@@ -1,4 +1,4 @@
-import { logoutOn401 } from "./api";
+import { authFetch } from "./api";
 import { resolveMediaUploadBaseUrl } from "./backendUrl";
 import { assertImageFileUnderLimit } from "./mediaLimits";
 
@@ -19,8 +19,7 @@ export function getMediaUploadBaseUrl(): string {
 export async function uploadImageFile(file: File, folder = "stores"): Promise<UploadImageResult> {
   assertImageFileUnderLimit(file);
 
-  const token = typeof window !== "undefined" ? localStorage.getItem("accessToken") : null;
-  if (!token) {
+  if (typeof window !== "undefined" && !localStorage.getItem("accessToken")) {
     throw new Error("Please sign in again to upload images.");
   }
 
@@ -37,16 +36,14 @@ export async function uploadImageFile(file: File, folder = "stores"): Promise<Up
 
   let res: Response;
   try {
-    res = await fetch(uploadUrl, {
+    res = await authFetch(uploadUrl, {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        ...(activeRestaurantId ? { "x-restaurant-id": activeRestaurantId } : {}),
-      },
+      headers: activeRestaurantId ? { "x-restaurant-id": activeRestaurantId } : {},
       body: formData,
       signal: AbortSignal.timeout(timeoutMs),
     });
   } catch (err) {
+    if (err instanceof Error && err.message === "Session expired") throw err;
     if (err instanceof Error && err.name === "TimeoutError") {
       throw new Error(
         `Upload timed out after ${timeoutMs / 1000}s. Check the API at ${uploadBase} and Cloudinary credentials in server/.env.`
@@ -60,10 +57,6 @@ export async function uploadImageFile(file: File, folder = "stores"): Promise<Up
   }
 
   const data = await res.json().catch(() => ({}));
-  if (res.status === 401) {
-    logoutOn401();
-    throw new Error("Session expired — sign in again.");
-  }
   if (!res.ok) {
     const detail =
       data.message ||
