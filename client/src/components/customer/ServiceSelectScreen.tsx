@@ -9,6 +9,7 @@ import { DS } from "@/theme/designSystem";
 import CircularServiceSelector from "./CircularServiceSelector";
 import FoodPromoCarousel from "./food/FoodPromoCarousel";
 import OrderAgainRow from "./OrderAgainRow";
+import UnpaidRideBanner from "./UnpaidRideBanner";
 import { useUserStore } from "@/store/userStore";
 import {
   fetchActiveFoodOrder,
@@ -146,6 +147,8 @@ const ServiceSelectScreen = () => {
           </CustomText>
         </Pressable>
       </Animated.View>
+
+      <UnpaidRideBanner />
 
       {activeOrder ? (
         <Animated.View entering={FadeInDown.delay(40).duration(420)}>

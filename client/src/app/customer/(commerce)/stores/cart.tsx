@@ -425,7 +425,7 @@ const FoodCart = () => {
         clearCart();
       } else if (isNoResponseError(err)) {
         Alert.alert("Connection lost", lostConnectionMessage("order"));
-      } else {
+      } else if (!(err as { alreadyShown?: boolean })?.alreadyShown) {
         Alert.alert("Order failed", msg);
       }
     } finally {

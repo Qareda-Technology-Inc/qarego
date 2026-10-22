@@ -28,6 +28,7 @@ import {
 } from "@/service/gasService";
 
 import { isNoResponseError, lostConnectionMessage, useConnectivity } from "@/service/connectivity";
+import { handleUnpaidRideError } from "@/utils/unpaidRide";
 import { useRequestId } from "@/utils/useRequestId";
 const GAS = { accent: "#c2410c", soft: "#fff7ed", border: "#fed7aa" };
 
@@ -125,6 +126,7 @@ export default function GasRequestScreen() {
       });
       router.replace({ pathname: "/customer/stores/order/[id]", params: { id: order._id } } as any);
     } catch (err: any) {
+      if (handleUnpaidRideError(err)) return;
       showToast(
         isNoResponseError(err)
           ? { title: "Connection lost", message: lostConnectionMessage("gas request"), type: "warning" }

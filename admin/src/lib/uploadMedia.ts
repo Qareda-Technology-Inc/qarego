@@ -10,29 +10,27 @@ export type UploadMediaResult = {
 
 const API_PORT = "2026";
 
+/** localhost or a private LAN address: the API runs beside the admin on :2026. */
+function isLocalDevHost(hostname: string): boolean {
+  if (hostname === "localhost" || hostname === "127.0.0.1") return true;
+  if (/^192\.168\.\d{1,3}\.\d{1,3}$/.test(hostname)) return true;
+  if (/^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostname)) return true;
+  const m = hostname.match(/^172\.(\d{1,3})\./);
+  return !!m && Number(m[1]) >= 16 && Number(m[1]) <= 31;
+}
+
 /**
- * Uploads hit the API on port 2026 directly (Next /api proxy can fail on large multipart).
+ * Where uploads go. Local dev talks to the API on :2026 directly; the deployed admin
+ * (admin.qarego.com) uploads through its own /api proxy, like every other request.
  */
 export function getMediaUploadBaseUrl(): string {
   if (typeof window !== "undefined") {
     const { protocol, hostname } = window.location;
-    const onLoopback = hostname === "localhost" || hostname === "127.0.0.1";
-    const envUrl = (
-      process.env.NEXT_PUBLIC_API_BASE_URL ||
-      process.env.NEXT_PUBLIC_SOCKET_URL
-    )?.trim();
-
-    if (!onLoopback) {
-      return `${protocol}//${hostname}:${API_PORT}`;
+    if (isLocalDevHost(hostname)) {
+      const envUrl = (process.env.NEXT_PUBLIC_API_BASE_URL || process.env.NEXT_PUBLIC_SOCKET_URL)?.trim();
+      return envUrl ? envUrl.replace(/\/$/, "") : `${protocol}//${hostname}:${API_PORT}`;
     }
-    if (envUrl) return envUrl.replace(/\/$/, "");
-    return `${protocol}//${hostname}:${API_PORT}`;
   }
-
-  const direct =
-    process.env.NEXT_PUBLIC_API_BASE_URL?.trim() ||
-    process.env.NEXT_PUBLIC_SOCKET_URL?.trim();
-  if (direct) return direct.replace(/\/$/, "");
   return getApiBaseUrl();
 }
 

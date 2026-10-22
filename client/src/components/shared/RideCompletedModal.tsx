@@ -20,6 +20,9 @@ interface RideCompletedModalProps {
   /** When provided and payment is outstanding, shows a "Pay now" action. */
   onPay?: () => void;
   payBusy?: boolean;
+  /** Rider: the customer paid cash instead of mobile money. */
+  onPaidCash?: () => void;
+  paidCashBusy?: boolean;
 }
 
 const RideCompletedModal: FC<RideCompletedModalProps> = ({
@@ -28,6 +31,8 @@ const RideCompletedModal: FC<RideCompletedModalProps> = ({
   onClose,
   onPay,
   payBusy,
+  onPaidCash,
+  paidCashBusy,
   viewer = "customer",
 }) => {
   const tripFare = ride?.fare != null ? Number(ride.fare) : 0;
@@ -40,10 +45,11 @@ const RideCompletedModal: FC<RideCompletedModalProps> = ({
   const isFood = ride?.serviceType === "FOOD";
   const isMomo = ride?.paymentMethod === "MOBILE_MONEY";
   const isPaid = isMomo && ride?.paymentStatus === "PAID";
-  const needsPayment =
-    !!onPay &&
-    !!isMomo &&
-    ["UNPAID", "PENDING", "FAILED"].includes(String(ride?.paymentStatus));
+  const momoOutstanding =
+    isMomo && ["UNPAID", "PENDING", "FAILED"].includes(String(ride?.paymentStatus));
+  const needsPayment = !!onPay && momoOutstanding;
+  // Rides and parcels are paid after the trip; food orders are paid before.
+  const riderAwaitingPayment = isRider && momoOutstanding && !isFood;
 
   const title = isFood
     ? "Order delivered"
@@ -53,11 +59,13 @@ const RideCompletedModal: FC<RideCompletedModalProps> = ({
   const fare = isRider && !isMomo ? collectAmount : tripFare;
   const subtitle = needsPayment
     ? "Amount to pay with mobile money"
-    : isRider
-      ? isMomo
-        ? "Paid by mobile money: nothing to collect"
-        : "Collect in cash from the customer"
-      : "Total cost for this trip";
+    : riderAwaitingPayment
+      ? "Waiting for the customer to pay by mobile money"
+      : isRider
+        ? isMomo
+          ? "Paid by mobile money: nothing to collect"
+          : "Collect in cash from the customer"
+        : "Total cost for this trip";
 
   return (
     <Modal
@@ -99,7 +107,7 @@ const RideCompletedModal: FC<RideCompletedModalProps> = ({
                 color={isPaid ? "#16a34a" : "#666"}
               />
               <CustomText fontSize={13} style={[styles.payText, isPaid && styles.payTextPaid]}>
-                {isPaid ? "Paid with mobile money" : "Mobile money"}
+                {isPaid ? "Paid with mobile money" : riderAwaitingPayment ? "Not paid yet" : "Mobile money"}
               </CustomText>
             </View>
           ) : null}
@@ -127,15 +135,35 @@ const RideCompletedModal: FC<RideCompletedModalProps> = ({
               </TouchableOpacity>
             </>
           ) : (
-            <TouchableOpacity
-              style={styles.button}
-              onPress={onClose}
-              activeOpacity={0.8}
-            >
-              <CustomText fontFamily="SemiBold" fontSize={16} style={styles.buttonText}>
-                OK
-              </CustomText>
-            </TouchableOpacity>
+            <>
+              {riderAwaitingPayment ? (
+                <CustomText fontSize={12} style={styles.subtitle}>
+                  You can close this. If the customer pays you in cash instead, tap below so the trip
+                  settles as a cash trip.
+                </CustomText>
+              ) : null}
+              <TouchableOpacity
+                style={styles.button}
+                onPress={onClose}
+                activeOpacity={0.8}
+              >
+                <CustomText fontFamily="SemiBold" fontSize={16} style={styles.buttonText}>
+                  OK
+                </CustomText>
+              </TouchableOpacity>
+              {riderAwaitingPayment && onPaidCash ? (
+                <TouchableOpacity
+                  style={[styles.secondaryButton, paidCashBusy && { opacity: 0.7 }]}
+                  onPress={onPaidCash}
+                  disabled={paidCashBusy}
+                  activeOpacity={0.8}
+                >
+                  <CustomText fontFamily="Medium" fontSize={14} style={styles.secondaryButtonText}>
+                    {paidCashBusy ? "Saving…" : "Customer paid me cash"}
+                  </CustomText>
+                </TouchableOpacity>
+              ) : null}
+            </>
           )}
         </View>
       </View>

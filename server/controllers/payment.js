@@ -20,11 +20,12 @@ import {
   receivePayment,
   sendPayment,
 } from '../utils/hubtelService.js';
-import { getSettings, settleTrip } from '../utils/tripSettlement.js';
+import { getSettings } from '../utils/tripSettlement.js';
 import { settleFoodOrderOnDelivery, settlementStatusFor, syncRiderDeliveryPay } from '../utils/foodOrderSettlement.js';
 import { appendWebhookToken } from '../middleware/hubtelWebhookAuth.js';
 import { sendMomoPayout } from '../utils/momoPayout.js';
 import { applyRefundOutcome, startRefundIfDue } from '../utils/orderRefunds.js';
+import { processRidePaymentSuccess, reconcilePaystackRidePayment } from '../utils/ridePayments.js';
 import {
   customerPaymentProvider,
   initializePaystackCheckout,
@@ -57,18 +58,6 @@ function makeRideReference(rideId) {
   const tail = String(rideId).slice(-8);
   const stamp = Date.now().toString(36).slice(-6);
   return `rd${tail}${stamp}`.slice(0, 32);
-}
-
-/**
- * Mark a mobile-money ride/parcel as paid and run the (deferred) settlement.
- * settleTrip is idempotent, so this is safe to call more than once.
- */
-async function processRidePaymentSuccess(ride) {
-  if (!ride) return;
-  if (ride.paymentStatus === 'PAID') return;
-  ride.paymentStatus = 'PAID';
-  await ride.save();
-  await settleTrip(ride);
 }
 
 async function processFoodPaymentSuccess(payment, payload) {
@@ -195,19 +184,6 @@ async function reconcilePaystackFoodPayment(payment) {
   latest.statusPayload = result.raw;
   await latest.save();
   console.warn('[paystack] food payment amount mismatch:', latest.clientReference, result.amount, latest.amount);
-}
-
-/** Ask Paystack about a ride payment and apply the result. */
-async function reconcilePaystackRidePayment(ride) {
-  if (!ride?.paymentReference || ride.paymentStatus === 'PAID') return;
-  const result = await verifyPaystackTransaction(ride.paymentReference);
-  // Declines aren't final (the checkout allows retries); only a full payment counts.
-  if (result.status !== 'success') return;
-  if (paidEnough(result.amount, ride.fare)) {
-    await processRidePaymentSuccess(ride);
-  } else {
-    console.warn('[paystack] ride payment amount mismatch:', ride.paymentReference, result.amount, ride.fare);
-  }
 }
 
 async function startPaystackCheckout(req, { amount, reference, label, metadata }) {
@@ -867,7 +843,7 @@ export const initiateRidePayment = async (req, res) => {
 
   if (customerPaymentProvider() === 'paystack') {
     if (ride.paymentStatus === 'PENDING' && ride.paymentReference && ride.paymentCheckoutUrl) {
-      await reconcilePaystackRidePayment(ride);
+      await reconcilePaystackRidePayment(ride, req.io);
       if (ride.paymentStatus === 'PAID') {
         return res.status(StatusCodes.OK).json({
           message: 'Ride already paid',
@@ -979,7 +955,7 @@ export const getRidePaymentStatus = async (req, res) => {
       ride.paymentLastCheckAt = new Date();
       await ride.save();
       try {
-        await reconcilePaystackRidePayment(ride);
+        await reconcilePaystackRidePayment(ride, req.io);
       } catch (err) {
         console.warn('[paystack] ride status check failed:', err.message);
       }
@@ -1013,7 +989,7 @@ export const getRidePaymentStatus = async (req, res) => {
       const parsed = extractCheckoutStatusFromHubtelPayload(status.data);
       const hubStatus = normalizeCheckoutStatus(parsed.rawStatus);
       if (hubStatus === 'success') {
-        await processRidePaymentSuccess(ride);
+        await processRidePaymentSuccess(ride, req.io);
       } else if (hubStatus === 'failed') {
         ride.paymentStatus = 'FAILED';
         await ride.save();
@@ -1221,9 +1197,9 @@ export const hubtelWebhook = async (req, res) => {
       if (ride) {
         const normalized = normalizeCheckoutStatus(status);
         if (normalized === 'success') {
-          await processRidePaymentSuccess(ride);
+          await processRidePaymentSuccess(ride, req.io);
         } else if (normalized === 'failed' || normalized === 'cancelled') {
-          if (ride.paymentStatus !== 'PAID') {
+          if (ride.paymentStatus !== 'PAID' && ride.paymentMethod === 'MOBILE_MONEY') {
             ride.paymentStatus = normalized === 'cancelled' ? 'UNPAID' : 'FAILED';
             await ride.save();
           }
@@ -1303,7 +1279,7 @@ export const paystackWebhook = async (req, res) => {
     }
     const ride = await Ride.findOne({ paymentReference: reference });
     if (ride) {
-      await reconcilePaystackRidePayment(ride);
+      await reconcilePaystackRidePayment(ride, req.io);
       return;
     }
     const topUp = await PendingTopUp.findOne({ clientReference: reference });

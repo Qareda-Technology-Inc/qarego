@@ -84,8 +84,21 @@ const rideSchema = new Schema(
     /** Customer payment lifecycle (mobile money is collected after completion). */
     paymentStatus: {
       type: String,
-      enum: ["NOT_REQUIRED", "UNPAID", "PENDING", "PAID", "FAILED", "REFUNDED"],
+      // WAIVED: the customer never paid and an admin wrote the trip off (QareGO paid the rider).
+      enum: ["NOT_REQUIRED", "UNPAID", "PENDING", "PAID", "FAILED", "REFUNDED", "WAIVED"],
       default: "NOT_REQUIRED",
+    },
+    /** A MoMo trip the customer paid in cash instead: confirmed by the rider or an admin. */
+    paidInCashAt: { type: Date, default: null },
+    cashConfirmedBy: { type: String, enum: ["RIDER", "ADMIN", null], default: null },
+    waivedAt: { type: Date, default: null },
+    /** A MoMo payment that arrived after the trip was already paid in cash: refunded. */
+    latePaymentAt: { type: Date, default: null },
+    refund: {
+      status: { type: String, enum: ["requested", "processed", "failed", null], default: null },
+      requestedAt: { type: Date, default: null },
+      providerId: { type: String, default: null },
+      error: { type: String, default: null },
     },
     paymentReference: { type: String, default: null, index: true },
     paymentLastCheckAt: { type: Date, default: null },

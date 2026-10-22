@@ -16,6 +16,29 @@ export default function TripDetailPage() {
   const id = params?.id as string;
   const [trip, setTrip] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [resolving, setResolving] = useState(false);
+
+  const resolvePayment = async (action: "paid_cash" | "write_off") => {
+    const question =
+      action === "paid_cash"
+        ? "Mark this trip as paid in cash? It settles as a cash trip: QareGO's commission comes off the rider's balance."
+        : `Write this trip off? QareGO pays the rider ${formatCurrency(trip?.fare ?? 0)} minus commission, and the customer no longer owes it.`;
+    if (!window.confirm(question)) return;
+    setResolving(true);
+    try {
+      const data = await fetcher(`/admin/trips/${id}/payment`, {
+        method: "POST",
+        body: JSON.stringify({ action }),
+      });
+      const fresh = await fetcher(`/admin/trips/${id}`);
+      setTrip(fresh.trip);
+      if (data?.message) alert(data.message);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Couldn't update the payment");
+    } finally {
+      setResolving(false);
+    }
+  };
 
   useEffect(() => {
     if (!id) return;
@@ -62,6 +85,22 @@ export default function TripDetailPage() {
   };
 
   const typeBadge = getTripTypeBadge(trip);
+  const unpaid =
+    trip.status === "COMPLETED" &&
+    trip.paymentMethod === "MOBILE_MONEY" &&
+    ["UNPAID", "PENDING", "FAILED"].includes(trip.paymentStatus);
+  const paymentLabel = trip.paidInCashAt
+    ? `Paid in cash (confirmed by ${trip.cashConfirmedBy === "ADMIN" ? "admin" : "the rider"})`
+    : trip.paymentMethod === "CASH"
+      ? "Cash"
+      : ({
+          PAID: "Paid by mobile money",
+          WAIVED: "Written off: QareGO paid the rider",
+          PENDING: "Mobile money: payment started, not confirmed",
+          FAILED: "Mobile money: payment failed",
+          UNPAID: "Mobile money: not paid",
+          REFUNDED: "Refunded",
+        } as Record<string, string>)[trip.paymentStatus] ?? "Mobile money";
   const parcelMode = parseParcelMode(trip.parcelMode);
   const parcelLabels =
     trip.serviceType === "DELIVERY" ? parcelAdminLabels(parcelMode) : null;
@@ -143,6 +182,32 @@ export default function TripDetailPage() {
           </CardHeader>
           <CardContent className="space-y-2">
             <p className="text-2xl font-bold text-gray-900">{formatCurrency(trip.fare)}</p>
+            <p className={`text-sm font-medium ${unpaid ? "text-red-700" : "text-gray-700"}`}>{paymentLabel}</p>
+            {trip.latePaymentAt ? (
+              <p className="text-xs text-amber-700">
+                The customer also paid by mobile money after the cash payment:{" "}
+                {trip.refund?.status === "processed"
+                  ? "refunded."
+                  : trip.refund?.status === "failed"
+                    ? `automatic refund failed (${trip.refund?.error || "unknown error"}). Refund them by hand.`
+                    : "refund in progress."}
+              </p>
+            ) : null}
+            {unpaid ? (
+              <div className="space-y-2 rounded-lg border border-red-200 bg-red-50 p-3">
+                <p className="text-xs text-red-800">
+                  The customer hasn&apos;t paid for this trip, so they can&apos;t book again until it&apos;s settled.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <Button size="sm" variant="outline" disabled={resolving} onClick={() => resolvePayment("paid_cash")}>
+                    Customer paid cash
+                  </Button>
+                  <Button size="sm" variant="outline" disabled={resolving} onClick={() => resolvePayment("write_off")}>
+                    Write off and pay the rider
+                  </Button>
+                </div>
+              </div>
+            ) : null}
             <p className="text-sm text-gray-500">
               Created: {new Date(trip.createdAt).toLocaleString()}
             </p>

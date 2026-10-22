@@ -6,6 +6,7 @@ import { getVehicleIconSource, getVehicleLabel } from "@/utils/mapUtils";
 import { Colors, formatCurrency } from "@/utils/Constants";
 import { Ionicons } from "@expo/vector-icons";
 import RideReceiptModal from "./RideReceiptModal";
+import { askCashPayment } from "@/utils/riderCashPayment";
 import EarningsBreakdownStrip from "@/components/rider/EarningsBreakdownStrip";
 import type { EarningsBreakdown } from "@/utils/earningsBreakdown";
 
@@ -29,6 +30,8 @@ interface RideItem {
   onReBook?: () => void;
   role?: "customer" | "rider";
   earningsBreakdown?: EarningsBreakdown | null;
+  paymentMethod?: "CASH" | "MOBILE_MONEY";
+  paymentStatus?: string;
 }
 
 const RideCard: FC<{ item: RideItem; onReBook?: () => void; role?: "customer" | "rider" }> = ({ 
@@ -37,6 +40,23 @@ const RideCard: FC<{ item: RideItem; onReBook?: () => void; role?: "customer" | 
   role = "customer"
 }) => {
   const [showReceipt, setShowReceipt] = useState(false);
+  const [cashBusy, setCashBusy] = useState(false);
+  const [settled, setSettled] = useState(false);
+  // Rider: a mobile money trip the customer still hasn't paid for.
+  const awaitingMomo =
+    role === "rider" &&
+    !settled &&
+    item.status === "COMPLETED" &&
+    item.serviceType !== "FOOD" &&
+    item.paymentMethod === "MOBILE_MONEY" &&
+    ["UNPAID", "PENDING", "FAILED"].includes(String(item.paymentStatus));
+  const markPaidCash = async () => {
+    if (cashBusy) return;
+    setCashBusy(true);
+    const updated = await askCashPayment(item._id, item.fare);
+    if (updated) setSettled(true);
+    setCashBusy(false);
+  };
   const getStatusColor = (status: string) => {
     switch (status) {
       case "COMPLETED": return "#16a34a";
@@ -174,6 +194,19 @@ const RideCard: FC<{ item: RideItem; onReBook?: () => void; role?: "customer" | 
         {role === "rider" && item.earningsBreakdown && item.status === "COMPLETED" ? (
           <EarningsBreakdownStrip breakdown={item.earningsBreakdown} compact />
         ) : null}
+        {awaitingMomo ? (
+          <View style={styles.unpaidRow}>
+            <Ionicons name="time-outline" size={16} color="#b45309" />
+            <CustomText fontSize={12} style={styles.unpaidText}>
+              Waiting for the customer to pay by mobile money
+            </CustomText>
+            <TouchableOpacity onPress={markPaidCash} disabled={cashBusy} style={styles.unpaidButton}>
+              <CustomText fontFamily="SemiBold" fontSize={12} style={styles.unpaidButtonText}>
+                {cashBusy ? "Saving…" : "Paid me cash"}
+              </CustomText>
+            </TouchableOpacity>
+          </View>
+        ) : null}
       </TouchableOpacity>
 
       <RideReceiptModal
@@ -188,6 +221,25 @@ const RideCard: FC<{ item: RideItem; onReBook?: () => void; role?: "customer" | 
 };
 
 const styles = StyleSheet.create({
+  unpaidRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 10,
+    padding: 10,
+    borderRadius: 10,
+    backgroundColor: "#FFFBEB",
+  },
+  unpaidText: { flex: 1, color: "#92400E" },
+  unpaidButton: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#FCD34D",
+  },
+  unpaidButtonText: { color: "#92400E" },
   container: {
     backgroundColor: "#fff",
     padding: 15,

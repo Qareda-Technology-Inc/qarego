@@ -53,7 +53,7 @@ export default function TripsPage() {
     setLoading(true);
     try {
       const data = await fetcher(
-        `/admin/trips?page=${page}&limit=10&status=${statusFilter}&type=${typeFilter}${search ? `&q=${encodeURIComponent(search)}` : ''}`
+        `/admin/trips?page=${page}&limit=10&status=${statusFilter}&type=${typeFilter}${statusFilter === 'UNPAID' ? '&payment=UNPAID' : ''}${search ? `&q=${encodeURIComponent(search)}` : ''}`
       );
       setTrips(data.trips);
       setTotalPages(data.totalPages);
@@ -137,6 +137,7 @@ export default function TripsPage() {
             <option value="CANCELLED">Cancelled</option>
             <option value="IN_PROGRESS">In Progress</option>
             <option value="SEARCHING_FOR_RIDER">Searching</option>
+            <option value="UNPAID">Unpaid mobile money</option>
           </select>
         </div>
       </div>

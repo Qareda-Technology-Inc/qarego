@@ -1,5 +1,5 @@
 import express from 'express';
-import { createRide, getFareRates, getRideById, getCourierLocation, updateRideStatus, acceptRide, getMyRides, getPendingRideOffers, rateRide, updateRiderStatus, getMyTransactions, getRiderAlertSound, getRiderServicePreferences, updateRiderServicePreferences, getRiderReliability, getRiderDispatchAnalytics, declineRideOffer } from '../controllers/ride.js';
+import { createRide, getFareRates, getRideById, getCourierLocation, updateRideStatus, acceptRide, getMyRides, getPendingRideOffers, rateRide, updateRiderStatus, getMyTransactions, getRiderAlertSound, getRiderServicePreferences, updateRiderServicePreferences, getRiderReliability, getRiderDispatchAnalytics, declineRideOffer, getMyUnpaidRide, confirmCashPayment } from '../controllers/ride.js';
 import { initiateTopUp, getTopUpStatus, initiateCashout, initiateRidePayment, getRidePaymentStatus } from '../controllers/payment.js';
 
 const router = express.Router();
@@ -18,6 +18,7 @@ router.get('/offers/pending', getPendingRideOffers);
 router.post('/offers/:rideId/decline', declineRideOffer);
 router.get('/rider-alert-sound', getRiderAlertSound);
 router.get('/transactions', getMyTransactions);
+router.get('/unpaid', getMyUnpaidRide);
 router.post('/top-up', initiateTopUp);
 router.get('/top-up/status', getTopUpStatus);
 router.post('/cashout', initiateCashout);
@@ -29,6 +30,7 @@ router.patch('/update/:rideId', updateRideStatus);
 router.post('/:rideId/rate', rateRide);
 router.post('/:rideId/payment/initiate', initiateRidePayment);
 router.get('/:rideId/payment-status', getRidePaymentStatus);
+router.post('/:rideId/paid-cash', confirmCashPayment);
 router.get('/:rideId/courier-location', getCourierLocation);
 router.get('/:rideId', getRideById);
 

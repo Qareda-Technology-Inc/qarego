@@ -4,6 +4,10 @@ import { resolveApiOrigin } from "./src/lib/appEnvironment";
 const API_TARGET = resolveApiOrigin();
 
 const nextConfig: NextConfig = {
+  // Uploads (promo banners, rider documents, alert sounds) go through the /api → backend proxy.
+  experimental: {
+    proxyClientMaxBodySize: "10mb",
+  },
   async rewrites() {
     return [
       {

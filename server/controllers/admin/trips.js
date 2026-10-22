@@ -5,12 +5,28 @@ import { StatusCodes } from "http-status-codes";
 import { getSettings } from "../../utils/tripSettlement.js";
 import { generateOTP } from "../../utils/mapUtils.js";
 import { canRiderReceiveOffer, getEligibilityRejectReason } from "../../utils/riderServiceEligibility.js";
+import { BadRequestError, NotFoundError } from "../../errors/index.js";
+import {
+  OPEN_RIDE_PAYMENT,
+  isUnpaidMomoTrip,
+  markRidePaidInCash,
+  writeOffUnpaidRide,
+} from "../../utils/ridePayments.js";
 
 export const getAllTrips = async (req, res) => {
   try {
-    const { page = 1, limit = 10, status, type } = req.query;
+    const { page = 1, limit = 10, status, type, payment } = req.query;
     const query = {};
-    if (status && status !== 'ALL') {
+    // Completed MoMo trips the customer hasn't paid for.
+    if (payment === 'UNPAID') {
+      Object.assign(query, {
+        status: 'COMPLETED',
+        paymentMethod: 'MOBILE_MONEY',
+        serviceType: { $in: ['RIDE', 'DELIVERY'] },
+        paymentStatus: { $in: OPEN_RIDE_PAYMENT },
+      });
+    }
+    if (status && status !== 'ALL' && payment !== 'UNPAID') {
       query.status = status;
     }
     if (type && type !== 'ALL') {
@@ -165,4 +181,29 @@ export const assignRideToDriver = async (req, res) => {
     console.error('Assign ride error:', error);
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ message: 'Failed to assign ride' });
   }
+};
+
+/**
+ * POST /admin/trips/:id/payment { action: "paid_cash" | "write_off" } — settle a MoMo trip the
+ * customer never paid. paid_cash: the customer paid the rider in cash (a normal cash trip).
+ * write_off: QareGO pays the rider as if the MoMo payment had come in, and drops the debt.
+ */
+export const resolveUnpaidTrip = async (req, res) => {
+  const { action } = req.body || {};
+  if (!['paid_cash', 'write_off'].includes(action)) {
+    throw new BadRequestError('action must be paid_cash or write_off');
+  }
+  const ride = await Ride.findById(req.params.id);
+  if (!ride) throw new NotFoundError('Trip not found');
+  if (!isUnpaidMomoTrip(ride)) throw new BadRequestError('This trip is not waiting for a mobile money payment');
+
+  if (action === 'paid_cash') {
+    const { outcome } = await markRidePaidInCash(ride, { by: 'ADMIN', io: req.io });
+    return res.status(StatusCodes.OK).json({
+      trip: ride,
+      message: outcome === 'already_paid' ? 'The customer had already paid by mobile money.' : 'Marked as paid in cash.',
+    });
+  }
+  await writeOffUnpaidRide(ride, { io: req.io });
+  res.status(StatusCodes.OK).json({ trip: ride, message: 'Written off. The rider has been paid by QareGO.' });
 };

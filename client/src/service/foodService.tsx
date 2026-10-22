@@ -3,6 +3,7 @@ import { appAxios } from "./apiInterceptors";
 import { Alert } from "react-native";
 import { FoodOrderStatus } from "@/utils/foodOrderTracking";
 
+import { handleUnpaidRideError } from "@/utils/unpaidRide";
 import { isNoResponseError } from "./connectivity";
 export type Restaurant = {
   _id: string;
@@ -179,6 +180,9 @@ export const createFoodOrder = async (payload: {
   } catch (error: any) {
     // Lost connection: the screen explains it (and keeps the cart); don't double-alert.
     if (isNoResponseError(error)) throw error;
+    // The alert is shown here; the screen shouldn't show a second one.
+    error.alreadyShown = true;
+    if (handleUnpaidRideError(error)) throw error;
     const message =
       error?.response?.data?.msg ||
       error?.message ||

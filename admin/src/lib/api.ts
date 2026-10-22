@@ -34,7 +34,7 @@ export async function fetcher(url: string, options: RequestInit = {}) {
   return res.json();
 }
 
-/** Multipart upload — local dev hits :2026; production uses cloud API origin. */
+/** Multipart upload — local dev hits :2026; the deployed admin goes through its /api proxy. */
 export async function uploadToApi(
   path: string,
   formData: FormData,
@@ -44,11 +44,8 @@ export async function uploadToApi(
   if (typeof window !== "undefined") {
     const { protocol, hostname } = window.location;
     const onLoopback = hostname === "localhost" || hostname === "127.0.0.1";
-    if (!onLoopback) {
-      base = `${protocol}//${hostname}:2026`;
-    } else {
-      base = resolveApiOrigin();
-    }
+    // (Off localhost there's no API on :2026: admin.qarego.com:2026 doesn't exist.)
+    base = onLoopback ? `${protocol}//${hostname}:2026` : getApiBaseUrl();
   }
   const url = `${base}${path}`;
   const res = await authFetch(url, { method, body: formData });

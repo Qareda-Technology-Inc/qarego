@@ -7,6 +7,7 @@ import { tokenStorage } from "@/store/storage";
 import { fetchActiveFoodOrder } from "./foodService";
 import { stopRiderOfferRing } from "@/utils/ringSound";
 import { emitRiderOfferAccepted } from "@/utils/riderOfferEvents";
+import { handleUnpaidRideError } from "@/utils/unpaidRide";
 
 import {
   ACTIVE_RIDER_RIDE_STATUSES,
@@ -121,6 +122,7 @@ export const createRide = async (payload: {
       );
       return;
     }
+    if (handleUnpaidRideError(error)) return;
     const message = error?.response?.data?.msg || error?.message || "Could not create ride. Please try again.";
     Alert.alert("Error", message);
     console.log("Error:Create Ride ", error);
@@ -153,7 +155,8 @@ export type RidePaymentStatus = {
     | "PENDING"
     | "PAID"
     | "FAILED"
-    | "REFUNDED";
+    | "REFUNDED"
+    | "WAIVED";
   paymentMethod: "CASH" | "MOBILE_MONEY";
   paymentReference?: string | null;
 };
@@ -174,6 +177,29 @@ export const fetchRidePaymentStatus = async (
     paymentMethod: res.data?.paymentMethod ?? "CASH",
     paymentReference: res.data?.paymentReference ?? null,
   };
+};
+
+/** A completed mobile money trip the customer still owes (blocks new bookings). */
+export type UnpaidRide = {
+  rideId: string;
+  fare: number;
+  serviceType?: "RIDE" | "DELIVERY";
+  completedAt?: string;
+  pickup?: string | null;
+  drop?: string | null;
+};
+
+export const fetchUnpaidRide = async (): Promise<UnpaidRide | null> => {
+  const res = await appAxios.get(`/ride/unpaid`);
+  return res.data?.unpaidRide ?? null;
+};
+
+/** Rider: the customer paid cash instead of mobile money. */
+export const confirmCashPayment = async (
+  rideId: string
+): Promise<{ outcome: "cash" | "already_paid"; message?: string; ride?: any }> => {
+  const res = await appAxios.post(`/ride/${rideId}/paid-cash`);
+  return res.data;
 };
 
 export type CourierLiveCoords = {

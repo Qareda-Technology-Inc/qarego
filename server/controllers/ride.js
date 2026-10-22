@@ -12,6 +12,13 @@ import {
   generateOTP,
 } from "../utils/mapUtils.js";
 import { settleTrip, getSettings, getCommissionRateForService } from "../utils/tripSettlement.js";
+import {
+  assertNoUnpaidRide,
+  findUnpaidRide,
+  isUnpaidMomoTrip,
+  markRidePaidInCash,
+  unpaidRideSummary,
+} from "../utils/ridePayments.js";
 import { settleFoodOrderOnDelivery } from "../utils/foodOrderSettlement.js";
 import { assertServiceAvailableAt } from "../utils/serviceZones.js";
 import {
@@ -117,6 +124,7 @@ export const createRide = async (req, res) => {
   const coverageService =
     serviceType === "DELIVERY" ? "PARCEL" : serviceType === "FOOD" ? "FOOD" : "RIDE";
   await assertServiceAvailableAt(pickupLat, pickupLon, coverageService);
+  await assertNoUnpaidRide(req.user.id, req.io);
 
   if (serviceType === "DELIVERY" && (!recipientName || !recipientPhone)) {
     throw new BadRequestError("Recipient name and phone are required for delivery");
@@ -974,4 +982,34 @@ export const getRiderAlertSound = async (req, res) => {
   const settings = await getSettings();
   const url = resolveRiderAlertSoundUrl(settings, req);
   res.status(StatusCodes.OK).json({ url });
+};
+
+/** GET /ride/unpaid — the customer's MoMo trip that still isn't paid (for the "Pay now" banner). */
+export const getMyUnpaidRide = async (req, res) => {
+  const ride = await findUnpaidRide(req.user.id, req.io);
+  res.status(StatusCodes.OK).json({ unpaidRide: unpaidRideSummary(ride) });
+};
+
+/**
+ * POST /ride/:rideId/paid-cash — the rider confirms the customer paid in cash instead of mobile
+ * money. The trip settles as a cash trip and the customer can book again.
+ */
+export const confirmCashPayment = async (req, res) => {
+  const ride = await Ride.findById(req.params.rideId);
+  if (!ride || String(ride.rider) !== String(req.user.id)) throw new NotFoundError("Trip not found");
+  if (!isUnpaidMomoTrip(ride)) {
+    if (ride.paymentStatus === "PAID") {
+      return res.status(StatusCodes.OK).json({ outcome: "already_paid", ride, message: "The customer already paid by mobile money." });
+    }
+    throw new BadRequestError("This trip isn't waiting for a mobile money payment");
+  }
+  const { outcome } = await markRidePaidInCash(ride, { by: "RIDER", io: req.io });
+  res.status(StatusCodes.OK).json({
+    outcome,
+    ride,
+    message:
+      outcome === "already_paid"
+        ? "The customer already paid by mobile money."
+        : "Marked as paid in cash. QareGO's commission comes off your balance, as on any cash trip.",
+  });
 };

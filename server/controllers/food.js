@@ -1,3 +1,4 @@
+import { assertNoUnpaidRide } from "../utils/ridePayments.js";
 import { isCommissionFree } from "../utils/commissionFree.js";
 import { assertMomoEnabled } from "../utils/momoAvailability.js";
 import Restaurant from "../models/Restaurant.js";
@@ -140,6 +141,7 @@ export const createFoodOrder = async (req, res) => {
   } = req.body;
 
   if (paymentMethod === "MOBILE_MONEY") assertMomoEnabled();
+  await assertNoUnpaidRide(req.user.id, req.io);
   const fulfillmentType = ["DELIVERY", "PICKUP", "SCHEDULED"].includes(fulfillmentRaw)
     ? fulfillmentRaw
     : "DELIVERY";

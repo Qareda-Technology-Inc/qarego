@@ -14,6 +14,7 @@ import { updateRideStatus, getRideById } from "@/service/rideService";
 import RiderActionButton from "@/components/rider/RiderActionButton";
 import OtpInputModal from "@/components/rider/OtpInputModal";
 import RideCompletedModal from "@/components/shared/RideCompletedModal";
+import { askCashPayment } from "@/utils/riderCashPayment";
 import ChatModal from "@/components/shared/ChatModal";
 import { Ionicons } from "@expo/vector-icons";
 import CustomText from "@/components/shared/CustomText";
@@ -278,6 +279,16 @@ const LiveRide = () => {
     emit("subscribeRide", id);
   }, [id, connectNonce, emit]);
 
+  const [paidCashBusy, setPaidCashBusy] = useState(false);
+  const handlePaidCash = async () => {
+    const current = rideDataRef.current;
+    if (!current?._id || paidCashBusy) return;
+    setPaidCashBusy(true);
+    const updated = await askCashPayment(current._id, current.fare);
+    if (updated) setRideData((prev: any) => ({ ...prev, ...updated }));
+    setPaidCashBusy(false);
+  };
+
   const handleCostPopupClose = () => {
     setShowCostPopup(false);
     resetAndNavigate("/rider/home");
@@ -536,6 +547,8 @@ const LiveRide = () => {
           ride={rideData}
           onClose={handleCostPopupClose}
           viewer="rider"
+          onPaidCash={handlePaidCash}
+          paidCashBusy={paidCashBusy}
         />
       )}
       {canChat && (

@@ -2,6 +2,7 @@
 // admin, or a payment that landed after the order was already cancelled).
 // Paystack only: with Hubtel the admin still refunds by hand and taps "Mark refunded".
 import FoodOrder from "../models/FoodOrder.js";
+import Ride from "../models/Ride.js";
 import { fetchPaystackRefundStatus, isPaystackConfigured, refundPaystackTransaction } from "./paystackService.js";
 
 /** Start the refund if one is due and hasn't been requested yet. Safe to call repeatedly. */
@@ -38,7 +39,20 @@ export async function startRefundIfDue(orderId) {
 /** Paystack's refund webhook: mark the order refunded, or failed so admin can step in. */
 export async function applyRefundOutcome(transactionReference, outcome, message) {
   const order = await FoodOrder.findOne({ paymentReference: transactionReference, refundStatus: "DUE" });
-  if (!order) return;
+  if (!order) {
+    // A MoMo payment for a trip that had already been paid in cash (see ridePayments.js).
+    const ride = await Ride.findOne({ paymentReference: transactionReference, "refund.status": "requested" });
+    if (!ride) return;
+    if (outcome === "processed") {
+      ride.set("refund.status", "processed");
+      ride.paymentStatus = "REFUNDED";
+    } else if (outcome === "failed") {
+      ride.set("refund.status", "failed");
+      ride.set("refund.error", message || "Refund failed");
+    }
+    await ride.save();
+    return;
+  }
   if (outcome === "processed") {
     order.refundStatus = "REFUNDED";
     order.refundedAt = new Date();

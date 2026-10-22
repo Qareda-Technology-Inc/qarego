@@ -1,5 +1,6 @@
 // Cooking gas requests (customer side). Pricing and station choice live in utils/gasOrders.js.
 import { isCommissionFree } from "../utils/commissionFree.js";
+import { assertNoUnpaidRide } from "../utils/ridePayments.js";
 import FoodOrder from "../models/FoodOrder.js";
 import User from "../models/User.js";
 import { BadRequestError } from "../errors/index.js";
@@ -96,6 +97,7 @@ export const createGasOrder = async (req, res) => {
   }
   if (!delivery?.address?.trim()) throw new BadRequestError("Pickup address is required");
   const { lat, lon } = readLocation(delivery);
+  await assertNoUnpaidRide(req.user.id, req.io);
 
   const customer = await User.findById(req.user.id).select("isSuspended");
   if (customer?.isSuspended) throw new BadRequestError("Your account is suspended. Contact support.");
