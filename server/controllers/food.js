@@ -1,3 +1,4 @@
+import { isCommissionFree } from "../utils/commissionFree.js";
 import { assertMomoEnabled } from "../utils/momoAvailability.js";
 import Restaurant from "../models/Restaurant.js";
 import MenuItem from "../models/MenuItem.js";
@@ -301,7 +302,8 @@ export const createFoodOrder = async (req, res) => {
   const total = Math.round((subtotal + serviceFee + deliveryFee) * 100) / 100;
   const split = computeFoodOrderSplit(
     { subtotal, deliveryFee, serviceFee },
-    settings
+    settings,
+    { commissionFree: isCommissionFree(restaurant) }
   );
 
   const zoneService = ["GROCERY", "PHARMACY", "LAUNDRY"].includes(restaurant.vertical)

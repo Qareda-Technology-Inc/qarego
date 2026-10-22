@@ -58,11 +58,19 @@ type TxRow = {
   subtotal: number;
   restaurantCommission: number;
   restaurantNet: number;
+  /** Placed during the store's commission-free period. */
+  commissionFree?: boolean;
   customer?: { name?: string; phone?: string } | null;
   restaurant?: { _id: string; name: string; imageEmoji?: string } | null;
 };
 
+type FreePeriod = { restaurantId: string; name: string; until: string };
+
 const PAGE_SIZE = 25;
+
+function formatDay(iso: string) {
+  return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+}
 
 function toDateInput(d: Date) {
   return d.toISOString().slice(0, 10);
@@ -91,6 +99,7 @@ export default function TransactionsPage() {
   const showMomo = momoEnabled || (summary?.byPaymentMethod.MOBILE_MONEY?.orderCount ?? 0) > 0;
   const [byStore, setByStore] = useState<StoreRow[]>([]);
   const [transactions, setTransactions] = useState<TxRow[]>([]);
+  const [freePeriods, setFreePeriods] = useState<FreePeriod[]>([]);
   const [total, setTotal] = useState(0);
   const [pages, setPages] = useState(1);
   const [loading, setLoading] = useState(true);
@@ -115,6 +124,7 @@ export default function TransactionsPage() {
       setSummary(data.summary ?? null);
       setByStore(data.byStore ?? []);
       setTransactions(data.transactions ?? []);
+      setFreePeriods(data.freePeriods ?? []);
       setTotal(data.total ?? 0);
       setPages(data.pages ?? 1);
     } catch (e: unknown) {
@@ -242,6 +252,24 @@ export default function TransactionsPage() {
       {error ? (
         <div className="mb-6 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
+        </div>
+      ) : null}
+
+      {freePeriods.length ? (
+        <div className="mb-6 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+          {freePeriods.length === 1 ? (
+            <>
+              <strong>No QareGO commission until {formatDay(freePeriods[0].until)}.</strong>{" "}
+              {freePeriods[0].name} keeps the full food price of every order placed until then. After that, the
+              normal commission applies.
+            </>
+          ) : (
+            <>
+              <strong>No QareGO commission for now:</strong>{" "}
+              {freePeriods.map((f) => `${f.name} until ${formatDay(f.until)}`).join(", ")}. After that, the normal
+              commission applies.
+            </>
+          )}
         </div>
       ) : null}
 
@@ -388,6 +416,9 @@ export default function TransactionsPage() {
                     </td>
                     <td className="px-4 py-3 text-right whitespace-nowrap font-semibold text-brand">
                       {formatCurrency(tx.restaurantNet)}
+                      {tx.commissionFree ? (
+                        <div className="text-[10px] font-medium text-emerald-700">No commission</div>
+                      ) : null}
                     </td>
                   </tr>
                 ))}

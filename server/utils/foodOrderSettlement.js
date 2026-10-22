@@ -61,9 +61,11 @@ export function computeFoodOrderSplit(order, settings, options = {}) {
   const deliveryFee = roundMoney(order?.deliveryFee ?? 0);
   const serviceFee = roundMoney(order?.serviceFee ?? 0);
 
-  // Gas stations pay their own (owner-set) commission on the gas cost.
-  const restaurantCommissionRate =
-    options.stationCommissionRate != null
+  // Gas stations pay their own (owner-set) commission on the gas cost. A store in its
+  // commission-free period pays none.
+  const restaurantCommissionRate = options.commissionFree
+    ? 0
+    : options.stationCommissionRate != null
       ? Number(options.stationCommissionRate)
       : getCommissionRateForService(settings, "FOOD");
   const riderCommissionRate = getFoodDeliveryCommissionRate(settings);
@@ -76,6 +78,7 @@ export function computeFoodOrderSplit(order, settings, options = {}) {
 
   return {
     restaurantCommissionRate,
+    commissionFree: !!options.commissionFree,
     riderCommissionRate,
     restaurantCommission,
     restaurantNet,

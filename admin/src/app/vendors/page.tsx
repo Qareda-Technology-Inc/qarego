@@ -21,6 +21,7 @@ import { Plus, Store, UserCircle, UserPlus, Settings2, MapPin, Pencil, Trash2, K
 import { ConfirmByTypingModal } from "@/components/ConfirmByTypingModal";
 import { VendorLoginModal, type VendorLogin } from "@/components/VendorLoginModal";
 import { VendorApplications } from "@/components/VendorApplications";
+import { formatFreeUntil, isCommissionFree } from "@/lib/freePeriod";
 
 interface Vendor {
   _id: string;
@@ -52,6 +53,7 @@ interface Restaurant {
   owner?: OwnerRef | null;
   menuItemCount?: number;
   vertical?: "FOOD" | "GROCERY" | "PHARMACY" | "GAS" | "LAUNDRY";
+  commissionFreeUntil?: string | null;
 }
 
 const VERTICAL_BADGE: Record<string, string> = {
@@ -451,6 +453,14 @@ function VendorsContent() {
                               {r.category && r.category !== VERTICAL_BADGE[r.vertical ?? "FOOD"] ? (
                                 <span className="px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 text-[10px] font-medium">
                                   {r.category}
+                                </span>
+                              ) : null}
+                              {isCommissionFree(r.commissionFreeUntil) ? (
+                                <span
+                                  className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 text-[10px] font-medium"
+                                  title="No commission on this store's orders until then"
+                                >
+                                  Free until {formatFreeUntil(r.commissionFreeUntil as string)}
                                 </span>
                               ) : null}
                             </div>

@@ -33,6 +33,7 @@ export const updateSettingsAdmin = async (req, res) => {
       foodServiceFeeMin,
       foodServiceFeeMax,
       foodDeliveryCommissionRate,
+      storeFreePeriodDays,
       commissionByService,
       vehicleCapabilityPolicy,
       serviceMaintenance,
@@ -91,6 +92,9 @@ export const updateSettingsAdmin = async (req, res) => {
     }
     if (typeof foodServiceFeeMax === 'number' && foodServiceFeeMax >= 0) {
       settings.foodServiceFeeMax = foodServiceFeeMax;
+    }
+    if (Number.isInteger(storeFreePeriodDays) && storeFreePeriodDays >= 0 && storeFreePeriodDays <= 365) {
+      settings.storeFreePeriodDays = storeFreePeriodDays;
     }
     if (typeof foodDeliveryCommissionRate === 'number' && foodDeliveryCommissionRate >= 0 && foodDeliveryCommissionRate <= 1) {
       settings.foodDeliveryCommissionRate = foodDeliveryCommissionRate;

@@ -40,6 +40,8 @@ const foodOrderSchema = new Schema(
     total: { type: Number, required: true, min: 0 },
     /** Frozen split at order creation (admin rates). */
     restaurantCommissionRate: { type: Number, default: null, min: 0, max: 1 },
+    /** Placed during the store's commission-free period (restaurantCommissionRate is 0). */
+    commissionFree: { type: Boolean, default: false },
     riderCommissionRate: { type: Number, default: null, min: 0, max: 1 },
     restaurantCommission: { type: Number, default: null, min: 0 },
     restaurantNet: { type: Number, default: null, min: 0 },

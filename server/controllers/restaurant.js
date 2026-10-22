@@ -13,6 +13,8 @@ import { sanitizeImageUrl } from "../utils/mediaStorage.js";
 import { detectGhMomoChannel } from "../utils/hubtelService.js";
 import FoodOrder from "../models/FoodOrder.js";
 import { reviewStatus } from "../utils/storeReadiness.js";
+import { grantNewStoreFreePeriod } from "../utils/commissionFree.js";
+import { getSettings } from "../utils/tripSettlement.js";
 import { inviteVendor, issueTempPassword, merchantPortalUrl, uniqueUsernameFrom } from "../utils/vendorLogin.js";
 
 function normalizePayoutConfig(next = {}, prev = {}) {
@@ -350,11 +352,13 @@ export const adminCreateRestaurant = async (req, res) => {
   }
 
   // An admin setting up the store is the review, so it goes live as normal.
-  const restaurant = await Restaurant.create({
+  const restaurant = new Restaurant({
     ...fields,
     owner: resolvedOwnerId,
     review: { status: "approved", decidedAt: new Date(), by: req.user.id },
   });
+  grantNewStoreFreePeriod(restaurant, await getSettings());
+  await restaurant.save();
 
   const populated = await Restaurant.findById(restaurant._id)
     .populate("owner", "name username phone")
@@ -384,6 +388,23 @@ export const adminUpdateRestaurant = async (req, res) => {
       decidedAt: new Date(),
       by: req.user.id,
     };
+    grantNewStoreFreePeriod(restaurant, await getSettings());
+  }
+
+  // Commission-free period: a date gives (or changes) it, null ends it now.
+  if (req.body.commissionFreeUntil !== undefined) {
+    const raw = req.body.commissionFreeUntil;
+    if (raw === null || raw === "") {
+      restaurant.commissionFreeUntil = null;
+    } else {
+      const until = new Date(raw);
+      if (Number.isNaN(until.getTime())) throw new BadRequestError("Pick a valid end date for the free period");
+      if (until.getTime() > Date.now() + 366 * 86_400_000) {
+        throw new BadRequestError("A free period can be at most a year from today");
+      }
+      restaurant.commissionFreeUntil = until;
+    }
+    restaurant.commissionFreeSetAt = new Date();
   }
   if (fields.category && !fields.vertical) {
     restaurant.vertical = inferVerticalFromCategoryName(fields.category);

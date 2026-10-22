@@ -26,7 +26,11 @@ function refreshTotals(order, settings, { waiveServiceFee = false } = {}) {
   order.total = round2(order.subtotal + order.serviceFee + (order.deliveryFee || 0));
   Object.assign(
     order,
-    computeFoodOrderSplit({ subtotal: order.subtotal, deliveryFee: order.deliveryFee, serviceFee: order.serviceFee }, settings)
+    // Keep the store's rate from when the order was placed (e.g. a commission-free period).
+    computeFoodOrderSplit({ subtotal: order.subtotal, deliveryFee: order.deliveryFee, serviceFee: order.serviceFee }, settings, {
+      commissionFree: !!order.commissionFree,
+      stationCommissionRate: order.commissionFree ? null : order.restaurantCommissionRate,
+    })
   );
 }
 

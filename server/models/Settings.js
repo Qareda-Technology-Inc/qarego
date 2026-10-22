@@ -58,6 +58,13 @@ const settingsSchema = new Schema(
       default: 12,
       min: 0,
     },
+    /** Days without commission a new store gets when it goes live (0 = no free period). */
+    storeFreePeriodDays: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 365,
+    },
     /** Rider commission on food delivery fee (0 = rider keeps full delivery fee). */
     foodDeliveryCommissionRate: {
       type: Number,

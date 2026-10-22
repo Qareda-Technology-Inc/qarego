@@ -4,6 +4,8 @@ import { StatusCodes } from "http-status-codes";
 import { BadRequestError, NotFoundError } from "../errors/index.js";
 import { buildReadiness, countItemsWithPhotos, licenceLabel, reviewStatus } from "../utils/storeReadiness.js";
 import { sendPushToUserId } from "../utils/pushNotifications.js";
+import { grantNewStoreFreePeriod, isCommissionFree } from "../utils/commissionFree.js";
+import { getSettings } from "../utils/tripSettlement.js";
 
 const QUEUE_STATUSES = ["pending", "changes_requested", "draft"];
 
@@ -66,6 +68,7 @@ export const adminReviewStore = async (req, res) => {
       throw new BadRequestError(`Still missing: ${missing.join(", ")}`);
     }
     restaurant.isActive = true;
+    grantNewStoreFreePeriod(restaurant, await getSettings());
   } else {
     restaurant.isActive = false;
   }
@@ -85,7 +88,9 @@ export const adminReviewStore = async (req, res) => {
       decision === "approve"
         ? {
             title: `${restaurant.name} is live`,
-            body: "Customers can now find your store and order from it.",
+            body: isCommissionFree(restaurant)
+              ? `Customers can now order from you. No QareGO commission until ${restaurant.commissionFreeUntil.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}.`
+              : "Customers can now find your store and order from it.",
             data: { type: "store_review", decision: "approved", restaurantId: String(restaurant._id) },
           }
         : {

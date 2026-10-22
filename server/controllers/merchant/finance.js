@@ -4,6 +4,7 @@ import FoodOrder from "../../models/FoodOrder.js";
 import StoreLedgerEntry from "../../models/StoreLedgerEntry.js";
 import { StatusCodes } from "http-status-codes";
 import { BadRequestError } from "../../errors/index.js";
+import { isCommissionFree } from "../../utils/commissionFree.js";
 
 // A MoMo order pays the store and the rider separately. The store sees only its own payout, so
 // a failed rider transfer doesn't show as "failed" on an order the store was paid for.
@@ -34,7 +35,7 @@ export const getMyFinance = async (req, res) => {
   } = req.query;
 
   const restaurants = await Restaurant.find({ owner: req.user.id })
-    .select("name imageEmoji")
+    .select("name imageEmoji commissionFreeUntil")
     .sort({ createdAt: 1 })
     .lean();
 
@@ -181,7 +182,7 @@ export const getMyFinance = async (req, res) => {
     FoodOrder.countDocuments(match),
     FoodOrder.find(match)
       .select(
-        "restaurant status paymentMethod paymentStatus subtotal restaurantCommission restaurantNet settlementStatus settlementDetails.restaurant.status settledAt createdAt customer"
+        "restaurant status paymentMethod paymentStatus subtotal restaurantCommission restaurantNet commissionFree settlementStatus settlementDetails.restaurant.status settledAt createdAt customer"
       )
       .populate("customer", "name phone")
       .populate("restaurant", "name imageEmoji")
@@ -268,6 +269,7 @@ export const getMyFinance = async (req, res) => {
       subtotal: gross,
       restaurantCommission: commission,
       restaurantNet: net,
+      commissionFree: !!o.commissionFree,
       customer: o.customer
         ? { name: o.customer.name, phone: o.customer.phone }
         : null,
@@ -290,6 +292,10 @@ export const getMyFinance = async (req, res) => {
     },
     summary,
     byStore,
+    // Stores in scope that are in their commission-free period, and until when.
+    freePeriods: restaurants
+      .filter((r) => scopeIds.some((id) => String(id) === String(r._id)) && isCommissionFree(r))
+      .map((r) => ({ restaurantId: String(r._id), name: r.name, until: r.commissionFreeUntil })),
     transactions: txRows,
     total,
     page: pageNum,

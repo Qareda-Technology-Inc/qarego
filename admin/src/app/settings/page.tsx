@@ -66,6 +66,7 @@ type Form = {
     food: string;
     debtLimit: string;
     minCashout: string;
+    storeFreeDays: string;
   };
   vehiclePolicy: { pragyaFoodEnabled: boolean; comfortFoodEnabled: boolean };
   reliability: { strikesBeforePause: string; pauseDurationHours: string; strikeDecayOnCompletion: string };
@@ -131,6 +132,7 @@ function formFromSettings(data: any): Form {
       food: toPercentText(data.commissionByService?.FOOD ?? rate),
       debtLimit: String(data.debtLimit ?? -100),
       minCashout: String(data.minCashoutAmount ?? 1),
+      storeFreeDays: String(data.storeFreePeriodDays ?? 0),
     },
     vehiclePolicy: { pragyaFoodEnabled: !!vcp.pragyaFoodEnabled, comfortFoodEnabled: !!vcp.comfortFoodEnabled },
     reliability: {
@@ -178,6 +180,10 @@ function payloadFor(tab: TabKey, f: Form): Record<string, unknown> | string {
       if (debtLimit == null || String(f.commission.debtLimit).trim() === '') {
         return 'Debt limit must be a number, for example -100.';
       }
+      const storeFreePeriodDays = Number(f.commission.storeFreeDays || 0);
+      if (!Number.isInteger(storeFreePeriodDays) || storeFreePeriodDays < 0 || storeFreePeriodDays > 365) {
+        return 'Free period for new stores must be a whole number of days, from 0 to 365.';
+      }
       return {
         commissionRate: parsePercent(f.commission.global, 0.15),
         commissionByService: {
@@ -187,6 +193,7 @@ function payloadFor(tab: TabKey, f: Form): Record<string, unknown> | string {
         },
         debtLimit,
         minCashoutAmount: parseMoney(f.commission.minCashout, 1),
+        storeFreePeriodDays,
       };
     }
     case 'dispatch':
@@ -537,6 +544,30 @@ function SettingsTabs() {
                       max="100"
                       value={form.commission.global}
                       onChange={(global) => update('commission', { global })}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Free period for new stores</CardTitle>
+                  <CardDescription>
+                    A new store pays no commission for this many days after it goes live. When the period ends, the
+                    normal store commission starts on its own. You can give, extend or end a free period on each
+                    store&apos;s page.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="max-w-xs">
+                    <Field
+                      id="storeFreePeriodDays"
+                      label="Days without commission"
+                      hint="0 = no free period. Stores already live aren't changed."
+                      step="1"
+                      max="365"
+                      value={form.commission.storeFreeDays}
+                      onChange={(storeFreeDays) => update('commission', { storeFreeDays })}
                     />
                   </div>
                 </CardContent>

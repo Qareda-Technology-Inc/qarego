@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/Label";
 import { Modal } from "@/components/ui/Modal";
 import MenuCategoryField from "@/components/MenuCategoryField";
 import StoreLocationPicker, { type StoreLocation } from "@/components/StoreLocationPicker";
+import CommissionFreeCard from "@/components/CommissionFreeCard";
 import { ArrowLeft, Plus, Trash2, Edit2, Loader2, Save } from "lucide-react";
 
 interface Owner {
@@ -36,6 +37,7 @@ interface Restaurant {
   latitude: number;
   longitude: number;
   owner?: Owner | null;
+  commissionFreeUntil?: string | null;
   payoutConfig?: {
     instantPayoutEnabled?: boolean;
     recipientName?: string | null;
@@ -286,6 +288,12 @@ export default function RestaurantDetailPage({ params }: { params: Promise<{ id:
           />
         </CardContent>
       </Card>
+
+      <CommissionFreeCard
+        restaurantId={restaurant._id}
+        until={restaurant.commissionFreeUntil}
+        onSaved={(until) => setRestaurant({ ...restaurant, commissionFreeUntil: until })}
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Profile */}

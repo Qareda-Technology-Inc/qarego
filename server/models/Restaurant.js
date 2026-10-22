@@ -43,6 +43,13 @@ const restaurantSchema = new Schema(
     isAcceptingOrders: { type: Boolean, default: true },
     /** QareGO's share still owed by the store from cash pickup orders (see StoreLedgerEntry). */
     commissionOwed: { type: Number, default: 0 },
+    /**
+     * No commission on this store's orders until this date (a free period set by admin, or
+     * given automatically when the store goes live). Null = commission applies.
+     */
+    commissionFreeUntil: { type: Date, default: null },
+    /** When a free period was first given or last changed; a store only gets the automatic one once. */
+    commissionFreeSetAt: { type: Date, default: null },
     /** Merchant instant settlement destination (QareGO collect -> Hubtel send). */
     payoutConfig: {
       instantPayoutEnabled: { type: Boolean, default: false },

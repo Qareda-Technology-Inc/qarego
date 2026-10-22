@@ -1,4 +1,5 @@
 // Cooking gas requests (customer side). Pricing and station choice live in utils/gasOrders.js.
+import { isCommissionFree } from "../utils/commissionFree.js";
 import FoodOrder from "../models/FoodOrder.js";
 import User from "../models/User.js";
 import { BadRequestError } from "../errors/index.js";
@@ -115,7 +116,7 @@ export const createGasOrder = async (req, res) => {
   const split = computeFoodOrderSplit(
     { subtotal: quote.subtotal, deliveryFee: quote.deliveryFee, serviceFee: quote.serviceFee },
     settings,
-    { stationCommissionRate: config.stationCommissionRate }
+    { stationCommissionRate: config.stationCommissionRate, commissionFree: isCommissionFree(station) }
   );
 
   let order;
