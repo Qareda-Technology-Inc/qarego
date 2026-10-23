@@ -32,7 +32,8 @@ import {
   recordStoreCommissionPayment,
   getStoreLedgerAdmin,
   retryFoodPaymentPayoutAdmin,
-  runWeeklyPayouts,
+  getRiderBalancesAdmin,
+  payOutRiderAdmin,
 } from '../controllers/admin.js';
 import {
   getDispatchOverview,
@@ -139,7 +140,8 @@ adminRouter.get('/rider-debts', getRiderDebtsAdmin);
 adminRouter.get('/store-debts', getStoreDebtsAdmin);
 adminRouter.post('/stores/:id/commission-payment', recordStoreCommissionPayment);
 adminRouter.get('/stores/:id/ledger', getStoreLedgerAdmin);
-adminRouter.post('/payouts/run', runWeeklyPayouts);
+adminRouter.get('/rider-balances', getRiderBalancesAdmin);
+adminRouter.post('/drivers/:id/payout', payOutRiderAdmin);
 
 // Multivendor restaurant management
 adminRouter.get('/store-types', adminListStoreTypes);

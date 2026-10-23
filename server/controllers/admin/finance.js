@@ -1,4 +1,4 @@
-// Admin finance: stats, transactions, food payments, rider credits and weekly payouts.
+// Admin finance: stats, transactions, food payments, rider credits, rider balances and payouts.
 import StoreLedgerEntry from "../../models/StoreLedgerEntry.js";
 import Restaurant from "../../models/Restaurant.js";
 import User from "../../models/User.js";
@@ -11,6 +11,7 @@ import { appendWebhookToken } from "../../middleware/hubtelWebhookAuth.js";
 import FoodPayment from "../../models/FoodPayment.js";
 import FoodOrder from "../../models/FoodOrder.js";
 import { retryFoodOrderSettlement } from "../../utils/foodOrderSettlement.js";
+import { payOutRiderBalance } from "../../utils/riderPayout.js";
 import { sendPayment } from "../../utils/hubtelService.js";
 
 const money = (n) => Math.round((Number(n) || 0) * 100) / 100;
@@ -270,83 +271,66 @@ export const creditDriverBalance = async (req, res) => {
   }
 };
 
-/** POST /admin/payouts/run - Execute weekly payouts: send balance to drivers via Hubtel (MoMo). */
-export const runWeeklyPayouts = async (req, res) => {
+/**
+ * GET /admin/rider-balances — money QareGO holds for riders (positive wallets: MoMo trip fares,
+ * cancellation pay, credits). Riders cash it out themselves; admin can pay one out on request.
+ */
+export const getRiderBalancesAdmin = async (_req, res) => {
+  const [riders, totals] = await Promise.all([
+    User.find({ role: 'rider', balance: { $gt: 0.004 }, deletedAt: null })
+      .select('name phone balance driverDetails.status')
+      .sort({ balance: -1 })
+      .limit(200)
+      .lean(),
+    User.aggregate([
+      { $match: { role: 'rider', balance: { $gt: 0.004 }, deletedAt: null } },
+      { $group: { _id: null, total: { $sum: '$balance' }, count: { $sum: 1 } } },
+    ]),
+  ]);
+  res.status(StatusCodes.OK).json({
+    total: Math.round(Number(totals[0]?.total || 0) * 100) / 100,
+    riderCount: totals[0]?.count || 0,
+    riders: riders.map((r) => ({
+      _id: r._id,
+      name: r.name,
+      phone: r.phone,
+      balance: Math.round(Number(r.balance) * 100) / 100,
+      status: r.driverDetails?.status || 'active',
+    })),
+  });
+};
+
+/**
+ * POST /admin/drivers/:id/payout — pay one rider's whole wallet balance to their MoMo (when a
+ * rider asks admin instead of using Cash Out in the app).
+ */
+export const payOutRiderAdmin = async (req, res) => {
   assertMomoEnabled();
-  try {
-    const { makeShortHubtelRef } = await import('../../utils/hubtelService.js');
-    const { sendMomoPayout } = await import('../../utils/momoPayout.js');
-    const baseUrl =
-      process.env.BASE_URL ||
-      process.env.PUBLIC_API_URL ||
-      process.env.API_BASE_URL ||
-      'http://localhost:3000';
-    const callbackUrl = appendWebhookToken(
-      `${baseUrl.replace(/\/$/, '')}/webhooks/hubtel-payout`
-    );
-
-    const drivers = await User.find({ role: 'rider', balance: { $gt: 0 } }).select('name phone balance');
-    const results = { processed: 0, failed: 0, errors: [] };
-
-    for (const driver of drivers) {
-      const amount = Math.round(Number(driver.balance) * 100) / 100;
-      if (amount <= 0 || !driver.phone) continue;
-
-      // Take the money off the wallet first (only if it's still there), so a trip settling
-      // mid-run isn't lost and the same balance can't be paid twice.
-      const taken = await User.findOneAndUpdate(
-        { _id: driver._id, balance: { $gte: amount } },
-        { $inc: { balance: -amount } },
-        { new: true }
-      ).select('balance');
-      if (!taken) continue;
-      const balanceAfter = Math.round(Number(taken.balance) * 100) / 100;
-
-      const clientReference = makeShortHubtelRef('po', driver._id);
-      const Transaction = (await import('../../models/Transaction.js')).default;
-      await Transaction.create({
-        driver: driver._id,
-        amount: -amount,
-        type: 'PAYOUT',
-        note: 'Weekly payout',
-        reference: clientReference,
-        balanceAfter,
-      });
-      const result = await sendMomoPayout({
-        name: driver.name || 'Driver',
-        phone: driver.phone,
-        amount,
-        reference: clientReference,
-        reason: 'QareGO weekly payout',
-        callbackUrl,
-      });
-
-      if (result.success) {
-        results.processed++;
-      } else {
-        // Couldn't send: give it back straight away.
-        const back = await User.findByIdAndUpdate(driver._id, { $inc: { balance: amount } }, { new: true }).select('balance');
-        await Transaction.create({
-          driver: driver._id,
-          amount,
-          type: 'MANUAL_CREDIT',
-          note: `Payout failed — balance restored (${result.error})`,
-          reference: `reversal_${clientReference}`,
-          balanceAfter: Math.round(Number(back?.balance ?? 0) * 100) / 100,
-        });
-        results.failed++;
-        results.errors.push({ driverId: driver._id, error: result.error });
-      }
-    }
-
-    res.status(StatusCodes.OK).json({
-      message: 'Payout run completed',
-      ...results,
-    });
-  } catch (error) {
-    console.error('Run payouts error:', error);
-    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ message: 'Failed to run payouts' });
+  const rider = await User.findById(req.params.id).select('role balance');
+  if (!rider || rider.role !== 'rider') {
+    return res.status(StatusCodes.NOT_FOUND).json({ message: 'Rider not found' });
   }
+  const amount = Math.round(Number(rider.balance || 0) * 100) / 100;
+  if (amount <= 0) {
+    return res.status(StatusCodes.BAD_REQUEST).json({ message: 'This rider has nothing to pay out' });
+  }
+  const baseUrl = process.env.BASE_URL || process.env.PUBLIC_API_URL || process.env.API_BASE_URL || '';
+  const result = await payOutRiderBalance({
+    riderId: rider._id,
+    amount,
+    refPrefix: 'po',
+    note: 'Paid out by QareGO admin',
+    reason: 'QareGO wallet payout',
+    callbackUrl: baseUrl ? appendWebhookToken(`${baseUrl.replace(/\/$/, '')}/webhooks/hubtel-payout`) : undefined,
+  });
+  if (!result.ok) {
+    return res.status(StatusCodes.BAD_REQUEST).json({ message: `Payout failed: ${result.error}. The balance was restored.` });
+  }
+  res.status(StatusCodes.OK).json({
+    message: `Sent GH₵${amount.toFixed(2)} to the rider's MoMo.`,
+    amount,
+    reference: result.reference,
+  });
 };
 
 /** GET /admin/rider-debts — riders who owe commission (negative balance), most owed first. */

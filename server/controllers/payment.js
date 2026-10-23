@@ -23,9 +23,9 @@ import {
 import { getSettings } from '../utils/tripSettlement.js';
 import { settleFoodOrderOnDelivery, settlementStatusFor, syncRiderDeliveryPay } from '../utils/foodOrderSettlement.js';
 import { appendWebhookToken } from '../middleware/hubtelWebhookAuth.js';
-import { sendMomoPayout } from '../utils/momoPayout.js';
 import { applyRefundOutcome, startRefundIfDue } from '../utils/orderRefunds.js';
 import { processRidePaymentSuccess, reconcilePaystackRidePayment } from '../utils/ridePayments.js';
+import { payOutRiderBalance } from '../utils/riderPayout.js';
 import {
   customerPaymentProvider,
   initializePaystackCheckout,
@@ -492,54 +492,23 @@ export const initiateCashout = async (req, res) => {
   }
 
   amount = Number(amount.toFixed(2));
-
-  const updated = await User.findOneAndUpdate(
-    { _id: driverId, role: 'rider', balance: { $gte: amount } },
-    { $inc: { balance: -amount } },
-    { new: true }
-  );
-  if (!updated) {
-    throw new BadRequestError('Insufficient wallet balance');
-  }
-
-  const newBalance = Number(updated.balance);
-  const clientReference = makeShortHubtelRef('co', driverId);
-
-  await Transaction.create({
-    driver: driverId,
-    amount: -amount,
-    type: 'PAYOUT',
-    note: customerPaymentProvider() === 'paystack' ? 'Wallet cash out' : 'Wallet cash out (Hubtel)',
-    reference: clientReference,
-    balanceAfter: newBalance,
-  });
-
-  const callbackUrl = appendWebhookToken(
-    `${getBaseUrl(req).replace(/\/$/, '')}/webhooks/hubtel-payout`
-  );
-
-  const result = await sendMomoPayout({
-    name: user.name || 'Driver',
-    phone: user.phone,
+  const payout = await payOutRiderBalance({
+    riderId: driverId,
     amount,
-    reference: clientReference,
+    refPrefix: 'co',
+    note: customerPaymentProvider() === 'paystack' ? 'Wallet cash out' : 'Wallet cash out (Hubtel)',
     reason: 'QareGO wallet cash out',
-    callbackUrl,
+    callbackUrl: appendWebhookToken(`${getBaseUrl(req).replace(/\/$/, '')}/webhooks/hubtel-payout`),
   });
-
-  if (!result.success) {
-    const restoredBalance = Math.round((newBalance + amount) * 100) / 100;
-    await User.findByIdAndUpdate(driverId, { balance: restoredBalance });
-    await Transaction.create({
-      driver: driverId,
-      amount,
-      type: 'MANUAL_CREDIT',
-      note: `Cash out failed — balance restored (${result.error})`,
-      reference: `reversal_${clientReference}`,
-      balanceAfter: restoredBalance,
-    });
-    throw new BadRequestError(result.error || 'Cash out failed. Your balance was restored.');
+  if (!payout.ok) {
+    throw new BadRequestError(
+      payout.error === 'Not enough in the wallet'
+        ? 'Insufficient wallet balance'
+        : `${payout.error || 'Cash out failed'}. Your balance was restored.`
+    );
   }
+  const newBalance = payout.balance;
+  const clientReference = payout.reference;
 
   res.status(StatusCodes.OK).json({
     message: 'Cash out sent. Funds will arrive on your MoMo shortly.',
@@ -1016,7 +985,7 @@ function isPayoutSuccess(status, responseCode) {
 
 /**
  * POST /webhooks/hubtel-payout - Hubtel disbursement (Send Money) callback.
- * Reconciles merchant payouts (fop_...) and driver weekly payouts (payout_...).
+ * Reconciles merchant payouts (fop_...) and rider payouts (payout_, po… admin payout, co… cash out).
  */
 /**
  * Apply a payout's final result (Hubtel callback or Paystack transfer webhook): mark store/rider
@@ -1258,7 +1227,7 @@ export const paystackWebhook = async (req, res) => {
     return;
   }
   if (!reference) return;
-  // Payouts (rider cash-out, weekly payouts, store settlement): the event is signed, and a
+  // Payouts (rider cash-out, admin payout, store settlement): the event is signed, and a
   // failure only gives money back, so it's applied as sent.
   if (['transfer.success', 'transfer.failed', 'transfer.reversed'].includes(event)) {
     try {

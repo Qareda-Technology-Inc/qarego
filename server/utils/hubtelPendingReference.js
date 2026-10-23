@@ -51,7 +51,7 @@ export async function isKnownPendingHubtelReference(clientReference) {
     );
   }
 
-  // Rider cash-out or admin weekly payout — look up the PAYOUT ledger row.
+  // Rider cash-out or admin payout — look up the PAYOUT ledger row.
   if (ref.startsWith('cashout_') || ref.startsWith('co') || ref.startsWith('payout_') || ref.startsWith('po')) {
     return Boolean(
       await Transaction.findOne({ reference: ref, type: 'PAYOUT' }).select('_id').lean()

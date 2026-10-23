@@ -164,7 +164,7 @@ export async function receivePayment(opts) {
 }
 
 /**
- * Send payment (disburse to driver for weekly payout).
+ * Send payment (disburse to a rider or store).
  * @param {Object} opts - RecipientMsisdn (233...), Amount, PrimaryCallbackUrl, Description, ClientReference, RecipientName
  * @returns {Promise<{ success: boolean, data?: any, error?: string }>}
  */

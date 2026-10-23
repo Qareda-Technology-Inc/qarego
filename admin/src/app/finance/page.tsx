@@ -6,9 +6,10 @@ import { fetcher } from '@/lib/api';
 import { formatCurrency } from '@/lib/currency';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { Loader2, DollarSign, Wallet, CreditCard, Send } from 'lucide-react';
+import { Loader2, DollarSign, Wallet, CreditCard } from 'lucide-react';
 import Link from "next/link";
 import { RiderDebtsCard } from "@/components/RiderDebtsCard";
+import { RiderBalancesCard } from "@/components/RiderBalancesCard";
 import { StoreDebtsCard } from "@/components/StoreDebtsCard";
 import { useFeatures } from "@/lib/features";
 
@@ -48,8 +49,6 @@ export default function FinancePage() {
   const { momoEnabled } = useFeatures();
   const [stats, setStats] = useState<FinanceStats | null>(null);
   const [loading, setLoading] = useState(true);
-  const [payoutLoading, setPayoutLoading] = useState(false);
-  const [payoutResult, setPayoutResult] = useState<string | null>(null);
 
   const loadStats = async () => {
     try {
@@ -66,20 +65,7 @@ export default function FinancePage() {
     loadStats();
   }, []);
 
-  const handleRunPayouts = async () => {
-    if (!confirm('Execute weekly payouts? Drivers with positive balance will receive money via Mobile Money.')) return;
-    setPayoutResult(null);
-    setPayoutLoading(true);
-    try {
-      const data = await fetcher('/admin/payouts/run', { method: 'POST', body: '{}' });
-      setPayoutResult(`Processed: ${data.processed}, Failed: ${data.failed}`);
-      loadStats();
-    } catch (e: unknown) {
-      setPayoutResult(e instanceof Error ? e.message : 'Failed to run payouts');
-    } finally {
-      setPayoutLoading(false);
-    }
-  };
+
 
   const serviceRows: ServiceRow[] = [
     {
@@ -123,6 +109,8 @@ export default function FinancePage() {
           </Link>
         </CardContent>
       </Card>
+
+      <RiderBalancesCard />
 
       <RiderDebtsCard />
 
@@ -226,19 +214,6 @@ export default function FinancePage() {
 
       {momoEnabled ? (
         <>
-          <Card>
-            <CardHeader>
-              <CardTitle>Weekly Payouts</CardTitle>
-              <p className="text-sm text-gray-500 mt-1">Send balance to riders by mobile money</p>
-            </CardHeader>
-            <CardContent>
-              <Button onClick={handleRunPayouts} disabled={payoutLoading}>
-                {payoutLoading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Running...</> : <><Send className="w-4 h-4 mr-2" /> Execute Weekly Payouts</>}
-              </Button>
-              {payoutResult && <p className="mt-3 text-sm text-gray-600">{payoutResult}</p>}
-            </CardContent>
-          </Card>
-
           <Card>
             <CardHeader>
               <CardTitle>Mobile money checkouts</CardTitle>

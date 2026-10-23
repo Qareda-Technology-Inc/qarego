@@ -108,7 +108,7 @@ export const getMoneyMovements = async (req, res) => {
   const legStatus = (s) => (["sent", "failed", "pending", "wallet"].includes(s) ? s : null);
   const moneyOut = [
     ...payoutTx.map((t) => ({
-      kind: /weekly/i.test(t.note || "") ? "Weekly payout" : "Rider cash-out",
+      kind: /weekly|admin/i.test(t.note || "") ? "Admin payout" : "Rider cash-out",
       at: t.createdAt,
       amount: round2(Math.abs(t.amount)),
       status: reversed.has(t.reference) ? "failed" : "sent",
