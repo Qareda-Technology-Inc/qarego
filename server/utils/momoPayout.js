@@ -1,20 +1,12 @@
-// One place to send money to a MoMo wallet: Paystack Transfers when Paystack is set up,
-// otherwise the old Hubtel "send money". Same result shape either way: { success, data, error }.
+// One place to send money to a MoMo wallet (rider cash-outs, admin payouts, store and rider
+// settlement). Paystack Transfers; the result comes back on the transfer webhook.
+// Result shape: { success, data, error }.
 import { isPaystackConfigured, sendPaystackMomoTransfer } from "./paystackService.js";
-import { detectGhMomoChannel, sendPayment } from "./hubtelService.js";
+import { detectGhMomoChannel } from "./momo.js";
 
-export async function sendMomoPayout({ name, phone, amount, reference, reason, callbackUrl }) {
-  const channel = detectGhMomoChannel(phone);
-  if (isPaystackConfigured()) {
-    return sendPaystackMomoTransfer({ name, phone, channel, amount, reference, reason });
+export async function sendMomoPayout({ name, phone, amount, reference, reason }) {
+  if (!isPaystackConfigured()) {
+    return { success: false, error: "Mobile money payouts aren't set up (PAYSTACK_SECRET_KEY missing)" };
   }
-  return sendPayment({
-    RecipientName: name || "Recipient",
-    RecipientMsisdn: phone,
-    Amount: amount,
-    PrimaryCallbackUrl: callbackUrl,
-    Description: reason,
-    ClientReference: reference,
-    Channel: channel,
-  });
+  return sendPaystackMomoTransfer({ name, phone, channel: detectGhMomoChannel(phone), amount, reference, reason });
 }

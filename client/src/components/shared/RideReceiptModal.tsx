@@ -15,7 +15,7 @@ import RoutesMap from "../customer/RoutesMap";
 import EarningsBreakdownStrip from "@/components/rider/EarningsBreakdownStrip";
 import type { EarningsBreakdown } from "@/utils/earningsBreakdown";
 import { breakdownFromDispatchMeta } from "@/utils/earningsBreakdown";
-import HubtelCheckoutModal from "./HubtelCheckoutModal";
+import PaymentCheckoutModal from "./PaymentCheckoutModal";
 import { useMessage } from "@/context/MessageContext";
 import { initiateRidePayment, fetchRidePaymentStatus } from "@/service/rideService";
 
@@ -463,7 +463,7 @@ const RideReceiptModal: FC<RideReceiptModalProps> = ({
         </View>
       </View>
 
-      <HubtelCheckoutModal
+      <PaymentCheckoutModal
         visible={checkoutVisible}
         checkoutUrl={checkoutUrl}
         onSuccess={handleCheckoutSuccess}

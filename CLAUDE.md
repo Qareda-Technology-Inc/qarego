@@ -59,10 +59,10 @@ iOS native build notes:
 ### Server (`server/`)
 - `app.js` wires everything: CORS allowlist (localhost:3000/3001, `ADMIN_ORIGIN`, `MERCHANT_ORIGIN`, plus LAN `192.168.*` outside production), Socket.IO, routers, static `/uploads` and `/sounds`. On start it ensures the `Settings{key:'global'}` doc exists (commission 15%, debt limit -100), seeds default commerce store types, and starts `foodCourierBroadcastScheduler`.
 - The `io` instance is available as `req.io` / `app.get('io')`. Controllers emit socket events directly.
-- Layout: `routes/` → `controllers/` (large files, ~7.4k lines total) → `utils/` (most of the business logic: dispatch, fares, settlement, push, SMS, Hubtel) → `models/`.
+- Layout: `routes/` → `controllers/` (large files, ~7.4k lines total) → `utils/` (most of the business logic: dispatch, fares, settlement, push, SMS, Paystack) → `models/`.
 - Errors: throw classes from `errors/` (`BadRequestError`, `UnauthenticatedError`, `NotFoundError`). `express-async-errors` plus `middleware/error-handler.js` turn them into responses. No try/catch is needed in controllers.
 - Auth: JWT bearer (`ACCESS_TOKEN_SECRET`) → `req.user = {id, phone, role}`. Roles: `customer | rider | admin | merchant | cook`. `/admin` and `/customers` use `requireAdmin`. Merchant routes use `merchantContext.js`: a `cook` is locked to one restaurant, and a `merchant` picks a store with the `x-restaurant-id` header.
-- `/webhooks` (Hubtel MoMo) is unauthenticated and checked by `hubtelWebhookAuth.js`.
+- Payments go through Paystack only (`utils/paystackService.js`; checkout, transfers, refunds). `/webhooks/paystack` is unauthenticated and checks the Paystack signature on the raw body. `MOMO_ENABLED` switches mobile money and card on or off (cash only when off). See `server/PAYSTACK_SETUP.md`.
 
 ### Domain model
 - `Ride` is the unit of rider work. `serviceType` is `RIDE | DELIVERY | FOOD`. Commerce vertical (`FOOD | GROCERY | PHARMACY`) and payment (`CASH | MOBILE_MONEY`) are stored on the ride. Status flow: `SEARCHING_FOR_RIDER → START → ARRIVED → IN_PROGRESS → COMPLETED`.
@@ -86,4 +86,6 @@ Rooms: `onDuty`, `rider_<id>`, `ride_<id>`, `food_order_<id>`, `customer_<id>`, 
 Some helpers exist in both `server/utils/*.js` and `client/src/utils/*.ts`, and some also in `admin/src/lib`: `offerRanking`, `earningsBreakdown`, `commerceOrderCopy`, `commerceVerticalTags`, `menuModifiers`, `mediaLimits`, `prepareImage` (merchant + admin: crop/shrink before upload), `prescription`, `reviewLogin`, `parcelMode`, `currency`. They are not shared packages. When you change rules in one, check the copies.
 
 ## Deployment & config
-API on Render (`https://qarego.onrender.com`), admin and merchant on Vercel, mobile via EAS (`client/eas.json`; Firebase files uploaded with `npm run eas:firebase-env`). Each app has a `.env.example`. More setup docs: `FIREBASE_PUSH_SETUP.md`, `server/HUBTEL_SETUP.md`, `server/ARKASEL_SETUP.md`.
+API on Render (`https://qarego.onrender.com`), admin and merchant on Vercel, mobile via EAS (`client/eas.json`; Firebase files uploaded with `npm run eas:firebase-env`). Each app has a `.env.example`. More setup docs: `FIREBASE_PUSH_SETUP.md`, `server/PAYSTACK_SETUP.md`, `server/ARKASEL_SETUP.md`.
+
+`docs/` holds plain-language guides, pitches and draft partner agreements for vendors, riders and customers. They quote fees, commission, limits and flows (cash vs MoMo, cancellation pay, free period). When you change one of those rules or its default in Settings, update the matching document.

@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { openMomoComingSoon, useMomoPayAvailable } from "@/utils/momo";
-import HubtelCheckoutModal from "@/components/shared/HubtelCheckoutModal";
+import PaymentCheckoutModal from "@/components/shared/PaymentCheckoutModal";
 import React, { useState, useCallback, useRef, useEffect } from "react";
 import { commonStyles } from "@/styles/commonStyles";
 import CustomText from "@/components/shared/CustomText";
@@ -713,7 +713,7 @@ export default function RiderEarnings() {
         </KeyboardAvoidingView>
       </Modal>
 
-      <HubtelCheckoutModal
+      <PaymentCheckoutModal
         visible={!!topUpCheckout}
         checkoutUrl={topUpCheckout?.url ?? null}
         onSuccess={() => {

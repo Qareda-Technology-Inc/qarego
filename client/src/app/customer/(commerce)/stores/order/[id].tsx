@@ -17,7 +17,7 @@ import BottomSheet, { BottomSheetScrollView } from "@gorhom/bottom-sheet";
 import { useIsFocused } from "@react-navigation/native";
 import CustomText from "@/components/shared/CustomText";
 import CustomButton from "@/components/shared/CustomButton";
-import HubtelCheckoutModal from "@/components/shared/HubtelCheckoutModal";
+import PaymentCheckoutModal from "@/components/shared/PaymentCheckoutModal";
 import { useMessage } from "@/context/MessageContext";
 import { formatCurrency } from "@/utils/Constants";
 import {
@@ -918,7 +918,7 @@ const FoodOrderTracking = () => {
         }}
       />
 
-      <HubtelCheckoutModal
+      <PaymentCheckoutModal
         visible={checkoutVisible}
         checkoutUrl={checkoutUrl}
         onSuccess={handleCheckoutSuccess}

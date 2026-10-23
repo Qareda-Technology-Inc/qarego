@@ -77,7 +77,7 @@ export default function FoodOrdersPage() {
     }
     if (
       action === 'mark_refunded' &&
-      !window.confirm('Confirm you have refunded this customer in Hubtel?')
+      !window.confirm('Confirm you have refunded this customer by hand (outside the automatic Paystack refund)?')
     ) {
       return;
     }

@@ -1,6 +1,7 @@
 // Automatic refunds for paid store orders that were cancelled (by the customer, store or
 // admin, or a payment that landed after the order was already cancelled).
-// Paystack only: with Hubtel the admin still refunds by hand and taps "Mark refunded".
+// Refunds go back through Paystack to the card or MoMo account that paid. If one fails, the
+// admin can retry it, or refund by hand and tap "Mark refunded".
 import FoodOrder from "../models/FoodOrder.js";
 import Ride from "../models/Ride.js";
 import { fetchPaystackRefundStatus, isPaystackConfigured, refundPaystackTransaction } from "./paystackService.js";

@@ -8,7 +8,7 @@ import { sanitizeImageUrl } from "../../utils/mediaStorage.js";
 import { StatusCodes } from "http-status-codes";
 import { BadRequestError, NotFoundError } from "../../errors/index.js";
 import { normalizePhone } from "../../utils/phone.js";
-import { detectGhMomoChannel } from "../../utils/hubtelService.js";
+import { detectGhMomoChannel } from "../../utils/momo.js";
 import { computeOpenState, sanitizeHours } from "../../utils/storeHours.js";
 import { getStoreReadiness, reviewStatus } from "../../utils/storeReadiness.js";
 
@@ -211,7 +211,7 @@ export const updateMyRestaurant = async (req, res) => {
     }
   }
 
-  // Owner can set Hubtel settlement MoMo (name / phone / network).
+  // Owner can set the MoMo number their order payouts go to (name / phone / network).
   if (req.body.payoutConfig && typeof req.body.payoutConfig === "object") {
     if (req.user.role !== "merchant") {
       throw new BadRequestError("Only the store owner can update settlement MoMo");

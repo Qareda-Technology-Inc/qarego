@@ -7,12 +7,10 @@ import Transaction from "../../models/Transaction.js";
 import { StatusCodes } from "http-status-codes";
 import { assertMomoEnabled } from "../../utils/momoAvailability.js";
 import { getSettings } from "../../utils/tripSettlement.js";
-import { appendWebhookToken } from "../../middleware/hubtelWebhookAuth.js";
 import FoodPayment from "../../models/FoodPayment.js";
 import FoodOrder from "../../models/FoodOrder.js";
 import { retryFoodOrderSettlement } from "../../utils/foodOrderSettlement.js";
 import { payOutRiderBalance } from "../../utils/riderPayout.js";
-import { sendPayment } from "../../utils/hubtelService.js";
 
 const money = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
@@ -219,7 +217,7 @@ export const getFoodPaymentsAdmin = async (req, res) => {
 
 /** POST /admin/food-payments/:id/retry-payout - retry delivery-time food settlement disbursement */
 export const retryFoodPaymentPayoutAdmin = async (req, res) => {
-  // Payouts go out by mobile money, which is paused until the new provider is live.
+  // Payouts go out by mobile money (Paystack transfer), so they need it switched on.
   assertMomoEnabled();
   const payment = await FoodPayment.findById(req.params.id).lean();
   if (!payment) {
@@ -314,14 +312,12 @@ export const payOutRiderAdmin = async (req, res) => {
   if (amount <= 0) {
     return res.status(StatusCodes.BAD_REQUEST).json({ message: 'This rider has nothing to pay out' });
   }
-  const baseUrl = process.env.BASE_URL || process.env.PUBLIC_API_URL || process.env.API_BASE_URL || '';
   const result = await payOutRiderBalance({
     riderId: rider._id,
     amount,
     refPrefix: 'po',
     note: 'Paid out by QareGO admin',
     reason: 'QareGO wallet payout',
-    callbackUrl: baseUrl ? appendWebhookToken(`${baseUrl.replace(/\/$/, '')}/webhooks/hubtel-payout`) : undefined,
   });
   if (!result.ok) {
     return res.status(StatusCodes.BAD_REQUEST).json({ message: `Payout failed: ${result.error}. The balance was restored.` });

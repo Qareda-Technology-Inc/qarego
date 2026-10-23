@@ -10,13 +10,13 @@ import { RideHomeTheme as T } from "@/styles/rideHomeTheme";
 
 const COPY = {
   pay: {
-    title: "Mobile money is coming soon",
-    body: "We're setting up a new mobile money service. For now, please pay with cash — your courier or driver will collect it.",
-    points: ["Choose Cash at checkout", "Pay the exact total shown in the app", "MoMo will appear here as soon as it's ready"],
+    title: "Mobile money isn't available right now",
+    body: "Please pay with cash for now. Your courier or driver will collect it.",
+    points: ["Choose Cash at checkout", "Pay the exact total shown in the app", "Mobile money will be back here as soon as it's available"],
   },
   topup: {
-    title: "MoMo top-up is coming soon",
-    body: "Until then, pay the commission you owe to QareGO in cash. Our team records it and your balance updates.",
+    title: "MoMo top-up isn't available right now",
+    body: "For now, pay the commission you owe to QareGO in cash. Our team records it and your balance updates.",
     points: [
       "Call or WhatsApp QareGO support on +233 50 177 4210 to arrange a cash payment",
       "Your balance updates once the payment is recorded",
@@ -24,9 +24,9 @@ const COPY = {
     ],
   },
   cashout: {
-    title: "MoMo cash out is coming soon",
-    body: "We're setting up a new mobile money service for payouts. Your earnings stay safe in your wallet until then.",
-    points: ["Your wallet balance is kept", "Cash trips are paid to you by the customer as usual", "You'll be able to cash out as soon as it's ready"],
+    title: "MoMo cash out isn't available right now",
+    body: "Your earnings stay safe in your wallet until you can cash out again.",
+    points: ["Your wallet balance is kept", "Cash trips are paid to you by the customer as usual", "You'll be able to cash out as soon as it's available again"],
   },
 } as const;
 

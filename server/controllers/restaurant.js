@@ -10,7 +10,7 @@ import { StatusCodes } from "http-status-codes";
 import { BadRequestError, NotFoundError } from "../errors/index.js";
 import { normalizePhone } from "../utils/phone.js";
 import { sanitizeImageUrl } from "../utils/mediaStorage.js";
-import { detectGhMomoChannel } from "../utils/hubtelService.js";
+import { detectGhMomoChannel } from "../utils/momo.js";
 import FoodOrder from "../models/FoodOrder.js";
 import { reviewStatus } from "../utils/storeReadiness.js";
 import { grantNewStoreFreePeriod } from "../utils/commissionFree.js";

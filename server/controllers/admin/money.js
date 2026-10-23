@@ -1,5 +1,5 @@
-// Admin money view: everything that moved through the mobile-money provider (Paystack, or
-// Hubtel before it), each with the reference to look up in the provider's dashboard.
+// Admin money view: everything that moved through Paystack (mobile money and card payments,
+// payouts and refunds), each with the reference to look up in the Paystack dashboard.
 import FoodPayment from "../../models/FoodPayment.js";
 import FoodOrder from "../../models/FoodOrder.js";
 import Ride from "../../models/Ride.js";
@@ -100,7 +100,7 @@ export const getMoneyMovements = async (req, res) => {
       reference: t.clientReference,
       who: t.driver?.name || t.driver?.phone || "Rider",
       detail: "Commission debt",
-      channel: t.provider || "hubtel",
+      channel: t.provider || "paystack",
       link: null,
     })),
   ].sort((a, b) => new Date(b.at) - new Date(a.at));

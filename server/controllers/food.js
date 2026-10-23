@@ -701,7 +701,7 @@ export const adminRestaurantOrderAction = async (req, res) => {
   }
 
   if (action === "mark_refunded") {
-    // Admin refunded the customer manually in Hubtel; record it.
+    // Admin refunded the customer by hand (outside the automatic Paystack refund); record it.
     const order = await FoodOrder.findOneAndUpdate(
       { _id: req.params.id, refundStatus: "DUE" },
       { $set: { refundStatus: "REFUNDED", refundedAt: new Date(), paymentStatus: "REFUNDED" } },

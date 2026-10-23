@@ -27,7 +27,7 @@ import LiveTrackingSheet from "@/components/customer/LiveTrackingSheet";
 import { resetAndNavigate } from "@/utils/Helpers";
 import RatingModal from "@/components/shared/RatingModal";
 import RideCompletedModal from "@/components/shared/RideCompletedModal";
-import HubtelCheckoutModal from "@/components/shared/HubtelCheckoutModal";
+import PaymentCheckoutModal from "@/components/shared/PaymentCheckoutModal";
 import { useMessage } from "@/context/MessageContext";
 import {
   fetchCourierLocation,
@@ -505,7 +505,7 @@ const LiveRide = () => {
         onPay={needsMomoPayment ? handlePayRide : undefined}
         payBusy={paymentBusy}
       />
-      <HubtelCheckoutModal
+      <PaymentCheckoutModal
         visible={checkoutVisible}
         checkoutUrl={checkoutUrl}
         onSuccess={handleCheckoutSuccess}

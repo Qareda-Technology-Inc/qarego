@@ -16,11 +16,11 @@ something new, update this file, the privacy page and the Play form together.
 | Is all of the user data collected by your app encrypted in transit? | **Yes** (the API, uploads and maps all use HTTPS) |
 | Which of the following methods of account creation does your app support? | **Username and other authentication** → phone number with a one-time SMS code |
 | Do you provide a way for users to request that their data is deleted? | **Yes** |
-| Delete account URL | `https://www.qarego.com/delete-account` (in the app: Account → Delete Account) |
+| Delete account URL | `https://www.qarego.com/delete-account` (in the app: Account → Delete my account) |
 
 **Shared: answer "No" for every data type.** Play does not count these as sharing:
 - service providers that process data for QareGO (Render, Vercel, Google Maps, Firebase,
-  Cloudinary, Arkesel, Hubtel);
+  Cloudinary, Arkesel, Paystack);
 - data passed to another user because the user asked for it (the rider or store fulfilling a
   booking sees the customer's name, phone and address).
 
@@ -41,7 +41,8 @@ means the app can't be used without it; "Optional" means the user can choose not
 | Personal info → **Address** | Required | App functionality | Pickup, drop-off and delivery addresses |
 | Personal info → **Other info** | Optional (riders only) | App functionality, Fraud prevention, security and compliance | Rider date of birth, gender, licence number, national ID and police clearance, used to approve riders |
 | Financial info → **Purchase history** | Required | App functionality, Account management | Trips and orders, prices, fees and payment status |
-| Financial info → **Other financial info** | Required for riders | App functionality, Account management | Rider earnings, commission balance and payouts; whether a customer chose cash or mobile money. No card numbers, no MoMo PIN |
+| Financial info → **User payment info** | Optional | App functionality | Mobile money number or card details the customer enters on Paystack's checkout, which opens inside the app. QareGO itself never receives the card number or MoMo PIN; see the note below |
+| Financial info → **Other financial info** | Required for riders | App functionality, Account management | Rider earnings, commission balance and payouts (to the rider's MoMo number); whether a customer chose cash, mobile money or card. No card numbers, no MoMo PIN |
 | Health and fitness → **Health info** | Optional | App functionality | Pharmacy items ordered and prescription photos |
 | Messages → **Other in-app messages** | Optional | App functionality | Chat between customer and rider during a trip |
 | Photos and videos → **Photos** | Optional | App functionality | Profile photo, parcel photo, prescription, rider documents. Only photos the user picks or takes |
@@ -49,7 +50,7 @@ means the app can't be used without it; "Optional" means the user can choose not
 | Device or other IDs → **Device or other IDs** | Required | App functionality | Push notification token (FCM / Expo) |
 
 **Leave unticked:** Race and ethnicity, Political or religious beliefs, Sexual orientation,
-User payment info, Credit score, Fitness info, Emails, SMS or MMS, Videos, Audio, Files and docs,
+Credit score, Fitness info, Emails, SMS or MMS, Videos, Audio, Files and docs,
 Calendar, Contacts, App interactions, In-app search history, Installed apps, Other actions,
 Web browsing, Crash logs, Diagnostics, Other app performance data.
 
@@ -60,8 +61,11 @@ Notes on the edge cases:
   secure the service. Play does not ask for these as a separate type.
 - **No crash reporting SDK** is in the app. If Sentry or Crashlytics is added later, tick
   Crash logs and Diagnostics.
-- **Payment info:** card numbers and MoMo PINs are never collected. When mobile money returns,
-  the MoMo number goes to the payment provider. Review "User payment info" at that point.
+- **Payment info:** mobile money and card payments are live through Paystack. The customer types
+  their MoMo number or card details into Paystack's checkout page, which opens inside the app;
+  QareGO's servers never receive the card number or MoMo PIN. Because the page is shown in the
+  app, declare **User payment info** (Collected, Optional, App functionality, not Shared:
+  Paystack is a service provider). Update the Play Console data safety form to match.
 
 ## Other App content declarations
 

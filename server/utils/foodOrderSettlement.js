@@ -14,12 +14,8 @@ import Restaurant from "../models/Restaurant.js";
 import Ride from "../models/Ride.js";
 import User from "../models/User.js";
 import Transaction from "../models/Transaction.js";
-import {
-  detectGhMomoChannel,
-  formatPhoneForHubtel,
-} from "./hubtelService.js";
+import { detectGhMomoChannel, formatGhPhone } from "./momo.js";
 import { getCommissionRateForService, getSettings } from "./tripSettlement.js";
-import { appendWebhookToken } from "../middleware/hubtelWebhookAuth.js";
 
 const DEFAULT_FOOD_DELIVERY_COMMISSION = 0;
 
@@ -98,23 +94,6 @@ function makeSettlementRef(prefix, orderId) {
   const tail = String(orderId).slice(-10);
   const stamp = Date.now().toString(36).slice(-4);
   return `${prefix}${tail}${stamp}`.slice(0, 32);
-}
-
-function resolvePublicBaseUrl() {
-  return (
-    process.env.BASE_URL ||
-    process.env.PUBLIC_API_URL ||
-    process.env.API_BASE_URL ||
-    null
-  );
-}
-
-function getPayoutCallbackUrl() {
-  const explicit = process.env.HUBTEL_PAYOUT_CALLBACK_URL;
-  const base = resolvePublicBaseUrl();
-  const url =
-    explicit || (base ? `${String(base).replace(/\/$/, "")}/webhooks/hubtel-payout` : null);
-  return appendWebhookToken(url);
 }
 
 function resolveRestaurantPayoutTarget(restaurant) {
@@ -255,7 +234,7 @@ async function disburseToRecipient({
   if (amount <= 0) {
     return { success: true, skipped: true, amount: 0 };
   }
-  const phone = formatPhoneForHubtel(msisdn);
+  const phone = formatGhPhone(msisdn);
   if (!phone) {
     return {
       success: false,
@@ -271,7 +250,6 @@ async function disburseToRecipient({
     amount,
     reference: clientReference,
     reason: description,
-    callbackUrl: getPayoutCallbackUrl() || undefined,
   });
 
   if (!payout.success) {
@@ -510,7 +488,7 @@ function buildSettlementDetails(momoResult) {
     details.restaurant = {
       amount: r.amount ?? 0,
       reference: r.reference || null,
-      // API accept → pending until /webhooks/hubtel-payout confirms "sent".
+      // Accepted → pending until Paystack's transfer webhook confirms "sent".
       status: r.skipped ? "not_applicable" : r.success ? "pending" : "failed",
       error: r.error || null,
       response: r.response || null,
@@ -677,19 +655,17 @@ export async function retryFoodOrderSettlement(orderId) {
     for (const field of ["restaurant", "rider"]) {
       const leg = details[field];
       if (leg?.status !== "pending") continue;
-      if (isPaystackConfigured() && leg.reference) {
-        // Ask Paystack first so a transfer that did go through isn't sent twice.
-        const { status } = await fetchPaystackTransferStatus(leg.reference);
-        if (status === "success") details[field] = { ...leg, status: "sent", error: null };
-        else if (status === "failed") details[field] = { ...leg, status: "failed", error: "Transfer failed at Paystack" };
-        continue; // still pending: leave it alone
+      if (!leg.reference) {
+        // Never reached Paystack: safe to send again.
+        details[field] = { ...leg, status: "failed", error: "Retry: previous payout unconfirmed" };
+        continue;
       }
-      details[field] = {
-        ...leg,
-        status: "failed",
-        error: "Retry: previous payout unconfirmed",
-        reference: null,
-      };
+      if (!isPaystackConfigured()) continue; // can't check it, so don't risk paying twice
+      // Ask Paystack first so a transfer that did go through isn't sent twice.
+      const { status } = await fetchPaystackTransferStatus(leg.reference);
+      if (status === "success") details[field] = { ...leg, status: "sent", error: null };
+      else if (status === "failed") details[field] = { ...leg, status: "failed", error: "Transfer failed at Paystack" };
+      // still pending: leave it alone
     }
     order.settlementDetails = details;
     order.settlementStatus = "pending";

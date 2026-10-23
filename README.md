@@ -18,7 +18,7 @@ Each app has its own `package.json`. Install and run them independently.
 
 **Customers** book rides, order from restaurants/stores, send parcels, track deliveries live, and pay cash or mobile money.
 
-**Riders** accept ride and delivery offers, navigate with maps, earn per trip, top up balance (Hubtel), and view earnings analytics.
+**Riders** accept ride and delivery offers, navigate with maps, earn per trip, top up or cash out their wallet by mobile money (Paystack), and view earnings analytics.
 
 **Merchants** manage menus, accept/reject orders, mark orders ready, assign riders, and pause order intake.
 
@@ -32,7 +32,7 @@ Commerce verticals: **Food**, **Grocery**, and **Pharmacy** (configured via stor
 - **MongoDB** (local or Atlas)
 - **Google Maps** API key (Maps JavaScript, Directions, Places — restrict by app/platform)
 - **Android Studio** / Xcode for native mobile builds (optional for Expo Go dev)
-- Optional integrations: **Cloudinary** (images), **Firebase** (push), **Hubtel** (MoMo), **Arkasel** (SMS)
+- Optional integrations: **Cloudinary** (images), **Firebase** (push), **Paystack** (mobile money and card payments, payouts, refunds), **Arkasel** (SMS)
 
 ## Local development
 
@@ -121,7 +121,7 @@ Set `EXPO_PUBLIC_PRODUCTION_API_URL` in `.env` or EAS env.
 
 | App | File | Key settings |
 |-----|------|--------------|
-| Server | `server/.env` | `MONGO_URI`, JWT secrets, `PORT`, CORS origins, Cloudinary, Firebase, Hubtel, Arkasel |
+| Server | `server/.env` | `MONGO_URI`, JWT secrets, `PORT`, CORS origins, Cloudinary, Firebase, Paystack, Arkasel |
 | Admin | `admin/.env` | `API_PROXY_TARGET`, `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` |
 | Merchant | `merchant/.env` | `API_PROXY_TARGET`, `NEXT_PUBLIC_API_BASE_URL`, `NEXT_PUBLIC_SOCKET_URL`, Maps, Firebase (optional web push) |
 | Client | `client/.env` | `EXPO_PUBLIC_APP_ENV`, `EXPO_PUBLIC_MAP_API_KEY`, `GOOGLE_API_KEY`, `EXPO_PUBLIC_PRODUCTION_API_URL` |
@@ -156,7 +156,7 @@ Merchant dashboard revenue aggregates use food subtotal, consistent with other d
 ## Additional docs
 
 - [`FIREBASE_PUSH_SETUP.md`](FIREBASE_PUSH_SETUP.md) — FCM for iOS, Android, and merchant web
-- [`server/HUBTEL_SETUP.md`](server/HUBTEL_SETUP.md) — driver top-up and weekly payouts
+- [`server/PAYSTACK_SETUP.md`](server/PAYSTACK_SETUP.md) — payments, payouts, refunds and the Paystack webhook
 - [`server/ARKASEL_SETUP.md`](server/ARKASEL_SETUP.md) — SMS alerts to merchants
 
 ## Tech stack

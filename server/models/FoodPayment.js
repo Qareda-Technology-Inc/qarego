@@ -20,13 +20,11 @@ const foodPaymentSchema = new Schema(
     },
     paymentMethod: { type: String, default: null },
     paymentChannel: { type: String, default: null },
-    hubtelTransactionId: { type: String, default: null },
-    externalTransactionId: { type: String, default: null },
-    callbackPayload: { type: Schema.Types.Mixed, default: null },
+    /** Paystack's transaction id for this payment. */
+    providerTransactionId: { type: String, default: null },
+    /** Paystack's verify response. */
     statusPayload: { type: Schema.Types.Mixed, default: null },
     lastStatusCheckAt: { type: Date, default: null },
-    /** Stop polling txnstatus when Hubtel returns 403 for all credential types. */
-    statusCheckBlocked: { type: Boolean, default: false },
     payoutStatus: {
       type: String,
       enum: ['not_applicable', 'pending', 'sent', 'failed', 'deferred'],

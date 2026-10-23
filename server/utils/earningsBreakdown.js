@@ -45,7 +45,7 @@ function emptySalesBucket() {
 
 /** Lifetime sales totals split by cash vs mobile money from settled trips.
  * Excludes FOOD commission rows — those debit platformNet (not ride fare commission)
- * and would skew gross/net. Food MoMo settles via Hubtel, not this ledger.
+ * and would skew gross/net. Food MoMo settles by Paystack transfer, not this ledger.
  */
 export function buildSalesSummaryFromCommissionTxns(commissionTxns = []) {
   const sales = {

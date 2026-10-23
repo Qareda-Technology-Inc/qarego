@@ -1,14 +1,12 @@
 // Paystack (Ghana, GHS): hosted checkout for customer payments (mobile money and cards).
 // The app opens `authorization_url` in its payment screen and watches for the redirect to
-// /payments/return or /payments/cancel, exactly as it did with Hubtel's checkout.
+// /payments/return or /payments/cancel.
 import crypto from "crypto";
 
 const API = "https://api.paystack.co";
 
 export const isPaystackConfigured = () => Boolean(process.env.PAYSTACK_SECRET_KEY);
 
-/** Which provider takes customer payments: Paystack once its key is set, else the old Hubtel setup. */
-export const customerPaymentProvider = () => (isPaystackConfigured() ? "paystack" : "hubtel");
 
 async function paystack(method, path, body) {
   const res = await fetch(`${API}${path}`, {
@@ -95,7 +93,7 @@ function localGhPhone(phone) {
 }
 
 /**
- * Send money to a Ghana MoMo wallet. `channel` is the Hubtel-style network (mtn-gh,
+ * Send money to a Ghana MoMo wallet. `channel` is the network (mtn-gh,
  * vodafone-gh, airteltigo-gh). Returns { success, status, data, error }:
  * success = Paystack accepted it (status "success" or "pending"; the final result comes by
  * webhook). An "otp" status means the account still requires OTP approval for transfers.

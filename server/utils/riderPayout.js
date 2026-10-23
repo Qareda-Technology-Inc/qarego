@@ -4,16 +4,16 @@
 // (applyPayoutOutcome), which also gives it back.
 import User from "../models/User.js";
 import Transaction from "../models/Transaction.js";
-import { makeShortHubtelRef } from "./hubtelService.js";
+import { makePaymentRef } from "./momo.js";
 import { sendMomoPayout } from "./momoPayout.js";
 
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
 /**
- * @param {{ riderId, amount, refPrefix: "co" | "po", note: string, reason: string, callbackUrl?: string }} p
+ * @param {{ riderId, amount, refPrefix: "co" | "po", note: string, reason: string }} p
  * @returns {Promise<{ ok: boolean, amount: number, balance: number, reference?: string, error?: string }>}
  */
-export async function payOutRiderBalance({ riderId, amount, refPrefix, note, reason, callbackUrl }) {
+export async function payOutRiderBalance({ riderId, amount, refPrefix, note, reason }) {
   amount = round2(amount);
   const rider = await User.findById(riderId).select("name phone role");
   if (!rider || rider.role !== "rider") return { ok: false, amount, balance: 0, error: "Rider not found" };
@@ -27,10 +27,10 @@ export async function payOutRiderBalance({ riderId, amount, refPrefix, note, rea
   if (!taken) return { ok: false, amount, balance: 0, error: "Not enough in the wallet" };
   const balanceAfter = round2(taken.balance);
 
-  const reference = makeShortHubtelRef(refPrefix, riderId);
+  const reference = makePaymentRef(refPrefix, riderId);
   await Transaction.create({ driver: riderId, amount: -amount, type: "PAYOUT", note, reference, balanceAfter });
 
-  const result = await sendMomoPayout({ name: rider.name || "Rider", phone: rider.phone, amount, reference, reason, callbackUrl });
+  const result = await sendMomoPayout({ name: rider.name || "Rider", phone: rider.phone, amount, reference, reason });
   if (result.success) return { ok: true, amount, balance: balanceAfter, reference };
 
   // Couldn't send: give it back ($inc, so a trip settling at the same moment isn't overwritten).

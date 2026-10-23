@@ -15,9 +15,9 @@ import { Colors } from "@/utils/Constants";
 type Props = {
   visible: boolean;
   checkoutUrl: string | null;
-  /** Fired when Hubtel redirects to the success (returnUrl) page. */
+  /** Fired when Paystack redirects to the success (return) page. */
   onSuccess: () => void;
-  /** Fired when Hubtel redirects to the cancellation page. */
+  /** Fired when Paystack redirects to the cancel page. */
   onCancel: () => void;
   /** Fired when the user manually dismisses the sheet without a resolved status. */
   onClose: () => void;
@@ -26,7 +26,7 @@ type Props = {
 const isReturnUrl = (url: string) => /\/payments\/return/i.test(url);
 const isCancelUrl = (url: string) => /\/payments\/cancel/i.test(url);
 
-export default function HubtelCheckoutModal({
+export default function PaymentCheckoutModal({
   visible,
   checkoutUrl,
   onSuccess,

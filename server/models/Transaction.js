@@ -53,7 +53,7 @@ const transactionSchema = new Schema(
       type: String,
       default: null,
     },
-    /** External reference (e.g. Hubtel payout ClientReference) for reconciliation. */
+    /** Payment reference (e.g. the Paystack transfer or top-up reference) for reconciliation. */
     reference: {
       type: String,
       default: null,

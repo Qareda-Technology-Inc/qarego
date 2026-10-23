@@ -353,11 +353,11 @@ export default function RestaurantDetailPage({ params }: { params: Promise<{ id:
                 </label>
               </div>
               <div className="rounded-lg border border-gray-200 p-3 bg-gray-50 space-y-3">
-                <p className="text-sm font-medium text-gray-900">Delivery settlement (Hubtel Send Money)</p>
+                <p className="text-sm font-medium text-gray-900">Payout mobile money number</p>
                 <p className="text-xs text-gray-600">
-                  When a MoMo food order is marked delivered, the restaurant share is sent to this MoMo
-                  number. Network is inferred from the phone prefix (MTN / Vodafone / AirtelTigo).
-                  If phone is empty, settlement falls back to the owner phone.
+                  When a mobile money order is delivered, the store&apos;s share is sent to this number by Paystack.
+                  The network is worked out from the number (MTN / Telecel / AirtelTigo). If it&apos;s empty, the
+                  owner&apos;s phone number is used.
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>

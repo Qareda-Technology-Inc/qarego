@@ -2,16 +2,17 @@ import mongoose from 'mongoose';
 
 const { Schema } = mongoose;
 
-/** Pending top-up: driver initiated payment; webhook will credit balance when Hubtel confirms */
+/** A rider's commission-debt payment on Paystack's checkout; the balance is credited once Paystack confirms it. */
 const pendingTopUpSchema = new Schema(
   {
     driver: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     amount: { type: Number, required: true },
     clientReference: { type: String, required: true, unique: true },
     status: { type: String, enum: ['pending', 'completed', 'failed'], default: 'pending' },
-    hubtelResponse: { type: Schema.Types.Mixed },
+    /** Paystack's verify response once paid. */
+    providerResponse: { type: Schema.Types.Mixed },
+    provider: { type: String, enum: ['paystack'], default: 'paystack' },
     /** Paystack checkout the rider pays on (reused while unpaid). */
-    provider: { type: String, enum: ['hubtel', 'paystack'], default: 'hubtel' },
     checkoutUrl: { type: String, default: null },
   },
   { timestamps: true }

@@ -50,7 +50,7 @@ const restaurantSchema = new Schema(
     commissionFreeUntil: { type: Date, default: null },
     /** When a free period was first given or last changed; a store only gets the automatic one once. */
     commissionFreeSetAt: { type: Date, default: null },
-    /** Merchant instant settlement destination (QareGO collect -> Hubtel send). */
+    /** Where the store's share of mobile money orders is sent (Paystack transfer to MoMo). */
     payoutConfig: {
       instantPayoutEnabled: { type: Boolean, default: false },
       recipientName: { type: String, default: null },

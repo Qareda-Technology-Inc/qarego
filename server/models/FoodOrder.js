@@ -168,7 +168,7 @@ const foodOrderSchema = new Schema(
       default: null,
     },
     cancelledAt: { type: Date, default: null },
-    /** Paid MoMo orders that were cancelled: refunded manually through Hubtel, then marked here. */
+    /** Paid MoMo orders that were cancelled: refunded through Paystack (or by hand, then marked here). */
     refundStatus: {
       type: String,
       enum: ["NONE", "DUE", "REFUNDED"],
