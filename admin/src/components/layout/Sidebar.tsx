@@ -21,6 +21,7 @@ import {
   BadgeCheck,
   ShieldCheck,
   KeyRound,
+  History,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/context/AuthContext';
@@ -47,6 +48,7 @@ const navigation = [
   { name: 'Push notifications', href: '/notifications', icon: Bell },
   { name: 'Settings', href: '/settings', icon: Settings },
   { name: 'Team', href: '/team', icon: ShieldCheck },
+  { name: 'Activity', href: '/activity', icon: History },
 ];
 
 export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {

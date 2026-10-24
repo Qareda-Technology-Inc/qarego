@@ -1,6 +1,6 @@
 // Which admin-portal pages each role can open (the server enforces the same rules on every
 // request: server/utils/adminAccess.js).
-//   super — everything, plus Team.   admin — everything except Team.
+//   super — everything, plus Team and Activity.   admin — everything except those.
 //   staff — onboarding only: riders and vendors.
 
 export type AdminRole = "super" | "admin" | "staff";
@@ -23,7 +23,7 @@ const under = (path: string, base: string) => path === base || path.startsWith(`
 
 export function canOpenPage(role: AdminRole | null | undefined, path: string): boolean {
   if (OPEN_PAGES.some((p) => under(path, p))) return true;
-  if (under(path, "/team")) return role === "super";
+  if (under(path, "/team") || under(path, "/activity")) return role === "super";
   if (role === "staff") return STAFF_PAGES.some((p) => under(path, p));
   return true;
 }

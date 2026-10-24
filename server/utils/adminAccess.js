@@ -1,5 +1,5 @@
 // Who can do what in the admin portal. Every admin account has role "admin" plus an adminRole:
-//   super  — everything, and manages the team (the original Super Admin).
+//   super  — everything, manages the team and sees the activity log (the original Super Admin).
 //   admin  — everything except managing the team.
 //   staff  — onboarding only: riders (add, review, approve) and vendors (invite, stores, menus,
 //            applications, store approvals). No money, settings, trips, orders or customers.
@@ -47,7 +47,7 @@ const STAFF_RULES = [
 /** Open to every signed-in admin, including one who must still choose their own password. */
 const SELF_RULES = [rule("GET", "/admin/me"), rule("POST", "/admin/me/password")];
 
-const SUPER_ONLY = /^\/admin\/team(\/|$)/;
+const SUPER_ONLY = /^\/admin\/(team|activity)(\/|$)/;
 
 const matches = (rules, method, path) => rules.some((r) => r.method === method && r.re.test(path));
 

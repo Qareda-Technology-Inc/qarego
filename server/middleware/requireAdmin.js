@@ -1,11 +1,15 @@
 import { UnauthenticatedError } from "../errors/index.js";
 import User from "../models/User.js";
 import { adminCanAccess, adminRoleOf, isSelfRequest } from "../utils/adminAccess.js";
+import { recordAdminActivity } from "../utils/adminActivity.js";
+
+const CHANGES = new Set(["POST", "PATCH", "PUT", "DELETE"]);
 
 /**
  * Use after authMiddleware — restricts a route to admin-portal accounts, and to what their role
  * allows (see utils/adminAccess.js). Reads the account fresh, so a role change or a disabled
- * account takes effect on the next request. Sets req.adminRole.
+ * account takes effect on the next request. Sets req.adminRole, and records every successful
+ * change in the admin activity log.
  */
 export default async function requireAdmin(req, res, next) {
   if (req.user?.role !== "admin") {
@@ -25,5 +29,19 @@ export default async function requireAdmin(req, res, next) {
     return res.status(403).json({ msg: "Your account doesn't have access to this", code: "ADMIN_FORBIDDEN" });
   }
   req.adminRole = adminRole;
+
+  // Activity log: keep the response (a create's new id and name) and record the change once
+  // it has succeeded.
+  if (CHANGES.has(method) && !res.locals.activityHooked) {
+    res.locals.activityHooked = true;
+    const json = res.json.bind(res);
+    res.json = (body) => {
+      res.locals.responseBody = body;
+      return json(body);
+    };
+    res.on("finish", () => {
+      if (res.statusCode < 400) void recordAdminActivity(req, res);
+    });
+  }
   next();
 }

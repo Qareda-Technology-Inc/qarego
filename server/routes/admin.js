@@ -6,6 +6,7 @@ import {
   createTeamMember,
   updateTeamMember,
   resetTeamMemberPassword,
+  getAdminActivity,
 } from '../controllers/admin/team.js';
 import express from 'express';
 import multer from 'multer';
@@ -156,6 +157,7 @@ adminRouter.get('/team', listTeam);
 adminRouter.post('/team', createTeamMember);
 adminRouter.patch('/team/:id', updateTeamMember);
 adminRouter.post('/team/:id/reset-password', resetTeamMemberPassword);
+adminRouter.get('/activity', getAdminActivity);
 adminRouter.post('/drivers/:id/payout', payOutRiderAdmin);
 
 // Multivendor restaurant management

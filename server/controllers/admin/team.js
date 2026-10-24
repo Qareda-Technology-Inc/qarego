@@ -2,6 +2,7 @@
 // password and turns accounts off. Every admin can see who they are and change their own password.
 import { StatusCodes } from "http-status-codes";
 import User from "../../models/User.js";
+import AdminActivity from "../../models/AdminActivity.js";
 import { BadRequestError, NotFoundError } from "../../errors/index.js";
 import { ADMIN_ROLES, adminRoleOf } from "../../utils/adminAccess.js";
 import { generateTempPassword } from "../../utils/vendorLogin.js";
@@ -161,4 +162,49 @@ export const resetTeamMemberPassword = async (req, res) => {
   await user.save();
   const sms = await textSignIn(user, tempPassword, "reset");
   res.status(StatusCodes.OK).json({ tempPassword, sms });
+};
+
+/**
+ * GET /admin/activity?actor&area&from&to&q&page&limit — the admin activity log, newest first.
+ * Also returns the people and areas to filter by.
+ */
+export const getAdminActivity = async (req, res) => {
+  const { actor, area, from, to, q } = req.query;
+  const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+  const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 50));
+  const query = {};
+  if (actor && /^[a-f0-9]{24}$/i.test(String(actor))) query.actor = actor;
+  if (area) query.area = String(area);
+  if (from || to) {
+    query.createdAt = {};
+    if (from) query.createdAt.$gte = new Date(`${from}T00:00:00`);
+    if (to) query.createdAt.$lte = new Date(`${to}T23:59:59.999`);
+  }
+  const text = String(q || "").trim();
+  if (text) {
+    const pattern = new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+    query.$or = [{ summary: pattern }, { actorName: pattern }, { "target.label": pattern }];
+  }
+  const [total, entries, people] = await Promise.all([
+    AdminActivity.countDocuments(query),
+    AdminActivity.find(query).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
+    User.find({ role: "admin" }).select("name username").sort({ name: 1 }).lean(),
+  ]);
+  res.status(StatusCodes.OK).json({
+    entries: entries.map((e) => ({
+      _id: e._id,
+      at: e.createdAt,
+      actor: { _id: e.actor, name: e.actorName, role: e.actorRole },
+      area: e.area,
+      action: e.action,
+      summary: e.summary,
+      target: e.target || null,
+      details: e.details || null,
+      ip: e.ip || null,
+    })),
+    total,
+    page,
+    pages: Math.max(1, Math.ceil(total / limit)),
+    people: people.map((p) => ({ _id: p._id, name: p.name || p.username })),
+  });
 };

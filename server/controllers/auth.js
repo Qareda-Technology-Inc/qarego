@@ -1,5 +1,6 @@
 import User from "../models/User.js";
 import { adminRoleOf } from "../utils/adminAccess.js";
+import { recordAdminSignIn } from "../utils/adminActivity.js";
 import { StatusCodes } from "http-status-codes";
 import { BadRequestError, UnauthenticatedError } from "../errors/index.js";
 import jwt from "jsonwebtoken";
@@ -121,6 +122,7 @@ export const adminLogin = async (req, res) => {
   const accessToken = user.createAccessToken();
   const refreshToken = user.createRefreshToken();
   await User.updateOne({ _id: user._id }, { $set: { lastAdminLoginAt: new Date() } });
+  void recordAdminSignIn(user, req);
 
   res.status(StatusCodes.OK).json({
     user: {
