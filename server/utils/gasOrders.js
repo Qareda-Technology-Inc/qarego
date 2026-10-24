@@ -3,7 +3,8 @@
 // merchant portal, tracking, cash split, cancellation and settlement are shared with food.
 import Restaurant from "../models/Restaurant.js";
 import { calculateDistance } from "./mapUtils.js";
-import { computeOpenState } from "./storeHours.js";
+import { storeOpenState } from "./storeDebt.js";
+import { getSettings } from "./tripSettlement.js";
 import { computeFoodServiceFee } from "./foodServiceFee.js";
 import { MAX_FOOD_DELIVERY_KM, MIN_FOOD_DELIVERY_KM } from "./deliveryFare.js";
 
@@ -107,11 +108,12 @@ export function normalizeGasConfigInput(input) {
 /** Nearest active, open, accepting gas station within delivery range, or null. */
 export async function findNearestGasStation(lat, lon, now = new Date()) {
   const stations = await Restaurant.find({ vertical: "GAS", isActive: true }).lean();
+  const settings = await getSettings();
   let best = null;
   for (const s of stations) {
     if (s.latitude == null || s.longitude == null) continue;
     if (s.isAcceptingOrders === false) continue;
-    if (!computeOpenState(s, now).isOpen) continue;
+    if (!storeOpenState(s, settings, now).isOpen) continue; // also skips one over its debt limit
     const km = calculateDistance(Number(s.latitude), Number(s.longitude), lat, lon);
     if (!Number.isFinite(km) || km > MAX_FOOD_DELIVERY_KM) continue;
     if (!best || km < best.distanceKm) best = { station: s, distanceKm: km };

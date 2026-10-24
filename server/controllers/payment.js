@@ -16,6 +16,8 @@ import { getSettings } from '../utils/tripSettlement.js';
 import { settleFoodOrderOnDelivery, settlementStatusFor, syncRiderDeliveryPay } from '../utils/foodOrderSettlement.js';
 import { applyRefundOutcome, startRefundIfDue } from '../utils/orderRefunds.js';
 import { reconcilePaystackRidePayment } from '../utils/ridePayments.js';
+import { reconcileStorePayment } from '../utils/storePayments.js';
+import StorePayment from '../models/StorePayment.js';
 import { payOutRiderBalance } from '../utils/riderPayout.js';
 import {
   initializePaystackCheckout,
@@ -734,7 +736,12 @@ export const paystackWebhook = async (req, res) => {
       return;
     }
     const topUp = await PendingTopUp.findOne({ clientReference: reference });
-    if (topUp) await reconcilePaystackTopUp(topUp);
+    if (topUp) {
+      await reconcilePaystackTopUp(topUp);
+      return;
+    }
+    const storePayment = await StorePayment.findOne({ clientReference: reference });
+    if (storePayment) await reconcileStorePayment(storePayment);
   } catch (err) {
     console.error('[paystack] webhook handling failed:', reference, err.message);
   }

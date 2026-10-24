@@ -9,7 +9,9 @@ import { StatusCodes } from "http-status-codes";
 import { BadRequestError, NotFoundError } from "../../errors/index.js";
 import { normalizePhone } from "../../utils/phone.js";
 import { detectGhMomoChannel } from "../../utils/momo.js";
-import { computeOpenState, sanitizeHours } from "../../utils/storeHours.js";
+import { sanitizeHours } from "../../utils/storeHours.js";
+import { storeDebtStatus, storeOpenState } from "../../utils/storeDebt.js";
+import { getSettings } from "../../utils/tripSettlement.js";
 import { getStoreReadiness, reviewStatus } from "../../utils/storeReadiness.js";
 
 /** GET /merchant/restaurants — all stores this account can manage */
@@ -146,12 +148,15 @@ export const getMyRestaurant = async (req, res) => {
   const restaurant = await Restaurant.findById(req.restaurantId)
     .populate("owner", "name username phone")
     .lean();
-  const openState = restaurant ? computeOpenState(restaurant) : null;
+  const settings = await getSettings();
+  const openState = restaurant ? storeOpenState(restaurant, settings) : null;
+  const debt = restaurant ? storeDebtStatus(restaurant, settings) : null;
   const readiness = restaurant ? await getStoreReadiness(restaurant) : null;
   if (restaurant?.review) delete restaurant.review.by;
   res.status(StatusCodes.OK).json({
     restaurant,
     openState,
+    debt,
     role: req.user.role,
     reviewStatus: restaurant ? reviewStatus(restaurant) : null,
     readiness,
@@ -297,7 +302,7 @@ export const setAcceptingOrders = async (req, res) => {
   restaurant.isAcceptingOrders = req.body.isAcceptingOrders;
   await restaurant.save();
 
-  const openState = computeOpenState(restaurant);
+  const openState = storeOpenState(restaurant, await getSettings());
   res.status(StatusCodes.OK).json({
     message: restaurant.isAcceptingOrders ? "Orders resumed" : "Orders paused",
     isAcceptingOrders: restaurant.isAcceptingOrders,

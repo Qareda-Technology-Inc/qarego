@@ -67,15 +67,20 @@ export function todayHoursLabel(hours, now = new Date()) {
 
 /**
  * Resolve whether a restaurant is open for orders right now.
- * Returns { isOpen, status, label, todayHours }.
+ * Returns { isOpen, status, label, todayHours, pausedForDebt? }.
  *   status: "open" | "paused" | "closed" | "unavailable"
+ * Pass { overDebtLimit: true } for a store that owes QareGO more than the limit (utils/storeDebt.js):
+ * customers see it as temporarily closed.
  */
-export function computeOpenState(restaurant, now = new Date()) {
+export function computeOpenState(restaurant, now = new Date(), { overDebtLimit = false } = {}) {
   if (restaurant?.isActive === false) {
     return { isOpen: false, status: "unavailable", label: "Unavailable", todayHours: null };
   }
   if (restaurant?.isAcceptingOrders === false) {
     return { isOpen: false, status: "paused", label: "Temporarily closed", todayHours: null };
+  }
+  if (overDebtLimit) {
+    return { isOpen: false, status: "paused", label: "Temporarily closed", todayHours: null, pausedForDebt: true };
   }
   const hours = restaurant?.openingHours;
   if (Array.isArray(hours) && hours.length === 7 && !isWithinHours(hours, now)) {

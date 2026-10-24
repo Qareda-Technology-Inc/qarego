@@ -4,14 +4,16 @@ const { Schema } = mongoose;
 
 /**
  * Money a store owes QareGO, and what it has paid back. Cash pickup orders leave QareGO's share
- * (commission + service fee) with the store; admin records cash repayments.
+ * (commission + service fee) with the store. The store pays it back by MoMo/card in the merchant
+ * portal, or in cash that admin records.
  * amount > 0 = store now owes more; amount < 0 = payment received.
  */
 const storeLedgerEntrySchema = new Schema(
   {
     restaurant: { type: Schema.Types.ObjectId, ref: "Restaurant", required: true, index: true },
     foodOrder: { type: Schema.Types.ObjectId, ref: "FoodOrder", default: null },
-    type: { type: String, enum: ["PICKUP_COMMISSION", "CASH_PAYMENT", "CANCELLATION_FEE"], required: true },
+    // MOMO_PAYMENT: paid by the store in the merchant portal (Paystack). CASH_PAYMENT: recorded by admin.
+    type: { type: String, enum: ["PICKUP_COMMISSION", "CASH_PAYMENT", "MOMO_PAYMENT", "CANCELLATION_FEE"], required: true },
     amount: { type: Number, required: true },
     owedAfter: { type: Number, required: true },
     note: { type: String, default: null },

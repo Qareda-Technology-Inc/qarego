@@ -67,6 +67,7 @@ type Form = {
     debtLimit: string;
     minCashout: string;
     storeFreeDays: string;
+    storeDebtLimit: string;
   };
   vehiclePolicy: { pragyaFoodEnabled: boolean; comfortFoodEnabled: boolean };
   reliability: { strikesBeforePause: string; pauseDurationHours: string; strikeDecayOnCompletion: string };
@@ -133,6 +134,7 @@ function formFromSettings(data: any): Form {
       debtLimit: String(data.debtLimit ?? -100),
       minCashout: String(data.minCashoutAmount ?? 1),
       storeFreeDays: String(data.storeFreePeriodDays ?? 0),
+      storeDebtLimit: String(data.storeDebtLimit ?? 0),
     },
     vehiclePolicy: { pragyaFoodEnabled: !!vcp.pragyaFoodEnabled, comfortFoodEnabled: !!vcp.comfortFoodEnabled },
     reliability: {
@@ -194,6 +196,7 @@ function payloadFor(tab: TabKey, f: Form): Record<string, unknown> | string {
         debtLimit,
         minCashoutAmount: parseMoney(f.commission.minCashout, 1),
         storeFreePeriodDays,
+        storeDebtLimit: parseMoney(f.commission.storeDebtLimit, 0),
       };
     }
     case 'dispatch':
@@ -568,6 +571,30 @@ function SettingsTabs() {
                       max="365"
                       value={form.commission.storeFreeDays}
                       onChange={(storeFreeDays) => update('commission', { storeFreeDays })}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Store debt limit</CardTitle>
+                  <CardDescription>
+                    Stores owe QareGO its share of cash pickup orders and any courier cancellation fees. A store that
+                    owes more than this gets no new orders (customers see it as temporarily closed) until it pays,
+                    online with Pay QareGO in the merchant portal or in cash. It starts again as soon as it&apos;s
+                    back under the limit.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="max-w-xs">
+                    <Field
+                      id="storeDebtLimit"
+                      label={`Most a store may owe (${CURRENCY_SYMBOL})`}
+                      hint="0 = no limit"
+                      step="1"
+                      value={form.commission.storeDebtLimit}
+                      onChange={(storeDebtLimit) => update('commission', { storeDebtLimit })}
                     />
                   </div>
                 </CardContent>

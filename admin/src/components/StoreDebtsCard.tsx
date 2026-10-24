@@ -15,6 +15,8 @@ type DebtRow = {
   vertical?: string;
   isActive?: boolean;
   owed: number;
+  /** Over the debt limit: no new orders until the store pays. */
+  paused?: boolean;
 };
 
 type LedgerEntry = {
@@ -33,7 +35,8 @@ type LedgerResponse = { entries?: LedgerEntry[]; total?: number; pages?: number 
 /** Same wording the merchant portal uses, so admin and store read the same history. */
 const TYPE_LABELS: Record<string, string> = {
   PICKUP_COMMISSION: "Pickup order commission",
-  CASH_PAYMENT: "Payment to QareGO",
+  CASH_PAYMENT: "Cash payment to QareGO",
+  MOMO_PAYMENT: "Paid online (MoMo or card)",
   CANCELLATION_FEE: "Courier cancellation fee",
 };
 
@@ -134,11 +137,13 @@ export function StoreDebtsCard() {
   const [showAll, setShowAll] = useState(false);
   const [open, setOpen] = useState<string | null>(null);
   const [version, setVersion] = useState(0);
+  const [debtLimit, setDebtLimit] = useState(0);
 
   const load = useCallback(async () => {
     try {
       const data = await fetcher(`/admin/store-debts${showAll ? "?all=1" : ""}`);
       setRows(data.stores ?? []);
+      setDebtLimit(Number(data.debtLimit ?? 0));
     } catch (e) {
       console.error(e);
     } finally {
@@ -195,8 +200,12 @@ export function StoreDebtsCard() {
         </CardTitle>
         <CardDescription>
           Pickup orders are paid to the store in cash, so QareGO&apos;s share (commission and
-          service fee) is owed by the store, along with any courier cancellation fees. Record the
-          store&apos;s cash payments here. Stores see the same history in the merchant portal.
+          service fee) is owed by the store, along with any courier cancellation fees. Stores can pay
+          it online from the merchant portal (Pay QareGO); record cash payments here. Stores see the
+          same history in the merchant portal.{" "}
+          {debtLimit > 0
+            ? `A store owing more than ${formatCurrency(debtLimit)} gets no new orders until it pays.`
+            : "There is no debt limit (set one in Settings → Commission)."}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -255,6 +264,11 @@ export function StoreDebtsCard() {
                                   {r.isActive === false && (
                                     <span className="ml-2 text-xs font-normal text-gray-400">inactive</span>
                                   )}
+                                  {r.paused ? (
+                                    <span className="ml-2 rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800">
+                                      Orders paused
+                                    </span>
+                                  ) : null}
                                 </span>
                                 <span className="block text-xs text-gray-500">
                                   {[r.vertical, r.owner?.name, r.owner?.phone].filter(Boolean).join(" · ")}

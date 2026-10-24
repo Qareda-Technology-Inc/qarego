@@ -15,6 +15,7 @@ import Ride from "../models/Ride.js";
 import User from "../models/User.js";
 import Transaction from "../models/Transaction.js";
 import { detectGhMomoChannel, formatGhPhone } from "./momo.js";
+import { notifyIfNewlyOverDebtLimit } from "./storeDebt.js";
 import { getCommissionRateForService, getSettings } from "./tripSettlement.js";
 
 const DEFAULT_FOOD_DELIVERY_COMMISSION = 0;
@@ -278,6 +279,7 @@ async function recordStorePickupCommission(order, platformNet) {
       { $inc: { commissionOwed: platformNet } },
       { new: true }
     );
+    void notifyIfNewlyOverDebtLimit(store, platformNet);
     await StoreLedgerEntry.create({
       restaurant: order.restaurant,
       foodOrder: order._id,

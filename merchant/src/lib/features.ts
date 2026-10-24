@@ -4,8 +4,8 @@ import { useEffect, useState } from "react";
 import { fetcher } from "@/lib/api";
 
 /**
- * Feature switches set on the server (GET /features). Mobile money is paused while QareGO
- * moves to a new provider; the server's MOMO_ENABLED turns its screens back on everywhere.
+ * Feature switches set on the server (GET /features). The server's MOMO_ENABLED turns mobile
+ * money and card payments (Paystack) on or off everywhere.
  */
 export type Features = { momoEnabled: boolean };
 

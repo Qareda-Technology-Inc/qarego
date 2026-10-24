@@ -19,7 +19,7 @@ import { computeFoodOrderSplit, retryFoodOrderSettlement } from "../utils/foodOr
 import { computeFoodServiceFee } from "../utils/foodServiceFee.js";
 import { assertServiceAvailableAt } from "../utils/serviceZones.js";
 import { applyLaundryCustomerDecision, applyRestaurantAction } from "../utils/foodOrderFlow.js";
-import { computeOpenState } from "../utils/storeHours.js";
+import { storeOpenState } from "../utils/storeDebt.js";
 import { inferVerticalFromCategoryName } from "../utils/commerceStoreTypes.js";
 import { buildMenuPayload } from "../utils/menuResponse.js";
 import { MENU_ITEM_TAGS } from "../utils/menuDisplay.js";
@@ -44,8 +44,8 @@ import {
   resolveLaundryPickupAt,
 } from "../utils/laundryPickup.js";
 /** Attach computed open/closed metadata to a plain restaurant object. */
-const withOpenState = (restaurant, now = new Date()) => {
-  const state = computeOpenState(restaurant, now);
+const withOpenState = (restaurant, settings, now = new Date()) => {
+  const state = storeOpenState(restaurant, settings, now);
   const vertical =
     restaurant.vertical || inferVerticalFromCategoryName(restaurant.category);
   return {
@@ -66,9 +66,10 @@ export const listRestaurants = async (req, res) => {
     .select("-__v")
     .lean();
   const now = new Date();
+  const settings = await getSettings();
   res
     .status(StatusCodes.OK)
-    .json({ restaurants: restaurants.map((r) => withOpenState(r, now)) });
+    .json({ restaurants: restaurants.map((r) => withOpenState(r, settings, now)) });
 };
 
 /** GET /food/restaurants/:id */
@@ -80,7 +81,8 @@ export const getRestaurantMenu = async (req, res) => {
   if (!restaurantDoc) {
     throw new NotFoundError("Restaurant not found");
   }
-  const restaurant = withOpenState(restaurantDoc);
+  const settings = await getSettings();
+  const restaurant = withOpenState(restaurantDoc, settings);
 
   const menuItems = await MenuItem.find({
     restaurant: restaurant._id,
@@ -89,7 +91,6 @@ export const getRestaurantMenu = async (req, res) => {
     .sort({ category: 1, name: 1 })
     .lean();
 
-  const settings = await getSettings();
   const { categories, menu } = await buildMenuPayload(
     restaurant._id,
     menuItems,
@@ -214,7 +215,8 @@ export const createFoodOrder = async (req, res) => {
     }
   }
 
-  const openState = computeOpenState(restaurant);
+  // A store over its debt limit counts as paused (utils/storeDebt.js).
+  const openState = storeOpenState(restaurant, await getSettings());
   if (!openState.isOpen && !(laundryPickupAt && openState.status === "closed")) {
     const suffix =
       openState.status === "closed"

@@ -4,6 +4,7 @@ import FoodPayment from "../../models/FoodPayment.js";
 import FoodOrder from "../../models/FoodOrder.js";
 import Ride from "../../models/Ride.js";
 import PendingTopUp from "../../models/PendingTopUp.js";
+import StorePayment from "../../models/StorePayment.js";
 import Transaction from "../../models/Transaction.js";
 import { StatusCodes } from "http-status-codes";
 
@@ -24,7 +25,7 @@ export const getMoneyMovements = async (req, res) => {
   const { from, to } = readRange(req.query);
   const inRange = { $gte: from, $lte: to };
 
-  const [foodPays, ridePays, topUps, payoutTx, settledOrders, refundOrders] = await Promise.all([
+  const [foodPays, ridePays, topUps, payoutTx, settledOrders, refundOrders, storePays] = await Promise.all([
     FoodPayment.find({ updatedAt: inRange, status: { $in: ["success", "failed", "pending"] } })
       .populate("customer", "name phone")
       .populate("order", "restaurantName status")
@@ -56,6 +57,11 @@ export const getMoneyMovements = async (req, res) => {
       .select("restaurantName total paymentReference refundStatus refund refundedAt cancelledAt customer updatedAt")
       .populate("customer", "name phone")
       .sort({ updatedAt: -1 })
+      .limit(500)
+      .lean(),
+    StorePayment.find({ createdAt: inRange })
+      .populate("restaurant", "name")
+      .sort({ createdAt: -1 })
       .limit(500)
       .lean(),
   ]);
@@ -102,6 +108,17 @@ export const getMoneyMovements = async (req, res) => {
       detail: "Commission debt",
       channel: t.provider || "paystack",
       link: null,
+    })),
+    ...storePays.map((p) => ({
+      kind: "Store paid QareGO",
+      at: p.completedAt || p.createdAt,
+      amount: round2(p.amount),
+      status: p.status === "completed" ? "paid" : p.status,
+      reference: p.clientReference,
+      who: p.restaurant?.name || "Store",
+      detail: "Balance owed (pickup commission, cancellation charges)",
+      channel: p.channel || null,
+      link: p.restaurant?._id ? `/restaurants/${p.restaurant._id}` : null,
     })),
   ].sort((a, b) => new Date(b.at) - new Date(a.at));
 

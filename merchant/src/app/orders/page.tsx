@@ -6,6 +6,7 @@ import { fetchMerchantOrders } from "@/lib/ordersApi";
 import type { FoodOrderRow } from "@/lib/orderTypes";
 import { formatOrderModifierLine } from "@/lib/orderDisplay";
 import { formatCurrency } from "@/lib/currency";
+import Link from "next/link";
 import { getSocket } from "@/lib/socket";
 import { stopNewOrderRing } from "@/lib/sound";
 import { useAuth } from "@/context/AuthContext";
@@ -46,7 +47,15 @@ type RestaurantLoc = {
   name?: string;
   isAcceptingOrders?: boolean;
 };
-type OpenState = { isOpen: boolean; status: string; label: string; todayHours?: string | null };
+type OpenState = {
+  isOpen: boolean;
+  status: string;
+  label: string;
+  todayHours?: string | null;
+  /** The store owes QareGO more than the debt limit: no new orders until it pays. */
+  pausedForDebt?: boolean;
+};
+type Debt = { owed: number; limit: number; paused: boolean };
 type Stats = { todayOrders: number; todayRevenue: number; pending: number; active: number };
 type Action =
   | "accept"
@@ -115,6 +124,8 @@ export default function OrdersPage() {
   const [acting, setActing] = useState<string | null>(null);
   const [restaurant, setRestaurant] = useState<RestaurantLoc | null>(null);
   const [openState, setOpenState] = useState<OpenState | null>(null);
+  const [debt, setDebt] = useState<Debt | null>(null);
+  const [myRole, setMyRole] = useState<string | null>(null);
   const [pausing, setPausing] = useState(false);
   const [mapOrderId, setMapOrderId] = useState<string | null>(null);
   const [stats, setStats] = useState<Stats | null>(null);
@@ -161,6 +172,8 @@ export default function OrdersPage() {
       .then((data) => {
         setRestaurant(data.restaurant);
         setOpenState(data.openState ?? null);
+        setDebt(data.debt ?? null);
+        setMyRole(data.role ?? null);
       })
       .catch(() => {});
   }, []);
@@ -260,6 +273,20 @@ export default function OrdersPage() {
 
   return (
     <div className="flex flex-col gap-5">
+      {debt?.paused ? (
+        <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          <span className="flex-1">
+            <strong>New orders are paused.</strong> This store owes QareGO {formatCurrency(debt.owed)}, over the{" "}
+            {formatCurrency(debt.limit)} limit.{" "}
+            {myRole === "cook" ? "Ask the store owner to pay QareGO." : "Pay QareGO to start getting orders again straight away."}
+          </span>
+          {myRole !== "cook" ? (
+            <Link href="/transactions" className="rounded-xl bg-red-600 px-3 py-2 text-xs font-semibold text-white hover:bg-red-700">
+              Pay QareGO
+            </Link>
+          ) : null}
+        </div>
+      ) : null}
       <header className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-3">
@@ -294,7 +321,9 @@ export default function OrdersPage() {
               />
               {paused
                 ? "Paused"
-                : openState?.status === "closed"
+                : openState?.pausedForDebt
+                  ? "Paused: balance owed"
+                  : openState?.status === "closed"
                   ? "Outside opening hours"
                   : openState?.label ?? "Open"}
             </span>

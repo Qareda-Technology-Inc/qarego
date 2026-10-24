@@ -121,7 +121,10 @@ Some amounts are owed to QareGO and are recorded against your store:
 - QareGO's share of **cash pickup orders**;
 - **cancellation charges** (section 7).
 
-You can see what you owe, and every entry, in the portal under **Settings → balance**. Pay it to QareGO as agreed with your QareGO contact, and it's recorded in the portal.
+You can see what you owe, and every entry, on the **Transactions** page under **Balance with QareGO**.
+
+- **Pay QareGO:** tap the button there to pay by mobile money or card. It goes off your balance as soon as the payment goes through. You can also pay in cash to QareGO, which records it for you.
+- **Debt limit:** if your store owes more than QareGO's limit, **new orders are paused** until you pay. Customers see your store as temporarily closed. The Kitchen page shows a red banner with the amount, and orders start again the moment you're back under the limit.
 
 ### Your records
 

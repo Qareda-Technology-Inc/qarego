@@ -11,6 +11,7 @@ import FoodPayment from "../../models/FoodPayment.js";
 import FoodOrder from "../../models/FoodOrder.js";
 import { retryFoodOrderSettlement } from "../../utils/foodOrderSettlement.js";
 import { payOutRiderBalance } from "../../utils/riderPayout.js";
+import { isOverDebtLimit, storeDebtLimit } from "../../utils/storeDebt.js";
 
 const money = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
@@ -355,14 +356,20 @@ export const getRiderDebtsAdmin = async (_req, res) => {
  */
 export const getStoreDebtsAdmin = async (req, res) => {
   const all = req.query?.all === "1" || req.query?.all === "true";
-  const stores = await Restaurant.find(all ? {} : { commissionOwed: { $gt: 0.004 } })
-    .select("name address commissionOwed owner vertical isActive")
-    .populate("owner", "name phone")
-    .sort({ commissionOwed: -1 })
-    .limit(500)
-    .lean();
+  const [stores, settings] = await Promise.all([
+    Restaurant.find(all ? {} : { commissionOwed: { $gt: 0.004 } })
+      .select("name address commissionOwed owner vertical isActive")
+      .populate("owner", "name phone")
+      .sort({ commissionOwed: -1 })
+      .limit(500)
+      .lean(),
+    getSettings(),
+  ]);
   res.status(StatusCodes.OK).json({
+    debtLimit: storeDebtLimit(settings),
     stores: stores.map((s) => ({
+      // Over the limit: no new orders until the store pays.
+      paused: isOverDebtLimit(s, settings),
       _id: s._id,
       name: s.name,
       address: s.address,

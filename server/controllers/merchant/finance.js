@@ -5,6 +5,15 @@ import StoreLedgerEntry from "../../models/StoreLedgerEntry.js";
 import { StatusCodes } from "http-status-codes";
 import { BadRequestError } from "../../errors/index.js";
 import { isCommissionFree } from "../../utils/commissionFree.js";
+import User from "../../models/User.js";
+import StorePayment from "../../models/StorePayment.js";
+import { assertMomoEnabled } from "../../utils/momoAvailability.js";
+import { initializePaystackCheckout, isPaystackConfigured, paystackEmailFor } from "../../utils/paystackService.js";
+import { makePaymentRef } from "../../utils/momo.js";
+import { merchantPortalBase } from "../../utils/portalOrigins.js";
+import { reconcileStorePayment } from "../../utils/storePayments.js";
+import { storeDebtStatus } from "../../utils/storeDebt.js";
+import { getSettings } from "../../utils/tripSettlement.js";
 
 // A MoMo order pays the store and the rider separately. The store sees only its own payout, so
 // a failed rider transfer doesn't show as "failed" on an order the store was paid for.
@@ -343,12 +352,19 @@ export const getMyLedger = async (req, res) => {
   }
 
   const money = (n) => Math.round((Number(n) || 0) * 100) / 100;
-  const balances = scope.map((r) => ({
-    restaurantId: String(r._id),
-    name: r.name,
-    imageEmoji: r.imageEmoji,
-    owed: money(r.commissionOwed),
-  }));
+  const settings = await getSettings();
+  const balances = scope.map((r) => {
+    const debt = storeDebtStatus(r, settings);
+    return {
+      restaurantId: String(r._id),
+      name: r.name,
+      imageEmoji: r.imageEmoji,
+      owed: money(r.commissionOwed),
+      // Over the limit: the store gets no new orders until it pays.
+      limit: debt.limit,
+      paused: debt.paused,
+    };
+  });
 
   const perPage = Math.min(Math.max(parseInt(limit, 10) || 25, 1), 100);
   const pageNum = Math.max(parseInt(page, 10) || 1, 1);
@@ -383,4 +399,71 @@ export const getMyLedger = async (req, res) => {
     page: pageNum,
     pages: Math.max(Math.ceil(total / perPage), 1),
   });
+};
+
+/**
+ * POST /merchant/balance/pay { restaurantId, amount? } — pay what a store owes QareGO on
+ * Paystack's checkout (mobile money or card). Defaults to the whole balance. An unpaid checkout
+ * for the same amount is reused.
+ */
+export const startStorePayment = async (req, res) => {
+  assertMomoEnabled();
+  if (!isPaystackConfigured()) throw new BadRequestError("Online payments aren't set up yet. Pay QareGO in cash for now.");
+  const store = await Restaurant.findOne({ _id: req.body?.restaurantId, owner: req.user.id }).select("name commissionOwed").lean();
+  if (!store) throw new BadRequestError("Store not found or not owned by you");
+  const owed = round2(store.commissionOwed);
+  if (owed <= 0) throw new BadRequestError("This store doesn't owe QareGO anything");
+  const requested = req.body?.amount == null || req.body.amount === "" ? owed : round2(req.body.amount);
+  if (!Number.isFinite(requested) || requested < 1) throw new BadRequestError("Pay at least GH₵1");
+  if (requested > owed) throw new BadRequestError(`That's more than the GH₵${owed.toFixed(2)} you owe`);
+
+  // An open checkout is reused (after checking it wasn't paid meanwhile).
+  let open = await StorePayment.findOne({ restaurant: store._id, status: "pending" }).sort({ createdAt: -1 });
+  if (open) open = await reconcileStorePayment(open);
+  if (open?.status === "pending" && open.checkoutUrl && Math.abs(open.amount - requested) < 0.005) {
+    return res.status(StatusCodes.OK).json({ reference: open.clientReference, checkoutUrl: open.checkoutUrl, amount: open.amount });
+  }
+  if (open?.status === "pending") await StorePayment.updateOne({ _id: open._id, status: "pending" }, { $set: { status: "failed" } });
+
+  const reference = makePaymentRef("sp", store._id);
+  const portal = merchantPortalBase() || req.get("origin") || "";
+  const back = `${portal.replace(/\/$/, "")}/transactions?storePayment=${reference}`;
+  const owner = await User.findById(req.user.id).select("email phone").lean();
+  let checkout;
+  try {
+    checkout = await initializePaystackCheckout({
+      amount: requested,
+      email: paystackEmailFor({ ...owner, id: req.user.id }),
+      reference,
+      callbackUrl: back,
+      cancelUrl: back,
+      metadata: { kind: "store_payment", restaurantId: String(store._id), label: `QareGO balance: ${store.name}` },
+    });
+  } catch (err) {
+    throw new BadRequestError(err.message || "Could not start the payment. Please try again.");
+  }
+  await StorePayment.create({
+    restaurant: store._id,
+    paidBy: req.user.id,
+    amount: requested,
+    clientReference: reference,
+    checkoutUrl: checkout.authorizationUrl,
+  });
+  res.status(StatusCodes.OK).json({ reference, checkoutUrl: checkout.authorizationUrl, amount: requested });
+};
+
+/** GET /merchant/balance/pay/:reference — whether a store payment went through (checks Paystack). */
+export const getStorePaymentStatus = async (req, res) => {
+  const payment = await StorePayment.findOne({ clientReference: req.params.reference });
+  if (!payment) throw new BadRequestError("Payment not found");
+  const owns = await Restaurant.exists({ _id: payment.restaurant, owner: req.user.id });
+  if (!owns) throw new BadRequestError("Payment not found");
+  let fresh = payment;
+  try {
+    fresh = await reconcileStorePayment(payment);
+  } catch (err) {
+    console.warn("[store-payment] status check failed:", payment.clientReference, err.message);
+  }
+  const store = await Restaurant.findById(payment.restaurant).select("commissionOwed").lean();
+  res.status(StatusCodes.OK).json({ status: fresh.status, amount: fresh.amount, owed: round2(store?.commissionOwed) });
 };

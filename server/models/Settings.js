@@ -58,6 +58,15 @@ const settingsSchema = new Schema(
       default: 12,
       min: 0,
     },
+    /**
+     * Most a store may owe QareGO (cash pickup commission, cancellation charges) before it stops
+     * getting new orders. 0 = no limit.
+     */
+    storeDebtLimit: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
     /** Days without commission a new store gets when it goes live (0 = no free period). */
     storeFreePeriodDays: {
       type: Number,

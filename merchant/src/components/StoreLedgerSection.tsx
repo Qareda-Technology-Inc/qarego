@@ -2,11 +2,20 @@
 
 import { useEffect, useState } from "react";
 import { fetcher } from "@/lib/api";
+import { useFeatures } from "@/lib/features";
 import { formatCurrency } from "@/lib/currency";
 import { Button } from "@/components/ui/Button";
-import { Landmark, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react";
+import { Landmark, RefreshCw, ChevronLeft, ChevronRight, CreditCard, AlertTriangle } from "lucide-react";
 
-type Balance = { restaurantId: string; name: string; imageEmoji?: string; owed: number };
+type Balance = {
+  restaurantId: string;
+  name: string;
+  imageEmoji?: string;
+  owed: number;
+  /** QareGO's debt limit (0 = none). Over it, the store gets no new orders until it pays. */
+  limit?: number;
+  paused?: boolean;
+};
 
 type Entry = {
   _id: string;
@@ -26,8 +35,12 @@ const TYPE_LABELS: Record<string, { label: string; hint: string }> = {
     hint: "QareGO's share of an order the customer collected and paid at the store",
   },
   CASH_PAYMENT: {
-    label: "Payment to QareGO",
-    hint: "A payment you made towards what you owe",
+    label: "Cash payment to QareGO",
+    hint: "A cash payment you made towards what you owe",
+  },
+  MOMO_PAYMENT: {
+    label: "Paid online",
+    hint: "You paid QareGO by mobile money or card",
   },
   CANCELLATION_FEE: {
     label: "Courier cancellation fee",
@@ -61,6 +74,74 @@ export function StoreLedgerSection({ storeFilter }: { storeFilter: string }) {
     null
   );
   const [lastData, setLastData] = useState<LedgerResponse>({});
+  const { momoEnabled } = useFeatures();
+  const [paying, setPaying] = useState<string | null>(null);
+  const [payNotice, setPayNotice] = useState<{ tone: "ok" | "wait" | "bad"; text: string } | null>(null);
+
+  // Back from Paystack (?storePayment=<ref>): confirm the payment, then refresh the balance.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    const ref = url.searchParams.get("storePayment");
+    if (!ref) return;
+    url.searchParams.delete("storePayment");
+    window.history.replaceState(null, "", url.toString());
+    let stopped = false;
+    let tries = 0;
+    const check = async () => {
+      if (stopped) return;
+      tries += 1;
+      try {
+        const data = await fetcher(`/merchant/balance/pay/${encodeURIComponent(ref)}`);
+        if (data.status === "completed") {
+          setPayNotice({ tone: "ok", text: `Payment received. Thank you! You now owe ${formatCurrency(data.owed)}.` });
+          setRefreshNonce((n) => n + 1);
+          return;
+        }
+        if (tries >= 10) {
+          setPayNotice({
+            tone: "bad",
+            text: "We haven't received this payment. If money left your account, it will show here once Paystack confirms it.",
+          });
+          return;
+        }
+        setPayNotice({ tone: "wait", text: "Confirming your payment…" });
+      } catch {
+        if (tries >= 10) return;
+      }
+      setTimeout(check, 3000);
+    };
+    const t = setTimeout(check, 0);
+    return () => {
+      stopped = true;
+      clearTimeout(t);
+    };
+  }, []);
+
+  const pay = async (b: Balance) => {
+    const input = window.prompt(
+      `Pay QareGO for ${b.name}. You owe ${formatCurrency(b.owed)}. How much do you want to pay now?`,
+      b.owed.toFixed(2)
+    );
+    if (input === null) return;
+    const amount = Number(input);
+    if (!Number.isFinite(amount) || amount < 1) {
+      window.alert("Enter an amount of at least GH₵1.");
+      return;
+    }
+    setPaying(b.restaurantId);
+    try {
+      const data = await fetcher("/merchant/balance/pay", {
+        method: "POST",
+        body: JSON.stringify({ restaurantId: b.restaurantId, amount }),
+      });
+      // Paystack's secure page (mobile money or card); it sends you back here when done.
+      window.location.assign(data.checkoutUrl);
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : "Couldn't start the payment");
+      setPaying(null);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -125,6 +206,35 @@ export function StoreLedgerSection({ storeFilter }: { storeFilter: string }) {
         </div>
       ) : null}
 
+      {payNotice ? (
+        <div
+          className={`mb-4 rounded-2xl border px-4 py-3 text-sm ${
+            payNotice.tone === "ok"
+              ? "border-emerald-100 bg-emerald-50 text-emerald-800"
+              : payNotice.tone === "wait"
+                ? "border-sky-100 bg-sky-50 text-sky-800"
+                : "border-amber-100 bg-amber-50 text-amber-800"
+          }`}
+        >
+          {payNotice.text}
+        </div>
+      ) : null}
+
+      {balances
+        .filter((b) => b.paused)
+        .map((b) => (
+          <div
+            key={`paused-${b.restaurantId}`}
+            className="mb-4 flex flex-wrap items-center gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
+          >
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            <span className="flex-1">
+              <strong>New orders are paused for {b.name}.</strong> It owes {formatCurrency(b.owed)}, over QareGO&apos;s{" "}
+              {formatCurrency(b.limit ?? 0)} limit. Pay to start getting orders again straight away.
+            </span>
+          </div>
+        ))}
+
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
         <div
           className={`rounded-2xl border p-4 ${
@@ -138,6 +248,17 @@ export function StoreLedgerSection({ storeFilter }: { storeFilter: string }) {
           <p className="text-[11px] text-muted mt-1">
             {totalOwed > 0 ? "Payable to QareGO" : "Nothing owed"}
           </p>
+          {momoEnabled && balances.length === 1 && balances[0].owed > 0 ? (
+            <Button
+              type="button"
+              className="mt-3 w-full"
+              disabled={paying === balances[0].restaurantId}
+              onClick={() => pay(balances[0])}
+            >
+              <CreditCard className="mr-1 inline h-4 w-4" />
+              {paying === balances[0].restaurantId ? "Opening…" : "Pay QareGO"}
+            </Button>
+          ) : null}
         </div>
         {showStoreColumn && balances.length > 1
           ? balances.map((b) => (
@@ -147,6 +268,18 @@ export function StoreLedgerSection({ storeFilter }: { storeFilter: string }) {
                   {b.name}
                 </p>
                 <p className="text-xl font-bold mt-1 text-foreground">{formatCurrency(b.owed)}</p>
+                {b.paused ? <p className="text-[11px] font-semibold text-red-700 mt-1">Orders paused</p> : null}
+                {momoEnabled && b.owed > 0 ? (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="mt-2 w-full"
+                    disabled={paying === b.restaurantId}
+                    onClick={() => pay(b)}
+                  >
+                    {paying === b.restaurantId ? "Opening…" : "Pay"}
+                  </Button>
+                ) : null}
               </div>
             ))
           : null}

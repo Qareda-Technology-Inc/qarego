@@ -3,6 +3,7 @@ import User from "../models/User.js";
 import Restaurant from "../models/Restaurant.js";
 import Transaction from "../models/Transaction.js";
 import StoreLedgerEntry from "../models/StoreLedgerEntry.js";
+import { notifyIfNewlyOverDebtLimit } from "./storeDebt.js";
 
 const roundMoney = (value) => Math.round((Number(value) || 0) * 100) / 100;
 
@@ -61,6 +62,7 @@ export async function compensateCourierForCancel(rideId, { restaurantId, chargeS
       { $inc: { commissionOwed: amount } },
       { new: true }
     );
+    void notifyIfNewlyOverDebtLimit(store, amount);
     await StoreLedgerEntry.create({
       restaurant: restaurantId,
       foodOrder: ride.foodOrder ?? null,

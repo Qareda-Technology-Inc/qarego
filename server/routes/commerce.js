@@ -1,3 +1,4 @@
+import requireAdmin from "../middleware/requireAdmin.js";
 import express from "express";
 import {
   listRestaurants,
@@ -36,6 +37,8 @@ router.get("/orders/:id", getFoodOrder);
 router.post("/orders/:id/rate", rateFoodOrder);
 
 // Back-office order moderation alias
+// Same admin store-order actions as /food/admin; requireAdmin applies the admin's role (staff can't).
+router.use("/admin", requireAdmin);
 router.get("/admin/orders", adminListFoodOrders);
 router.patch("/admin/orders/:id", adminRestaurantOrderAction);
 

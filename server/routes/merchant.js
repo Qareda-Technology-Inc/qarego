@@ -14,6 +14,8 @@ import {
   getMyOverview,
   getMyFinance,
   getMyLedger,
+  startStorePayment,
+  getStorePaymentStatus,
   getMyRestaurant,
   updateMyRestaurant,
   submitMyStoreForReview,
@@ -64,6 +66,8 @@ router.delete("/categories/:id", requireOwner, deleteMyCategory);
 router.get("/overview", requireOwner, getMyOverview);
 router.get("/finance", requireOwner, getMyFinance);
 router.get("/ledger", requireOwner, getMyLedger);
+router.post("/balance/pay", requireOwner, startStorePayment);
+router.get("/balance/pay/:reference", requireOwner, getStorePaymentStatus);
 
 // Platform kitchen alert (configured by admin)
 router.get("/kitchen-alert-sound", requireMerchantRole, getKitchenAlertSound);

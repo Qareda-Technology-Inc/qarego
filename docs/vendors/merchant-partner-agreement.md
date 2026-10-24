@@ -70,11 +70,13 @@ QareGO may change the commission by giving you at least **[30] days'** notice in
 
 5.3 **Cash pickup orders.** The customer pays you the full amount. QareGO's share (the commission and the service fee) is recorded against your store's balance in the portal and is payable to QareGO.
 
-5.4 **Your balance.** Amounts you owe QareGO (clause 5.3 and clause 6.3) are shown in the portal. You must pay them `[within 7 days / weekly / as agreed]` by `[mobile money / cash to an authorised QareGO representative]`. QareGO may deduct amounts you owe from payments due to you.
+5.4 **Your balance.** Amounts you owe QareGO (clause 5.3 and clause 6.3) are shown in the portal. You must pay them `[within 7 days / weekly / as agreed]`, online in the portal (mobile money or card) or in cash to an authorised QareGO representative. QareGO may deduct amounts you owe from payments due to you.
 
-5.5 **Records.** The portal shows each order, its commission and its payout status. If you think something is wrong, tell QareGO within **[30] days** of the order.
+5.5 **Debt limit.** If your balance goes over the limit QareGO sets (currently `[GH₵ ]`, shown in the portal), your store stops receiving new orders until the balance is back under the limit. Orders already accepted are not affected.
 
-5.6 **Taxes.** You are responsible for the taxes on your sales. QareGO is responsible for the taxes on its commission and fees.
+5.6 **Records.** The portal shows each order, its commission and its payout status. If you think something is wrong, tell QareGO within **[30] days** of the order.
+
+5.7 **Taxes.** You are responsible for the taxes on your sales. QareGO is responsible for the taxes on its commission and fees.
 
 ## 6. Cancellations and refunds
 

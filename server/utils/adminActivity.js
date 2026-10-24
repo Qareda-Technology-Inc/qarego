@@ -90,6 +90,8 @@ const RULES = [
     body.action === "write_off" ? `wrote off unpaid trip ${t} (QareGO paid the rider)` : `marked unpaid trip ${t} as paid in cash`],
   ["PATCH", "/food/admin/orders/:id", "order", "order.action", ({ body, t }) =>
     (ORDER_ACTION[body.action] || `updated order {t}${body.action ? ` (${body.action})` : ""}`).replace("{t}", t)],
+  ["PATCH", "/commerce/admin/orders/:id", "order", "order.action", ({ body, t }) =>
+    (ORDER_ACTION[body.action] || `updated order {t}${body.action ? ` (${body.action})` : ""}`).replace("{t}", t)],
   ["POST", "/admin/food-payments/:id/retry-payout", "money", "order.retry_payout", "retried the payouts for order {t}"],
   // Customers
   ["POST", "/customers", "customer", "customer.add", "added customer {t}"],

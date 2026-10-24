@@ -34,6 +34,7 @@ export const updateSettingsAdmin = async (req, res) => {
       foodServiceFeeMax,
       foodDeliveryCommissionRate,
       storeFreePeriodDays,
+      storeDebtLimit,
       commissionByService,
       vehicleCapabilityPolicy,
       serviceMaintenance,
@@ -92,6 +93,9 @@ export const updateSettingsAdmin = async (req, res) => {
     }
     if (typeof foodServiceFeeMax === 'number' && foodServiceFeeMax >= 0) {
       settings.foodServiceFeeMax = foodServiceFeeMax;
+    }
+    if (typeof storeDebtLimit === 'number' && Number.isFinite(storeDebtLimit) && storeDebtLimit >= 0) {
+      settings.storeDebtLimit = Math.round(storeDebtLimit * 100) / 100;
     }
     if (Number.isInteger(storeFreePeriodDays) && storeFreePeriodDays >= 0 && storeFreePeriodDays <= 365) {
       settings.storeFreePeriodDays = storeFreePeriodDays;
