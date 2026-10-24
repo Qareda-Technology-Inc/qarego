@@ -13,6 +13,7 @@ import MenuCategoryField from "@/components/MenuCategoryField";
 import StoreLocationPicker, { type StoreLocation } from "@/components/StoreLocationPicker";
 import CommissionFreeCard from "@/components/CommissionFreeCard";
 import { ArrowLeft, Plus, Trash2, Edit2, Loader2, Save } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 
 interface Owner {
   _id: string;
@@ -65,6 +66,7 @@ function normalizeCategory(cat?: string) {
 export default function RestaurantDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
+  const { user } = useAuth();
 
   const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
   const [menu, setMenu] = useState<MenuItem[]>([]);
@@ -289,11 +291,14 @@ export default function RestaurantDetailPage({ params }: { params: Promise<{ id:
         </CardContent>
       </Card>
 
-      <CommissionFreeCard
-        restaurantId={restaurant._id}
-        until={restaurant.commissionFreeUntil}
-        onSaved={(until) => setRestaurant({ ...restaurant, commissionFreeUntil: until })}
-      />
+      {/* Money: admins only. */}
+      {user?.adminRole !== "staff" ? (
+        <CommissionFreeCard
+          restaurantId={restaurant._id}
+          until={restaurant.commissionFreeUntil}
+          onSaved={(until) => setRestaurant({ ...restaurant, commissionFreeUntil: until })}
+        />
+      ) : null}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Profile */}

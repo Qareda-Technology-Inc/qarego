@@ -1,4 +1,5 @@
 import User from "../models/User.js";
+import { adminRoleOf } from "../utils/adminAccess.js";
 import { StatusCodes } from "http-status-codes";
 import { BadRequestError, UnauthenticatedError } from "../errors/index.js";
 import jwt from "jsonwebtoken";
@@ -97,7 +98,10 @@ export const adminLogin = async (req, res) => {
     throw new BadRequestError("Please provide username and password");
   }
 
-  const user = await User.findOne({ username }).select('+password');
+  const login = String(username).trim();
+  const user =
+    (await User.findOne({ username: login }).select('+password')) ||
+    (await User.findOne({ username: login.toLowerCase() }).select('+password'));
   if (!user) {
     throw new UnauthenticatedError("Invalid Credentials");
   }
@@ -110,15 +114,21 @@ export const adminLogin = async (req, res) => {
   if (user.role !== 'admin') {
      throw new UnauthenticatedError("Access Denied: Not an admin");
   }
+  if (user.isSuspended || user.deletedAt) {
+    throw new UnauthenticatedError("This admin account has been turned off. Ask your super admin.");
+  }
 
   const accessToken = user.createAccessToken();
   const refreshToken = user.createRefreshToken();
+  await User.updateOne({ _id: user._id }, { $set: { lastAdminLoginAt: new Date() } });
 
   res.status(StatusCodes.OK).json({
     user: {
       userId: user._id,
       name: user.name,
       role: user.role,
+      adminRole: adminRoleOf(user),
+      mustChangePassword: !!user.mustChangePassword,
     },
     accessToken,
     refreshToken,

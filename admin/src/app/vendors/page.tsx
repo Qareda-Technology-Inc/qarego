@@ -22,6 +22,7 @@ import { ConfirmByTypingModal } from "@/components/ConfirmByTypingModal";
 import { VendorLoginModal, type VendorLogin } from "@/components/VendorLoginModal";
 import { VendorApplications } from "@/components/VendorApplications";
 import { formatFreeUntil, isCommissionFree } from "@/lib/freePeriod";
+import { useAuth } from "@/context/AuthContext";
 
 interface Vendor {
   _id: string;
@@ -75,6 +76,8 @@ export default function VendorsPage() {
 }
 
 function VendorsContent() {
+  const { user } = useAuth();
+  const isStaff = user?.adminRole === "staff";
   const router = useRouter();
   const pathname = usePathname();
   const tab = useSearchParams().get("tab") === "applications" ? "applications" : "vendors";
@@ -414,17 +417,19 @@ function VendorsContent() {
                     >
                       <Pencil className="h-4 w-4 mr-1" /> Edit
                     </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setDeleteVendorTarget(v);
-                        setDeleteVendorModal(true);
-                      }}
-                      className="w-full sm:w-auto text-gray-500 border-gray-200 hover:text-red-600 hover:bg-red-50"
-                    >
-                      <Trash2 className="h-4 w-4 mr-1" /> Delete
-                    </Button>
+                    {!isStaff ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setDeleteVendorTarget(v);
+                          setDeleteVendorModal(true);
+                        }}
+                        className="w-full sm:w-auto text-gray-500 border-gray-200 hover:text-red-600 hover:bg-red-50"
+                      >
+                        <Trash2 className="h-4 w-4 mr-1" /> Delete
+                      </Button>
+                    ) : null}
                     <Button
                       size="sm"
                       onClick={() => openAddStore(v._id)}
@@ -494,16 +499,18 @@ function VendorsContent() {
                             <Settings2 className="h-4 w-4 mr-1" />{" "}
                             {r.vertical === "GAS" ? "Store details" : "Manage menu"}
                           </Link>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setDeleteStoreTarget(r);
-                              setDeleteStoreModal(true);
-                            }}
-                            className="inline-flex items-center text-gray-400 hover:text-red-600 text-sm"
-                          >
-                            <Trash2 className="h-4 w-4 mr-1" /> Delete store
-                          </button>
+                          {!isStaff ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setDeleteStoreTarget(r);
+                                setDeleteStoreModal(true);
+                              }}
+                              className="inline-flex items-center text-gray-400 hover:text-red-600 text-sm"
+                            >
+                              <Trash2 className="h-4 w-4 mr-1" /> Delete store
+                            </button>
+                          ) : null}
                           </div>
                         </div>
                       ))}
@@ -554,16 +561,18 @@ function VendorsContent() {
                   >
                     <Settings2 className="h-4 w-4 mr-1" /> Manage
                   </Link>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setDeleteStoreTarget(r);
-                      setDeleteStoreModal(true);
-                    }}
-                    className="inline-flex items-center text-gray-400 hover:text-red-600 text-sm shrink-0"
-                  >
-                    <Trash2 className="h-4 w-4 mr-1" /> Delete store
-                  </button>
+                  {!isStaff ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDeleteStoreTarget(r);
+                        setDeleteStoreModal(true);
+                      }}
+                      className="inline-flex items-center text-gray-400 hover:text-red-600 text-sm shrink-0"
+                    >
+                      <Trash2 className="h-4 w-4 mr-1" /> Delete store
+                    </button>
+                  ) : null}
                 </div>
               ))}
             </div>

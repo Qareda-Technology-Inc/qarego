@@ -19,11 +19,14 @@ import {
   MapPinned,
   UserCheck,
   BadgeCheck,
+  ShieldCheck,
+  KeyRound,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/context/AuthContext';
 import { useFeatures } from '@/lib/features';
 import { LogOut } from 'lucide-react';
+import { ADMIN_ROLE_LABEL, canOpenPage } from '@/lib/adminAccess';
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
@@ -43,6 +46,7 @@ const navigation = [
   { name: 'Food payments', href: '/finance/food-payments', icon: Banknote, momoOnly: true },
   { name: 'Push notifications', href: '/notifications', icon: Bell },
   { name: 'Settings', href: '/settings', icon: Settings },
+  { name: 'Team', href: '/team', icon: ShieldCheck },
 ];
 
 export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
@@ -64,7 +68,9 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
       </div>
       <div className="flex-1 overflow-y-auto py-4">
         <nav className="px-2 space-y-1">
-          {navigation.filter((item) => !item.momoOnly || momoEnabled).map((item) => {
+          {navigation
+            .filter((item) => (!item.momoOnly || momoEnabled) && canOpenPage(user?.adminRole, item.href))
+            .map((item) => {
             const isActive = pathname === item.href;
             return (
               <Link
@@ -94,8 +100,16 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
       <div className="p-4 border-t border-gray-800 space-y-3">
         <div>
           <p className="text-sm font-medium text-white truncate">{user?.name || "Admin"}</p>
-          <p className="text-xs text-gray-400 truncate">{user?.role || "admin"}</p>
+          <p className="text-xs text-gray-400 truncate">{ADMIN_ROLE_LABEL[user?.adminRole ?? "super"]}</p>
         </div>
+        <Link
+          href="/account/password"
+          onClick={onNavigate}
+          className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm font-medium text-gray-300 hover:bg-gray-800 hover:text-white transition-colors"
+        >
+          <KeyRound className="h-5 w-5 text-gray-400" aria-hidden="true" />
+          Change password
+        </Link>
         <button
           type="button"
           onClick={handleLogout}

@@ -391,7 +391,10 @@ export const adminUpdateRestaurant = async (req, res) => {
     grantNewStoreFreePeriod(restaurant, await getSettings());
   }
 
-  // Commission-free period: a date gives (or changes) it, null ends it now.
+  // Commission-free period: a date gives (or changes) it, null ends it now. Money: not for staff.
+  if (req.body.commissionFreeUntil !== undefined && req.adminRole === "staff") {
+    throw new BadRequestError("Only an admin can change a store's commission-free period");
+  }
   if (req.body.commissionFreeUntil !== undefined) {
     const raw = req.body.commissionFreeUntil;
     if (raw === null || raw === "") {

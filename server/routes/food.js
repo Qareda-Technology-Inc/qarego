@@ -1,3 +1,4 @@
+import requireAdmin from "../middleware/requireAdmin.js";
 import express from "express";
 import { getGasOptions, getGasQuote, createGasOrder } from "../controllers/gas.js";
 import {
@@ -43,7 +44,8 @@ router.post("/orders/:id/rate", rateFoodOrder);
 router.post("/orders/:id/cancel", cancelMyFoodOrder);
 router.post("/orders/:id/laundry-price", answerLaundryPrice);
 
-/** Restaurant console (admin token) */
+/** Restaurant console (admin token). requireAdmin applies the admin's role (staff can't). */
+router.use("/admin", requireAdmin);
 router.get("/admin/orders", adminListFoodOrders);
 router.get("/admin/orders/:id", adminGetFoodOrder);
 router.get("/admin/riders", adminListAssignableRiders);

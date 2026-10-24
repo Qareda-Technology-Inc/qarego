@@ -28,6 +28,10 @@ export async function fetcher(url: string, options: RequestInit = {}) {
 
   if (!res.ok) {
     const error = await res.json().catch(() => ({}));
+    // Still on a temporary password: the server refuses everything until it's changed.
+    if (res.status === 403 && error.code === "PASSWORD_CHANGE_REQUIRED" && typeof window !== "undefined") {
+      if (window.location.pathname !== "/account/password") window.location.assign("/account/password");
+    }
     throw new Error(error.message || error.msg || "Something went wrong");
   }
 

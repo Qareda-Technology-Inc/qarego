@@ -19,7 +19,7 @@ QareGO is a ride-hailing, delivery (food/grocery/pharmacy) and parcel platform f
 ```bash
 # server
 cd server && npm run dev          # nodemon app.js
-node seedAdmin.js                 # create first admin user (once)
+SEED_ADMIN_PASSWORD='…' node seedAdmin.js   # create the first super admin (once); others are added in admin → Team
 curl http://127.0.0.1:2026/health
 npm test                          # node:test money tests (test/*.test.js)
 
@@ -61,7 +61,7 @@ iOS native build notes:
 - The `io` instance is available as `req.io` / `app.get('io')`. Controllers emit socket events directly.
 - Layout: `routes/` → `controllers/` (large files, ~7.4k lines total) → `utils/` (most of the business logic: dispatch, fares, settlement, push, SMS, Paystack) → `models/`.
 - Errors: throw classes from `errors/` (`BadRequestError`, `UnauthenticatedError`, `NotFoundError`). `express-async-errors` plus `middleware/error-handler.js` turn them into responses. No try/catch is needed in controllers.
-- Auth: JWT bearer (`ACCESS_TOKEN_SECRET`) → `req.user = {id, phone, role}`. Roles: `customer | rider | admin | merchant | cook`. `/admin` and `/customers` use `requireAdmin`. Merchant routes use `merchantContext.js`: a `cook` is locked to one restaurant, and a `merchant` picks a store with the `x-restaurant-id` header.
+- Auth: JWT bearer (`ACCESS_TOKEN_SECRET`) → `req.user = {id, phone, role}`. Roles: `customer | rider | admin | merchant | cook`. `/admin`, `/customers`, `/food/admin` and the admin `/drivers` routes use `requireAdmin`, which also applies the admin's `adminRole` (`super | admin | staff`, see `utils/adminAccess.js`): staff may only call the onboarding routes listed there, and only `super` manages the team. A new admin route is open to staff only if you add it to that list. Merchant routes use `merchantContext.js`: a `cook` is locked to one restaurant, and a `merchant` picks a store with the `x-restaurant-id` header.
 - Payments go through Paystack only (`utils/paystackService.js`; checkout, transfers, refunds). `/webhooks/paystack` is unauthenticated and checks the Paystack signature on the raw body. `MOMO_ENABLED` switches mobile money and card on or off (cash only when off). See `server/PAYSTACK_SETUP.md`.
 
 ### Domain model

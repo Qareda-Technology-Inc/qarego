@@ -62,6 +62,12 @@ const userSchema = new Schema(
     /** For customers: when true, cannot request new rides */
     /** Set when QareGO issues a temporary password (invite or reset); cleared once the user picks their own. */
     mustChangePassword: { type: Boolean, default: false },
+    /**
+     * For role "admin": super (everything, manages the team), admin (everything except the team)
+     * or staff (onboards riders and vendors only). Unset on an existing admin = super.
+     */
+    adminRole: { type: String, enum: ["super", "admin", "staff", null], default: null },
+    lastAdminLoginAt: { type: Date, default: null },
     isSuspended: {
       type: Boolean,
       default: false,

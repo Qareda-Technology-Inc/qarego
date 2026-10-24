@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Plus, Edit2, Trash2, Radio } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { fetcher } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
 
 interface DispatchDriver {
   _id: string;
@@ -39,6 +40,8 @@ const PRESET_LABELS: Record<string, string> = {
 };
 
 export default function DriversPage() {
+  const { user } = useAuth();
+  const isStaff = user?.adminRole === "staff";
   const [drivers, setDrivers] = useState<DispatchDriver[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("");
@@ -236,13 +239,15 @@ export default function DriversPage() {
                       <Link href={`/drivers/${driver._id}/edit`} className="text-indigo-600 inline-block">
                         <Edit2 className="h-4 w-4" />
                       </Link>
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(driver._id)}
-                        className="text-red-600 ml-4 inline-block"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                      {!isStaff ? (
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(driver._id)}
+                          className="text-red-600 ml-4 inline-block"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      ) : null}
                     </td>
                   </tr>
                 ))}

@@ -98,7 +98,9 @@ router.get('/', ...adminOnly, getAllDrivers);
 router.get('/review/pending', ...adminOnly, getPendingDrivers);
 router.get('/:id', ...adminOnly, getDriver);
 router.post('/:id/review', ...adminOnly, reviewDriver);
-router.patch('/:id', authMiddleware, optionalDriverUploads, updateDriver);
+// Riders edit their own profile here; an admin editing a rider goes through the admin checks.
+const adminChecksForAdmins = (req, res, next) => (req.user?.role === 'admin' ? requireAdmin(req, res, next) : next());
+router.patch('/:id', authMiddleware, adminChecksForAdmins, optionalDriverUploads, updateDriver);
 router.delete('/:id', ...adminOnly, deleteDriver);
 
 export default router;

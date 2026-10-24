@@ -1,4 +1,12 @@
 import { getMoneyMovements } from "../controllers/admin/money.js";
+import {
+  getAdminMe,
+  changeMyAdminPassword,
+  listTeam,
+  createTeamMember,
+  updateTeamMember,
+  resetTeamMemberPassword,
+} from '../controllers/admin/team.js';
 import express from 'express';
 import multer from 'multer';
 import path from 'path';
@@ -141,6 +149,13 @@ adminRouter.get('/store-debts', getStoreDebtsAdmin);
 adminRouter.post('/stores/:id/commission-payment', recordStoreCommissionPayment);
 adminRouter.get('/stores/:id/ledger', getStoreLedgerAdmin);
 adminRouter.get('/rider-balances', getRiderBalancesAdmin);
+// Team (super admin only, see utils/adminAccess.js) and the signed-in admin's own account.
+adminRouter.get('/me', getAdminMe);
+adminRouter.post('/me/password', changeMyAdminPassword);
+adminRouter.get('/team', listTeam);
+adminRouter.post('/team', createTeamMember);
+adminRouter.patch('/team/:id', updateTeamMember);
+adminRouter.post('/team/:id/reset-password', resetTeamMemberPassword);
 adminRouter.post('/drivers/:id/payout', payOutRiderAdmin);
 
 // Multivendor restaurant management

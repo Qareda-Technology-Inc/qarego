@@ -52,11 +52,13 @@ Edit `server/.env`:
 - `ADMIN_ORIGIN=http://localhost:3000`
 - `MERCHANT_ORIGIN=http://localhost:3001`
 
-Create the first admin user:
+Create the first super admin (once). Choose a strong password; it isn't stored in the code:
 
 ```bash
-node seedAdmin.js
+SEED_ADMIN_PASSWORD='a long password' node seedAdmin.js
 ```
+
+Add other admins and onboarding staff in the admin portal under **Team**.
 
 Start the API:
 
