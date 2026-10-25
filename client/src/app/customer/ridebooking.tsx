@@ -497,7 +497,7 @@ const RideBooking = () => {
 
   return (
     <View style={styles.container}>
-      <StatusBar style="dark" backgroundColor="transparent" translucent />
+      <StatusBar style="dark" />
       {mapPickup && mapDrop ? (
         <View style={[styles.mapLayer, { height: mapStripHeight }]}>
           <RoutesMap

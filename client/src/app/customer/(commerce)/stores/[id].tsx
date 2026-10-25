@@ -447,7 +447,7 @@ const RestaurantMenu = () => {
 
   return (
     <View style={styles.container}>
-      <StatusBar style={heroLight && !heroTopIsLight ? "light" : "dark"} translucent />
+      <StatusBar style={heroLight && !heroTopIsLight ? "light" : "dark"} />
 
       {/* White chrome (status bar + nav + sticky) once scrolled */}
       <Animated.View

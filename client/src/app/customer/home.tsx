@@ -27,7 +27,7 @@ const CustomerHome = () => {
 
   return (
     <View style={homeStyles.container}>
-      <StatusBar style="dark" backgroundColor="transparent" translucent />
+      <StatusBar style="dark" />
       <View style={styles.mapLayer} pointerEvents="box-none">
         <DraggableMap height={mapHeight} />
       </View>
