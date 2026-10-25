@@ -23,6 +23,11 @@ import {
   Users,
   UtensilsCrossed,
   Wallet,
+  Banknote,
+  Hourglass,
+  RotateCcw,
+  Smartphone,
+  PauseCircle,
   type LucideIcon,
 } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/Card";
@@ -54,6 +59,11 @@ type Overview = {
     ordersWithoutRider: { _id: string; store: string; minutes: number; total: number }[];
     ridesSearching: { _id: string; type: string; pickup?: string; minutes: number; fare: number }[];
     storesOwing: { count: number; total: number };
+    failedPayouts?: { _id: string; store: string; leg: string; amount: number; error: string | null; minutes: number }[];
+    stuckPayouts?: { _id: string; store: string; minutes: number }[];
+    refunds?: { _id: string; kind: string; label: string; amount: number; state: string; href: string }[];
+    unpaidTrips?: { count: number; items: { _id: string; customer: string; type: string; fare: number; minutes: number }[] };
+    storesPaused?: { limit: number; items: { _id: string; name: string; owed: number }[] };
   };
 };
 
@@ -125,7 +135,12 @@ export default function Dashboard() {
     (a?.ridersOverLimit.items.length ?? 0) +
     (a?.ordersWaitingAccept.length ?? 0) +
     (a?.ordersWithoutRider.length ?? 0) +
-    (a?.ridesSearching.length ?? 0);
+    (a?.ridesSearching.length ?? 0) +
+    (a?.failedPayouts?.length ?? 0) +
+    (a?.stuckPayouts?.length ?? 0) +
+    (a?.refunds?.length ?? 0) +
+    (a?.unpaidTrips?.count ?? 0) +
+    (a?.storesPaused?.items.length ?? 0);
 
   return (
     <div className="min-w-0 space-y-6">
@@ -217,6 +232,39 @@ export default function Dashboard() {
               <p className="py-4 text-sm text-gray-500">All clear: nothing is waiting on you right now.</p>
             ) : null}
 
+            {a.failedPayouts?.length ? (
+              <ActionGroup
+                icon={Banknote}
+                tone="red"
+                title={`${a.failedPayouts.length} payout${a.failedPayouts.length === 1 ? "" : "s"} failed`}
+                hint="A store or rider wasn&apos;t paid their share of a mobile money order. Open the order to see why, fix it, then retry."
+                href="/finance/money"
+              >
+                {a.failedPayouts.map((p) => (
+                  <ActionRow
+                    key={p._id}
+                    main={`${p.store} · ${p.leg} ${formatCurrency(p.amount)}`}
+                    side={p.error ? p.error.slice(0, 48) : ago(p.minutes)}
+                    href={`/food-orders/${p._id}`}
+                  />
+                ))}
+              </ActionGroup>
+            ) : null}
+
+            {a.refunds?.length ? (
+              <ActionGroup
+                icon={RotateCcw}
+                tone="red"
+                title={`${a.refunds.length} refund${a.refunds.length === 1 ? "" : "s"} to sort out`}
+                hint="Paid by mobile money or card and owed back, but the automatic refund failed or never started. Retry it, or refund by hand and mark it refunded."
+                href="/finance/money"
+              >
+                {a.refunds.map((r) => (
+                  <ActionRow key={`${r.kind}-${r._id}`} main={`${r.label} · ${formatCurrency(r.amount)}`} side={r.state.slice(0, 48)} href={r.href} />
+                ))}
+              </ActionGroup>
+            ) : null}
+
             {a.ordersWaitingAccept.length ? (
               <ActionGroup
                 icon={Clock}
@@ -265,6 +313,53 @@ export default function Dashboard() {
               >
                 {a.ridesSearching.map((r) => (
                   <ActionRow key={r._id} main={`${r.type} · ${r.pickup ?? "Pickup"}`} side={`${r.minutes} min`} />
+                ))}
+              </ActionGroup>
+            ) : null}
+
+            {a.unpaidTrips?.count ? (
+              <ActionGroup
+                icon={Smartphone}
+                tone="amber"
+                title={`${a.unpaidTrips.count} unpaid mobile money trip${a.unpaidTrips.count === 1 ? "" : "s"}`}
+                hint="Finished over 30 min ago and not paid; these customers can't book until they pay. If the rider was paid in cash, mark it on the trip."
+                href="/trips"
+              >
+                {a.unpaidTrips.items.map((t) => (
+                  <ActionRow
+                    key={t._id}
+                    main={`${t.type} · ${t.customer}`}
+                    side={`${formatCurrency(t.fare)} · ${ago(t.minutes)}`}
+                    href={`/trips/${t._id}`}
+                  />
+                ))}
+              </ActionGroup>
+            ) : null}
+
+            {a.stuckPayouts?.length ? (
+              <ActionGroup
+                icon={Hourglass}
+                tone="amber"
+                title={`${a.stuckPayouts.length} payout${a.stuckPayouts.length === 1 ? "" : "s"} still sending`}
+                hint="Paystack hasn't confirmed these after 2 hours. Open the order and tap “Check and retry payouts”: it asks Paystack first, so nothing is paid twice."
+                href="/finance/money"
+              >
+                {a.stuckPayouts.map((p) => (
+                  <ActionRow key={p._id} main={p.store} side={ago(p.minutes)} href={`/food-orders/${p._id}`} />
+                ))}
+              </ActionGroup>
+            ) : null}
+
+            {a.storesPaused?.items.length ? (
+              <ActionGroup
+                icon={PauseCircle}
+                tone="amber"
+                title={`${a.storesPaused.items.length} store${a.storesPaused.items.length === 1 ? "" : "s"} paused for debt`}
+                hint={`Owe more than ${formatCurrency(a.storesPaused.limit)}, so they get no new orders until they pay (Pay QareGO in their portal, or cash you record in Finance).`}
+                href="/finance"
+              >
+                {a.storesPaused.items.map((s) => (
+                  <ActionRow key={s._id} main={s.name} side={`owes ${formatCurrency(s.owed)}`} href={`/restaurants/${s._id}`} />
                 ))}
               </ActionGroup>
             ) : null}
@@ -369,6 +464,13 @@ export default function Dashboard() {
       </Card>
     </div>
   );
+}
+
+/** "12 min", "3 h", "2 d" */
+function ago(minutes: number) {
+  if (minutes < 60) return `${minutes} min`;
+  if (minutes < 1440) return `${Math.round(minutes / 60)} h`;
+  return `${Math.round(minutes / 1440)} d`;
 }
 
 function LiveTile({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: number }) {

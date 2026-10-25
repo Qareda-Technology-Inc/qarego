@@ -7,6 +7,13 @@ import FoodOrder from "../../models/FoodOrder.js";
 import Restaurant from "../../models/Restaurant.js";
 import VendorApplication from "../../models/VendorApplication.js";
 import { getSettings } from "../../utils/tripSettlement.js";
+import { OPEN_RIDE_PAYMENT } from "../../utils/ridePayments.js";
+import { storeDebtLimit } from "../../utils/storeDebt.js";
+
+/** A MoMo payout still "sending" after this long probably lost its webhook: retry checks Paystack. */
+const PAYOUT_STUCK_MIN = 120;
+/** A finished MoMo trip still unpaid after this long. */
+const UNPAID_TRIP_MIN = 30;
 
 export const getDashboardStats = async (req, res) => {
   try {
@@ -217,6 +224,13 @@ export const getAdminOverview = async (_req, res) => {
     storeDebt,
     storesToReview,
     newApplications,
+    failedPayouts,
+    stuckPayouts,
+    refundOrders,
+    refundRides,
+    unpaidTrips,
+    unpaidTripCount,
+    pausedStores,
   ] = await Promise.all([
     User.countDocuments({ role: "rider", isOnline: true, deletedAt: null }),
     Ride.countDocuments({ status: { $in: ["START", "ARRIVED", "IN_PROGRESS"] } }),
@@ -266,6 +280,54 @@ export const getAdminOverview = async (_req, res) => {
       .sort({ "review.submittedAt": 1 })
       .lean(),
     VendorApplication.find({ status: "new" }).select("businessName area createdAt").sort({ createdAt: 1 }).lean(),
+    // Money that needs a hand.
+    FoodOrder.find({ paymentMethod: "MOBILE_MONEY", settlementStatus: "failed" })
+      .select("restaurantName settlementError settlementDetails updatedAt")
+      .sort({ updatedAt: 1 })
+      .limit(20)
+      .lean(),
+    FoodOrder.find({
+      paymentMethod: "MOBILE_MONEY",
+      settlementStatus: "processing",
+      updatedAt: { $lt: new Date(now - PAYOUT_STUCK_MIN * MINUTE) },
+    })
+      .select("restaurantName updatedAt")
+      .sort({ updatedAt: 1 })
+      .limit(20)
+      .lean(),
+    // A refund that failed, or one owed that hasn't started (no automatic refund for it).
+    FoodOrder.find({ refundStatus: "DUE", $or: [{ refund: null }, { "refund.status": { $in: [null, "failed"] } }] })
+      .select("restaurantName total refund updatedAt")
+      .sort({ updatedAt: 1 })
+      .limit(20)
+      .lean(),
+    Ride.find({ "refund.status": "failed" }).select("fare refund updatedAt").sort({ updatedAt: 1 }).limit(20).lean(),
+    Ride.find({
+      status: "COMPLETED",
+      paymentMethod: "MOBILE_MONEY",
+      serviceType: { $in: ["RIDE", "DELIVERY"] },
+      paymentStatus: { $in: OPEN_RIDE_PAYMENT },
+      updatedAt: { $lt: new Date(now - UNPAID_TRIP_MIN * MINUTE) },
+    })
+      .select("fare serviceType customer updatedAt")
+      .populate("customer", "name phone")
+      .sort({ updatedAt: 1 })
+      .limit(5)
+      .lean(),
+    Ride.countDocuments({
+      status: "COMPLETED",
+      paymentMethod: "MOBILE_MONEY",
+      serviceType: { $in: ["RIDE", "DELIVERY"] },
+      paymentStatus: { $in: OPEN_RIDE_PAYMENT },
+      updatedAt: { $lt: new Date(now - UNPAID_TRIP_MIN * MINUTE) },
+    }),
+    storeDebtLimit(settings) > 0
+      ? Restaurant.find({ commissionOwed: { $gt: storeDebtLimit(settings) }, isActive: true })
+          .select("name commissionOwed")
+          .sort({ commissionOwed: -1 })
+          .limit(20)
+          .lean()
+      : [],
   ]);
 
   const ago = (d) => Math.max(0, Math.round((now - new Date(d)) / MINUTE));
@@ -329,6 +391,51 @@ export const getAdminOverview = async (_req, res) => {
       storesOwing: {
         count: storeDebt[0]?.count || 0,
         total: round2(storeDebt[0]?.total || 0),
+      },
+      failedPayouts: failedPayouts.map((o) => {
+        const legs = o.settlementDetails || {};
+        const who = legs.restaurant?.status === "failed" ? "Store" : legs.rider?.status === "failed" ? "Rider" : "Payout";
+        return {
+          _id: o._id,
+          store: o.restaurantName,
+          leg: who,
+          amount: round2((legs.restaurant?.status === "failed" ? legs.restaurant?.amount : legs.rider?.amount) || 0),
+          error: o.settlementError || legs.restaurant?.error || legs.rider?.error || null,
+          minutes: ago(o.updatedAt),
+        };
+      }),
+      stuckPayouts: stuckPayouts.map((o) => ({ _id: o._id, store: o.restaurantName, minutes: ago(o.updatedAt) })),
+      refunds: [
+        ...refundOrders.map((o) => ({
+          _id: o._id,
+          kind: "order",
+          label: o.restaurantName || "Store order",
+          amount: round2(o.total),
+          state: o.refund?.status === "failed" ? `failed: ${o.refund.error || "unknown"}` : "not started",
+          href: `/food-orders/${o._id}`,
+        })),
+        ...refundRides.map((r) => ({
+          _id: r._id,
+          kind: "trip",
+          label: "Trip paid twice",
+          amount: round2(r.fare),
+          state: `failed: ${r.refund?.error || "unknown"}`,
+          href: `/trips/${r._id}`,
+        })),
+      ],
+      unpaidTrips: {
+        count: unpaidTripCount,
+        items: unpaidTrips.map((r) => ({
+          _id: r._id,
+          customer: r.customer?.name || r.customer?.phone || "Customer",
+          type: r.serviceType === "DELIVERY" ? "Parcel" : "Ride",
+          fare: round2(r.fare),
+          minutes: ago(r.updatedAt),
+        })),
+      },
+      storesPaused: {
+        limit: storeDebtLimit(settings),
+        items: pausedStores.map((r) => ({ _id: r._id, name: r.name, owed: round2(r.commissionOwed) })),
       },
     },
   });
