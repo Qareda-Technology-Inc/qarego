@@ -24,8 +24,12 @@ import { getReviewOtp } from "@/utils/reviewLogin";
 type Props = {
   phone: string;
   updateAccessToken: () => void;
-  /** When user pastes a 4-digit code (Android SMS), fill boxes and verify */
+  /** When user pastes a full code (Android SMS), fill boxes and verify */
   autoSubmitOnPaste?: boolean;
+  /** Digits in the code: 6 from Arkesel's OTP service, 4 when the server sent its own. */
+  codeLength?: number;
+  /** Arkesel's USSD code for reading the code without the SMS (same phone only). */
+  ussdCode?: string | null;
 };
 
 function maskPhoneDisplay(phone: string): string {
@@ -40,9 +44,15 @@ export default function OtpVerifyScreen({
   phone,
   updateAccessToken,
   autoSubmitOnPaste = false,
+  codeLength: initialLength = 4,
+  ussdCode: initialUssd = null,
 }: Props) {
   const insets = useSafeAreaInsets();
-  const [otp, setOtp] = useState(["", "", "", ""]);
+  // A resend can come back with a different length (the server falls back to 4 digits).
+  const [codeLength, setCodeLength] = useState(initialLength === 6 ? 6 : 4);
+  const [ussdCode, setUssdCode] = useState<string | null>(initialUssd);
+  const blank = (n: number) => Array.from({ length: n }, () => "");
+  const [otp, setOtp] = useState(() => blank(initialLength === 6 ? 6 : 4));
   const [loading, setLoading] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
   const [timer, setTimer] = useState(60);
@@ -73,10 +83,10 @@ export default function OtpVerifyScreen({
 
   const handleOtpChange = (value: string, index: number) => {
     if (value.length > 1) {
-      const full = value.replace(/\D/g, "").slice(0, 4);
-      if (full.length === 4) {
+      const full = value.replace(/\D/g, "").slice(0, codeLength);
+      if (full.length === codeLength) {
         setOtp(full.split(""));
-        inputs.current[3]?.focus();
+        inputs.current[codeLength - 1]?.focus();
         if (autoSubmitOnPaste) {
           setTimeout(() => void submitOtp(full), 280);
         }
@@ -87,16 +97,16 @@ export default function OtpVerifyScreen({
       const newOtp = [...otp];
       newOtp[index] = value;
       setOtp(newOtp);
-      if (value && index < inputs.current.length - 1) {
+      if (value && index < codeLength - 1) {
         inputs.current[index + 1]?.focus();
       }
       if (!value && index > 0) {
         inputs.current[index - 1]?.focus();
       }
       // Auto-submit when last digit entered
-      if (value && index === 3) {
+      if (value && index === codeLength - 1) {
         const code = [...newOtp].join("");
-        if (code.length === 4) {
+        if (code.length === codeLength) {
           setTimeout(() => void submitOtp(code), 180);
         }
       }
@@ -104,8 +114,9 @@ export default function OtpVerifyScreen({
   };
 
   const submitOtp = async (code: string) => {
-    if (code.length !== 4) {
-      Alert.alert("Invalid OTP", "Please enter a complete 4-digit OTP");
+    // A review login's fixed code can be shorter than the boxes.
+    if (code.length !== codeLength && !getReviewOtp(phone)) {
+      Alert.alert("Invalid code", `Please enter the full ${codeLength}-digit code`);
       return;
     }
     if (submittingRef.current || loading) return;
@@ -119,7 +130,7 @@ export default function OtpVerifyScreen({
         "Verification Failed",
         err?.response?.data?.msg || "Invalid OTP. Please try again."
       );
-      setOtp(["", "", "", ""]);
+      setOtp(blank(codeLength));
       inputs.current[0]?.focus();
     } finally {
       setLoading(false);
@@ -133,9 +144,12 @@ export default function OtpVerifyScreen({
     if (timer > 0) return;
     setResendLoading(true);
     try {
-      await requestOtp({ phone: phone || "", method: "sms" });
+      const res = await requestOtp({ phone: phone || "", method: "sms" });
+      const nextLength = res?.codeLength === 6 ? 6 : 4;
+      setCodeLength(nextLength);
+      setUssdCode(res?.ussdCode || null);
       setTimer(60);
-      setOtp(["", "", "", ""]);
+      setOtp(blank(nextLength));
       inputs.current[0]?.focus();
       Alert.alert("Code sent", "A new verification code is on the way.");
     } catch {
@@ -145,7 +159,7 @@ export default function OtpVerifyScreen({
     }
   };
 
-  const codeReady = otp.join("").length === 4;
+  const codeReady = otp.join("").length === codeLength;
 
   return (
     <View style={styles.root}>
@@ -198,11 +212,16 @@ export default function OtpVerifyScreen({
               Check your SMS
             </CustomText>
             <CustomText fontSize={14} style={styles.subtitle}>
-              Enter the 4-digit code we sent to
+              Enter the {codeLength}-digit code we sent to
             </CustomText>
             <CustomText fontFamily="SemiBold" fontSize={15} style={styles.phoneText}>
               {maskPhoneDisplay(phone)}
             </CustomText>
+            {ussdCode ? (
+              <CustomText fontSize={12} style={styles.ussdHint}>
+                No SMS yet? Dial {ussdCode} on this phone to see your code.
+              </CustomText>
+            ) : null}
 
             <TouchableOpacity
               onPress={() => router.back()}
@@ -214,7 +233,7 @@ export default function OtpVerifyScreen({
               </CustomText>
             </TouchableOpacity>
 
-            <View style={styles.otpRow}>
+            <View style={[styles.otpRow, codeLength === 6 && styles.otpRowSix]}>
               {otp.map((digit, index) => (
                 <TextInput
                   key={index}
@@ -231,6 +250,7 @@ export default function OtpVerifyScreen({
                   }}
                   style={[
                     styles.otpInput,
+                    codeLength === 6 && styles.otpInputSix,
                     digit ? styles.otpInputFilled : null,
                     focusedIndex === index ? styles.otpInputFocused : null,
                   ]}
@@ -402,6 +422,9 @@ const styles = StyleSheet.create({
     marginBottom: 22,
     gap: 10,
   },
+  otpRowSix: { gap: 6 },
+  otpInputSix: { height: 52, borderRadius: 14, fontSize: 21 },
+  ussdHint: { textAlign: "center", color: "#64748B", marginTop: 8 },
   otpInput: {
     flex: 1,
     height: 58,

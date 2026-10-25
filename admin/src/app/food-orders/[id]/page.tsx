@@ -300,7 +300,8 @@ export default function StoreOrderDetailPage() {
 
       {order.status === "CANCELLED" ? (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-          Cancelled{order.cancelledBy ? ` by ${order.cancelledBy.toLowerCase()}` : ""}
+          Cancelled
+          {order.cancelledBy === "SYSTEM" ? " automatically" : order.cancelledBy ? ` by ${order.cancelledBy.toLowerCase()}` : ""}
           {order.cancelReason ? `: ${order.cancelReason}` : ""}
         </div>
       ) : null}

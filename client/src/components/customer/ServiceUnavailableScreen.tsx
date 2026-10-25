@@ -10,6 +10,8 @@ type Props = {
   message?: string | null;
   onRetry?: () => void;
   onOpenSettings?: () => void;
+  /** Pick a place by hand (map or address search) and check that instead. */
+  onChooseLocation?: () => void;
 };
 
 /**
@@ -20,6 +22,7 @@ export default function ServiceUnavailableScreen({
   message,
   onRetry,
   onOpenSettings,
+  onChooseLocation,
 }: Props) {
   if (loading) {
     return (
@@ -42,17 +45,38 @@ export default function ServiceUnavailableScreen({
       </CustomText>
       <CustomText fontSize={15} style={styles.body}>
         {message ||
-          "QareGO is not active at your current location yet. Move closer to a coverage zone or try again later."}
+          "QareGO isn't available where you are yet. Choose a location inside our area to book a ride from there or order to it."}
       </CustomText>
+
+      {onChooseLocation ? (
+        <Pressable
+          onPress={onChooseLocation}
+          style={({ pressed }) => [styles.primaryBtn, pressed && { opacity: 0.85 }]}
+          accessibilityRole="button"
+        >
+          <Ionicons name="search" size={18} color="#fff" />
+          <CustomText fontFamily="SemiBold" fontSize={15} style={styles.primaryLabel}>
+            Choose a location
+          </CustomText>
+        </Pressable>
+      ) : null}
 
       {onRetry ? (
         <Pressable
           onPress={onRetry}
-          style={({ pressed }) => [styles.primaryBtn, pressed && { opacity: 0.85 }]}
+          style={({ pressed }) => [
+            onChooseLocation ? styles.secondaryBtn : styles.primaryBtn,
+            pressed && { opacity: 0.85 },
+          ]}
+          accessibilityRole="button"
         >
-          <Ionicons name="refresh" size={18} color="#fff" />
-          <CustomText fontFamily="SemiBold" fontSize={15} style={styles.primaryLabel}>
-            Check again
+          {onChooseLocation ? null : <Ionicons name="refresh" size={18} color="#fff" />}
+          <CustomText
+            fontFamily={onChooseLocation ? "Medium" : "SemiBold"}
+            fontSize={onChooseLocation ? 14 : 15}
+            style={onChooseLocation ? styles.secondaryLabel : styles.primaryLabel}
+          >
+            {onChooseLocation ? "Check my location again" : "Check again"}
           </CustomText>
         </Pressable>
       ) : null}

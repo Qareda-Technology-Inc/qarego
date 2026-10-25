@@ -57,7 +57,11 @@ const Role = () => {
       if (response) {
         router.push({
           pathname: "/otp-verify",
-          params: { phone: fullPhone },
+          params: {
+            phone: fullPhone,
+            codeLength: String(response.codeLength || 4),
+            ussdCode: response.ussdCode || "",
+          },
         });
       }
     } catch (error) {

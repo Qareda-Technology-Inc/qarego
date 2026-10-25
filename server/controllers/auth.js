@@ -5,6 +5,9 @@ import { StatusCodes } from "http-status-codes";
 import { BadRequestError, UnauthenticatedError } from "../errors/index.js";
 import jwt from "jsonwebtoken";
 import { sendOtpSMS } from "../utils/smsService.js";
+import crypto from "crypto";
+import OtpCode from "../models/OtpCode.js";
+import { ARKESEL_OTP_LENGTH, isArkeselOtpConfigured, sendArkeselOtp, verifyArkeselOtp } from "../utils/arkeselOtp.js";
 import { normalizePhone } from "../utils/phone.js";
 import { normalizeServicePreferencesInput } from "../utils/riderServicePreferences.js";
 import { sanitizeMediaUrl } from "../utils/mediaStorage.js";
@@ -16,80 +19,73 @@ import { deleteFromCloudinary, parseCloudinaryUrl, safeUnlink } from "../utils/c
 import FoodOrder from "../models/FoodOrder.js";
 import { formatCurrency } from "../utils/currency.js";
 
-// Generate a 4-digit OTP
-const generateOTP = () => {
-  return Math.floor(1000 + Math.random() * 9000).toString();
-};
+const OTP_TTL_MIN = 5;
+/** Wrong guesses allowed on one of our own codes before it's thrown away. */
+const MAX_OTP_ATTEMPTS = 5;
 
-// Store OTPs temporarily (in production, use Redis or similar)
-const otpStore = new Map();
+/** A 4-digit code QareGO makes itself (older apps, or when Arkesel's OTP service can't be used). */
+const generateOTP = () => crypto.randomInt(1000, 10000).toString();
 
+/**
+ * POST /auth/request-otp { phone, codeLength? }
+ * New apps send codeLength 6: Arkesel's OTP service makes, sends and later checks the code.
+ * Older apps (4-digit boxes) get a 4-digit code QareGO makes and sends by normal SMS. If Arkesel's
+ * OTP service refuses, we fall back to that too; the reply's codeLength tells the app which.
+ */
 export const requestOtp = async (req, res) => {
-  const { phone: rawPhone, method = "whatsapp" } = req.body;
+  const { phone: rawPhone } = req.body;
   const phone = normalizePhone(rawPhone);
-
   if (!phone) {
     throw new BadRequestError("Phone number is required");
   }
 
   const reviewAccount = getReviewAccount(rawPhone) || getReviewAccount(phone);
   if (reviewAccount) {
-    otpStore.set(reviewAccount.canonicalPhone, {
-      otp: reviewAccount.otp,
-      expiresAt: Date.now() + 24 * 60 * 60 * 1000,
-      method: "review",
-    });
-    otpStore.set(phone, {
-      otp: reviewAccount.otp,
-      expiresAt: Date.now() + 24 * 60 * 60 * 1000,
-      method: "review",
-    });
     return res.status(StatusCodes.OK).json({
       message: "Review login ready",
       method: "review",
+      codeLength: String(reviewAccount.otp).length,
     });
   }
 
-  try {
-    // Generate OTP
-    const otp = generateOTP();
-    
-    // Store OTP with expiration (5 minutes)
-    otpStore.set(phone, {
-      otp,
-      expiresAt: Date.now() + 5 * 60 * 1000, // 5 minutes
-      method, // Store the method used
-    });
-
-    // Send OTP via SMS (Arkasel)
-    try {
-      const smsResult = await sendOtpSMS(phone, otp);
-      if (!smsResult.success && !smsResult.development) {
-        console.error("Failed to send SMS via Arkasel:", smsResult.error);
-        // Continue anyway - OTP is still stored and can be verified
-        // In production, you might want to throw an error here
-      }
-    } catch (smsError) {
-      console.error("Error sending SMS via Arkasel:", smsError.message);
-      // In development, continue even if SMS fails
-      // In production, you might want to throw an error or use fallback
-      if (process.env.NODE_ENV === "production") {
-        // Optionally throw error in production
-        // throw new BadRequestError("Failed to send OTP. Please try again.");
-      }
+  const wantsLongCode = Number(req.body.codeLength) >= ARKESEL_OTP_LENGTH;
+  if (wantsLongCode && isArkeselOtpConfigured()) {
+    const sent = await sendArkeselOtp(phone);
+    if (sent.ok) {
+      // A code we made earlier for this number is no longer the one to use.
+      await OtpCode.deleteOne({ phone });
+      return res.status(StatusCodes.OK).json({
+        message: "OTP sent successfully via SMS",
+        method: "sms",
+        codeLength: ARKESEL_OTP_LENGTH,
+        ussdCode: sent.ussdCode,
+      });
     }
-
-    res.status(StatusCodes.OK).json({
-      message: "OTP sent successfully via SMS",
-      method: "sms",
-      // In production, don't send OTP in response
-      // For development, we'll send it so you can test
-      otp: process.env.NODE_ENV === "development" ? otp : undefined,
-    });
-  } catch (error) {
-    console.error(error);
-    throw error;
+    console.error("[otp] Arkesel OTP failed, sending our own code instead:", sent.code, sent.error);
   }
+
+  const otp = generateOTP();
+  await OtpCode.findOneAndUpdate(
+    { phone },
+    { $set: { code: otp, expiresAt: new Date(Date.now() + OTP_TTL_MIN * 60 * 1000), attempts: 0 } },
+    { upsert: true }
+  );
+  try {
+    const smsResult = await sendOtpSMS(phone, otp);
+    if (!smsResult.success && !smsResult.development) {
+      console.error("[otp] SMS failed:", smsResult.error);
+    }
+  } catch (smsError) {
+    console.error("[otp] SMS failed:", smsError.message);
+  }
+
+  res.status(StatusCodes.OK).json({
+    message: "OTP sent successfully via SMS",
+    method: "sms",
+    codeLength: 4,
+    // Development only: lets you sign in without an SMS.
+    otp: process.env.NODE_ENV === "development" ? otp : undefined,
+  });
 };
 
 export const adminLogin = async (req, res) => {
@@ -137,6 +133,34 @@ export const adminLogin = async (req, res) => {
   });
 };
 
+/** Check a code: Arkesel's (6+ digits) with Arkesel, our own 4-digit ones against the database. */
+async function checkOtp(phone, otp) {
+  const code = String(otp || "").trim();
+  if (code.length >= ARKESEL_OTP_LENGTH) {
+    const result = await verifyArkeselOtp(phone, code);
+    if (result.ok) return;
+    if (result.reason === "expired") throw new UnauthenticatedError("This code has expired. Please request a new one.");
+    if (result.reason === "invalid") throw new UnauthenticatedError("Invalid code. Please try again.");
+    console.error("[otp] Arkesel verify failed:", result.error);
+    throw new BadRequestError("We couldn't check your code just now. Please try again.");
+  }
+
+  const stored = await OtpCode.findOne({ phone });
+  if (!stored || stored.expiresAt.getTime() < Date.now()) {
+    throw new UnauthenticatedError("This code has expired or wasn't found. Please request a new one.");
+  }
+  if (stored.code !== code) {
+    const attempts = stored.attempts + 1;
+    if (attempts >= MAX_OTP_ATTEMPTS) {
+      await OtpCode.deleteOne({ _id: stored._id });
+      throw new UnauthenticatedError("Too many wrong codes. Please request a new one.");
+    }
+    await OtpCode.updateOne({ _id: stored._id }, { $set: { attempts } });
+    throw new UnauthenticatedError("Invalid code. Please try again.");
+  }
+  await OtpCode.deleteOne({ _id: stored._id });
+}
+
 export const verifyOtp = async (req, res) => {
   const { phone: rawPhone, otp } = req.body;
   const phone = normalizePhone(rawPhone);
@@ -161,52 +185,30 @@ export const verifyOtp = async (req, res) => {
     });
   }
 
-  try {
-    // Check if OTP exists and is valid
-    const storedOtp = otpStore.get(phone);
-    
-    if (!storedOtp) {
-      throw new UnauthenticatedError("OTP not found or expired. Please request a new OTP.");
-    }
+  await checkOtp(phone, otp);
 
-    if (Date.now() > storedOtp.expiresAt) {
-      otpStore.delete(phone);
-      throw new UnauthenticatedError("OTP has expired. Please request a new OTP.");
-    }
+  // Find or create user
+  let user = await User.findOne({ phone });
 
-    if (storedOtp.otp !== otp) {
-      throw new UnauthenticatedError("Invalid OTP. Please try again.");
-    }
-
-    // OTP is valid, remove it from store
-    otpStore.delete(phone);
-
-    // Find or create user
-    let user = await User.findOne({ phone });
-
-    if (!user) {
-      // If user does NOT exist, create as CUSTOMER
-      user = new User({
-        phone,
-        role: "customer", // Default to customer
-      });
-      await user.save();
-    }
-
-    // Generate tokens
-    const accessToken = user.createAccessToken();
-    const refreshToken = user.createRefreshToken();
-
-    res.status(StatusCodes.OK).json({
-      message: "OTP verified successfully",
-      user,
-      access_token: accessToken,
-      refresh_token: refreshToken,
+  if (!user) {
+    // If user does NOT exist, create as CUSTOMER
+    user = new User({
+      phone,
+      role: "customer", // Default to customer
     });
-  } catch (error) {
-    console.error(error);
-    throw error;
+    await user.save();
   }
+
+  // Generate tokens
+  const accessToken = user.createAccessToken();
+  const refreshToken = user.createRefreshToken();
+
+  res.status(StatusCodes.OK).json({
+    message: "OTP verified successfully",
+    user,
+    access_token: accessToken,
+    refresh_token: refreshToken,
+  });
 };
 
 export const auth = async (req, res) => {

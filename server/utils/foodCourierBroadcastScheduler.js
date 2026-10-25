@@ -6,6 +6,7 @@ import {
   emitFoodOrderUpdated,
 } from "./foodOrderFlow.js";
 import { isCollectFirstOrder } from "./laundryOrders.js";
+import { cancelStaleUnpaidOrders } from "./unpaidOrders.js";
 
 const POLL_MS = 30_000;
 
@@ -72,6 +73,9 @@ export function startFoodCourierBroadcastScheduler(io) {
   const tick = () => {
     processDueCourierBroadcasts(io).catch((err) => {
       console.error("[food] courier broadcast scheduler error:", err?.message || err);
+    });
+    cancelStaleUnpaidOrders(io).catch((err) => {
+      console.error("[food] unpaid order cleanup error:", err?.message || err);
     });
   };
 

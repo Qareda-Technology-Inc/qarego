@@ -164,7 +164,8 @@ const foodOrderSchema = new Schema(
     },
     cancelledBy: {
       type: String,
-      enum: ["CUSTOMER", "RESTAURANT", "ADMIN", null],
+      // SYSTEM: cancelled automatically (a mobile money order never paid; utils/unpaidOrders.js).
+      enum: ["CUSTOMER", "RESTAURANT", "ADMIN", "SYSTEM", null],
       default: null,
     },
     cancelledAt: { type: Date, default: null },

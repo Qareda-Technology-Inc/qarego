@@ -97,7 +97,7 @@ function checkoutReturnUrls(baseUrl, reference) {
 const paidEnough = (paid, expected) => Number(paid) + 0.005 >= Number(expected);
 
 /** Ask Paystack about a food payment and apply the result. Safe to call repeatedly. */
-async function reconcilePaystackFoodPayment(payment) {
+export async function reconcilePaystackFoodPayment(payment) {
   if (!payment || payment.status === 'success') return;
   const result = await verifyPaystackTransaction(payment.clientReference);
   // A declined attempt isn't final: the customer can retry on the same checkout, so only a

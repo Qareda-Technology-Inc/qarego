@@ -14,7 +14,7 @@ type FoodOrderRow = {
   status: string;
   paymentMethod?: 'CASH' | 'MOBILE_MONEY';
   refundStatus?: 'NONE' | 'DUE' | 'REFUNDED';
-  cancelledBy?: 'CUSTOMER' | 'RESTAURANT' | 'ADMIN' | null;
+  cancelledBy?: 'CUSTOMER' | 'RESTAURANT' | 'ADMIN' | 'SYSTEM' | null;
   cancelReason?: string | null;
   total: number;
   subtotal: number;
@@ -185,7 +185,7 @@ export default function FoodOrdersPage() {
                 {order.status === 'CANCELLED' && (order.cancelledBy || order.cancelReason) ? (
                   <p className="text-sm text-red-700 mt-1">
                     Cancelled
-                    {order.cancelledBy ? ` by ${order.cancelledBy.toLowerCase()}` : ''}
+                    {order.cancelledBy === 'SYSTEM' ? ' automatically' : order.cancelledBy ? ` by ${order.cancelledBy.toLowerCase()}` : ''}
                     {order.cancelReason ? ` — ${order.cancelReason}` : ''}
                   </p>
                 ) : null}

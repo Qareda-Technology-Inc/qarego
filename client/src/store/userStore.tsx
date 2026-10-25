@@ -15,6 +15,13 @@ interface UserStoreProps {
   outOfRange: boolean;
   /** Last service-area coverage result for the customer's location. */
   serviceCoverage: ServiceCoverage | null;
+  /**
+   * A place the customer chose by hand (outside the area, or ordering for somewhere else).
+   * While set, coverage is checked here instead of at the phone's GPS position. Not persisted:
+   * a fresh app start goes back to the real location.
+   */
+  coveragePoint: CustomLocation;
+  setCoveragePoint: (data: CustomLocation) => void;
   setUser: (data: any) => void;
   setOutOfRange: (data: boolean) => void;
   setLocation: (data: CustomLocation) => void;
@@ -30,6 +37,8 @@ export const useUserStore = create<UserStoreProps>()(
       location: null,
       outOfRange: false,
       serviceCoverage: null,
+      coveragePoint: null,
+      setCoveragePoint: (data) => set({ coveragePoint: data }),
       setUser: (data) => set({ user: data }),
       setLocation: (data) => set({ location: data }),
       setOutOfRange: (data) => set({ outOfRange: data }),
@@ -51,6 +60,7 @@ export const useUserStore = create<UserStoreProps>()(
           location: null,
           outOfRange: false,
           serviceCoverage: null,
+          coveragePoint: null,
         }),
     }),
     {

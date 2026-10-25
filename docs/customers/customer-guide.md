@@ -59,7 +59,7 @@ Don't send anything illegal or dangerous: weapons, drugs, explosives, flammable 
 5. Follow your order: accepted, being prepared, picked up, on the way.
 6. When it arrives, **give the rider your 4-digit code**.
 
-**Mobile money orders** are paid when you place them. The store starts once your payment is confirmed.
+**Mobile money orders** are paid when you place them. The store starts once your payment is confirmed. If the payment isn't finished within about 15 minutes, the order is cancelled automatically and you aren't charged.
 
 **Pharmacy:** for prescription-only medicines, upload a photo of your prescription when you order. The pharmacy checks it and decides what it can supply. Your rider doesn't see the names of your medicines.
 

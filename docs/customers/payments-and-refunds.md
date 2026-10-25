@@ -36,6 +36,8 @@ Mobile money and card payments are processed by **Paystack**. QareGO never sees 
 
 A store may also cancel an order it can't fulfil, for example when an item has run out.
 
+A store order you chose to pay by mobile money or card is cancelled automatically if the payment isn't finished within about 15 minutes. You aren't charged; if a payment does go through after that, it's refunded automatically.
+
 Repeated cancellations or no-shows may limit your use of QareGO.
 
 ## Refunds

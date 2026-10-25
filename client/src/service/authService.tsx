@@ -64,11 +64,16 @@ export const tryReviewLogin = async (
   return true;
 };
 
+/** Digits in a sign-in code: 6 from Arkesel's OTP service, 4 when the server falls back. */
+export type OtpRequestResult = { msg?: string; codeLength?: number; ussdCode?: string | null };
+
 export const requestOtp = async (payload: { phone: string; method?: "sms" }) => {
   try {
-    return await apiPost<{ msg?: string }>("/auth/request-otp", {
+    return await apiPost<OtpRequestResult>("/auth/request-otp", {
       phone: payload.phone,
       method: payload.method || "sms",
+      // This app can take Arkesel's 6-digit codes (older versions only had 4 boxes).
+      codeLength: 6,
     });
   } catch (error: any) {
     const msg =

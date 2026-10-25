@@ -51,7 +51,7 @@ function getCurrentStepIndex(
 }
 
 type CancelInfo = {
-  cancelledBy?: "CUSTOMER" | "RESTAURANT" | "ADMIN" | null;
+  cancelledBy?: "CUSTOMER" | "RESTAURANT" | "ADMIN" | "SYSTEM" | null;
   cancelReason?: string | null;
   refundStatus?: "NONE" | "DUE" | "REFUNDED";
   gasMode?: "REFILL" | "EXCHANGE" | null;

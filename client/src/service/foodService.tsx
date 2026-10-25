@@ -95,7 +95,7 @@ export type FoodOrder = {
   notes?: string | null;
   prescriptionUrls?: string[];
   cancelReason?: string | null;
-  cancelledBy?: "CUSTOMER" | "RESTAURANT" | "ADMIN" | null;
+  cancelledBy?: "CUSTOMER" | "RESTAURANT" | "ADMIN" | "SYSTEM" | null;
   refundStatus?: "NONE" | "DUE" | "REFUNDED";
   gasMode?: "REFILL" | "EXCHANGE" | null;
   gasStage?: "TO_STATION" | "AT_STATION" | null;

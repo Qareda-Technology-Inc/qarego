@@ -35,6 +35,9 @@ interface MapPickerModalProps {
     address: string;
   };
   onSelectLocation: (location: any) => void;
+  /** Header and button text when it isn't a pickup or destination (e.g. choosing your area). */
+  heading?: string;
+  confirmLabel?: string;
 }
 
 const MapPickerModal: FC<MapPickerModalProps> = ({
@@ -43,6 +46,8 @@ const MapPickerModal: FC<MapPickerModalProps> = ({
   onClose,
   title,
   onSelectLocation,
+  heading,
+  confirmLabel,
 }) => {
   const mapRef = useRef<MapView>(null);
   const [text, setText] = useState("");
@@ -173,7 +178,7 @@ const MapPickerModal: FC<MapPickerModalProps> = ({
         <View style={modalStyles.header}>
           <View style={modalStyles.headerSide} />
           <CustomText fontFamily="Bold" fontSize={16} style={modalStyles.centerText}>
-            {title === "drop" ? "Choose destination" : "Choose pickup"}
+            {heading ?? (title === "drop" ? "Choose destination" : "Choose pickup")}
           </CustomText>
           <TouchableOpacity
             onPress={onClose}
@@ -305,7 +310,7 @@ const MapPickerModal: FC<MapPickerModalProps> = ({
                   }}
                 >
                   <CustomText fontFamily="SemiBold" fontSize={15} style={modalStyles.buttonText}>
-                    {title === "drop" ? "Use this destination" : "Use this pickup"}
+                    {confirmLabel ?? (title === "drop" ? "Use this destination" : "Use this pickup")}
                   </CustomText>
                 </TouchableOpacity>
               </View>
