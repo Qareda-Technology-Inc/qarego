@@ -67,6 +67,18 @@ const settingsSchema = new Schema(
       default: 0,
       min: 0,
     },
+    /**
+     * A customer cancels a ride or parcel after the rider has arrived (or during the trip):
+     * QareGO pays the rider this fee (0 = off). The customer isn't charged.
+     */
+    lateCancelFee: { type: Number, default: 0, min: 0 },
+    /**
+     * Customers who keep cancelling late: after lateCancelLimit late cancels within
+     * lateCancelWindowDays, no ride or parcel bookings for lateCancelBlockDays. Limit 0 = off.
+     */
+    lateCancelLimit: { type: Number, default: 0, min: 0 },
+    lateCancelWindowDays: { type: Number, default: 30, min: 1 },
+    lateCancelBlockDays: { type: Number, default: 3, min: 1 },
     /** Days without commission a new store gets when it goes live (0 = no free period). */
     storeFreePeriodDays: {
       type: Number,

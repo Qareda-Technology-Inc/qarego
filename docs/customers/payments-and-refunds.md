@@ -38,7 +38,7 @@ A store may also cancel an order it can't fulfil, for example when an item has r
 
 A store order you chose to pay by mobile money or card is cancelled automatically if the payment isn't finished within about 15 minutes. You aren't charged; if a payment does go through after that, it's refunded automatically.
 
-Repeated cancellations or no-shows may limit your use of QareGO.
+**Cancelling after the rider has arrived** is free for you, but it costs the rider their time, so QareGO pays them. These late cancels are counted: after too many in a short time, ride and parcel bookings are paused for a few days (store orders still work). The app tells you after each one how close you are to the limit.
 
 ## Refunds
 

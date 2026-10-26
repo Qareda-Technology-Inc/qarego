@@ -68,6 +68,8 @@ const userSchema = new Schema(
      */
     adminRole: { type: String, enum: ["super", "admin", "staff", null], default: null },
     lastAdminLoginAt: { type: Date, default: null },
+    /** Customer: no ride or parcel bookings until then (too many late cancels; utils/lateCancel.js). */
+    bookingBlockedUntil: { type: Date, default: null },
     isSuspended: {
       type: Boolean,
       default: false,

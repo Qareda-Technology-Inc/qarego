@@ -35,6 +35,10 @@ export const updateSettingsAdmin = async (req, res) => {
       foodDeliveryCommissionRate,
       storeFreePeriodDays,
       storeDebtLimit,
+      lateCancelFee,
+      lateCancelLimit,
+      lateCancelWindowDays,
+      lateCancelBlockDays,
       commissionByService,
       vehicleCapabilityPolicy,
       serviceMaintenance,
@@ -94,6 +98,12 @@ export const updateSettingsAdmin = async (req, res) => {
     if (typeof foodServiceFeeMax === 'number' && foodServiceFeeMax >= 0) {
       settings.foodServiceFeeMax = foodServiceFeeMax;
     }
+    if (typeof lateCancelFee === 'number' && Number.isFinite(lateCancelFee) && lateCancelFee >= 0) {
+      settings.lateCancelFee = Math.round(lateCancelFee * 100) / 100;
+    }
+    if (Number.isInteger(lateCancelLimit) && lateCancelLimit >= 0) settings.lateCancelLimit = lateCancelLimit;
+    if (Number.isInteger(lateCancelWindowDays) && lateCancelWindowDays >= 1) settings.lateCancelWindowDays = lateCancelWindowDays;
+    if (Number.isInteger(lateCancelBlockDays) && lateCancelBlockDays >= 1) settings.lateCancelBlockDays = lateCancelBlockDays;
     if (typeof storeDebtLimit === 'number' && Number.isFinite(storeDebtLimit) && storeDebtLimit >= 0) {
       settings.storeDebtLimit = Math.round(storeDebtLimit * 100) / 100;
     }

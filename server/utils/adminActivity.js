@@ -96,7 +96,11 @@ const RULES = [
   // Customers
   ["POST", "/customers", "customer", "customer.add", "added customer {t}"],
   ["PATCH", "/customers/:id", "customer", "customer.edit", ({ body, t }) =>
-    body.isSuspended !== undefined ? `${body.isSuspended ? "suspended" : "unsuspended"} customer ${t}` : `edited customer ${t}`],
+    body.isSuspended !== undefined
+      ? `${body.isSuspended ? "suspended" : "unsuspended"} customer ${t}`
+      : body.bookingBlockedUntil === null
+        ? `lifted customer ${t}'s ride booking pause`
+        : `edited customer ${t}`],
   ["DELETE", "/customers/:id", "customer", "customer.delete", "deleted customer {t}"],
   // Platform
   ["PATCH", "/admin/settings", "settings", "settings.edit", ({ body }) => `changed settings: ${Object.keys(body).join(", ") || "none"}`],

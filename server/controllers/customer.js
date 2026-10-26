@@ -1,5 +1,6 @@
 
 import User from '../models/User.js';
+import LateCancellation from '../models/LateCancellation.js';
 import { StatusCodes } from 'http-status-codes';
 import { BadRequestError, NotFoundError } from '../errors/index.js';
 import { normalizePhone } from '../utils/phone.js';
@@ -52,7 +53,7 @@ export const getCustomer = async (req, res) => {
 
 export const updateCustomer = async (req, res) => {
   const { id } = req.params;
-  const { name, phone, email, isSuspended } = req.body;
+  const { name, phone, email, isSuspended, bookingBlockedUntil } = req.body;
 
   const customer = await User.findOne({ _id: id, role: 'customer' });
   if (!customer) {
@@ -63,6 +64,10 @@ export const updateCustomer = async (req, res) => {
   if (phone !== undefined) customer.phone = normalizePhone(phone);
   if (email !== undefined) customer.email = email;
   if (typeof isSuspended === 'boolean') customer.isSuspended = isSuspended;
+  // Admin lifts a late-cancel booking block (null), or sets one.
+  if (bookingBlockedUntil !== undefined) {
+    customer.bookingBlockedUntil = bookingBlockedUntil ? new Date(bookingBlockedUntil) : null;
+  }
 
   await customer.save();
 
@@ -86,11 +91,11 @@ export const deleteCustomer = async (req, res) => {
 /** GET /customers/:id/history — profile, recent trips and orders, and lifetime totals. */
 export const getCustomerHistory = async (req, res) => {
   const customer = await User.findOne({ _id: req.params.id, role: 'customer' })
-    .select('name phone email averageRating totalRatings isSuspended createdAt deletedAt')
+    .select('name phone email averageRating totalRatings isSuspended createdAt deletedAt bookingBlockedUntil')
     .lean();
   if (!customer) throw new NotFoundError('Customer not found');
 
-  const [rides, orders, tripTotals, orderTotals] = await Promise.all([
+  const [rides, orders, tripTotals, orderTotals, lateCancels] = await Promise.all([
     Ride.find({ customer: customer._id, foodOrder: null })
       .select('serviceType status fare pickup.address drop.address rider createdAt paymentMethod')
       .populate('rider', 'name phone')
@@ -111,6 +116,12 @@ export const getCustomerHistory = async (req, res) => {
       { $match: { customer: customer._id, status: 'DELIVERED' } },
       { $group: { _id: null, count: { $sum: 1 }, spent: { $sum: '$total' } } },
     ]),
+    LateCancellation.find({ customer: customer._id })
+      .select('serviceType stage riderPaid pickup createdAt rider')
+      .populate('rider', 'name')
+      .sort({ createdAt: -1 })
+      .limit(20)
+      .lean(),
   ]);
 
   const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
@@ -123,5 +134,6 @@ export const getCustomerHistory = async (req, res) => {
     },
     rides,
     orders,
+    lateCancels,
   });
 };

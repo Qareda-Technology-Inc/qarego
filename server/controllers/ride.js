@@ -12,6 +12,7 @@ import {
   generateOTP,
 } from "../utils/mapUtils.js";
 import { settleTrip, getSettings, getCommissionRateForService } from "../utils/tripSettlement.js";
+import { assertNotBookingBlocked } from "../utils/lateCancel.js";
 import {
   assertNoUnpaidRide,
   findUnpaidRide,
@@ -125,6 +126,7 @@ export const createRide = async (req, res) => {
     serviceType === "DELIVERY" ? "PARCEL" : serviceType === "FOOD" ? "FOOD" : "RIDE";
   await assertServiceAvailableAt(pickupLat, pickupLon, coverageService);
   await assertNoUnpaidRide(req.user.id, req.io);
+  await assertNotBookingBlocked(req.user.id);
 
   if (serviceType === "DELIVERY" && (!recipientName || !recipientPhone)) {
     throw new BadRequestError("Recipient name and phone are required for delivery");

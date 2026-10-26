@@ -19,7 +19,18 @@ type History = {
     isSuspended?: boolean;
     createdAt: string;
     deletedAt?: string | null;
+    /** No ride or parcel bookings until then (too many late cancels). */
+    bookingBlockedUntil?: string | null;
   };
+  lateCancels?: {
+    _id: string;
+    serviceType?: string;
+    stage?: string;
+    riderPaid?: number;
+    pickup?: string | null;
+    createdAt: string;
+    rider?: { name?: string } | null;
+  }[];
   totals: { trips: number; orders: number; spent: number };
   rides: {
     _id: string;
@@ -63,6 +74,8 @@ export default function CustomerHistoryPage() {
   const [data, setData] = useState<History | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<"trips" | "orders">("trips");
+  const [lifting, setLifting] = useState(false);
+  const [reload, setReload] = useState(0);
 
   useEffect(() => {
     let alive = true;
@@ -72,7 +85,20 @@ export default function CustomerHistoryPage() {
     return () => {
       alive = false;
     };
-  }, [id]);
+  }, [id, reload]);
+
+  const liftBlock = async () => {
+    if (!window.confirm("Let this customer book rides and parcels again now?")) return;
+    setLifting(true);
+    try {
+      await fetcher(`/customers/${id}`, { method: "PATCH", body: JSON.stringify({ bookingBlockedUntil: null }) });
+      setReload((n) => n + 1);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Couldn't lift the block");
+    } finally {
+      setLifting(false);
+    }
+  };
 
   if (error) {
     return (
@@ -91,9 +117,29 @@ export default function CustomerHistoryPage() {
   }
 
   const c = data.customer;
+  const blockedUntil = c.bookingBlockedUntil && new Date(c.bookingBlockedUntil) > new Date() ? new Date(c.bookingBlockedUntil) : null;
+  const lateCancels = data.lateCancels ?? [];
   return (
     <div className="min-w-0 space-y-6">
       <BackLink />
+
+      {blockedUntil ? (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <span className="flex-1">
+            <strong>Ride and parcel bookings paused</strong> until{" "}
+            {blockedUntil.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}, after repeated
+            cancellations once the rider had arrived. Store orders still work.
+          </span>
+          <button
+            type="button"
+            onClick={liftBlock}
+            disabled={lifting}
+            className="rounded-md border border-amber-300 bg-white px-3 py-1.5 text-xs font-semibold text-amber-900 hover:bg-amber-100"
+          >
+            {lifting ? "Lifting…" : "Lift the pause"}
+          </button>
+        </div>
+      ) : null}
 
       <Card>
         <CardContent className="flex flex-col gap-5 p-5 sm:flex-row sm:items-center sm:justify-between">
@@ -146,6 +192,32 @@ export default function CustomerHistoryPage() {
           </div>
         </CardContent>
       </Card>
+
+      {lateCancels.length ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Cancelled after the rider arrived ({lateCancels.length})</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ul className="divide-y text-sm">
+              {lateCancels.map((l) => (
+                <li key={l._id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                  <span className="text-gray-800">
+                    {l.serviceType === "DELIVERY" ? "Parcel" : "Ride"}
+                    {l.pickup ? ` from ${l.pickup}` : ""}
+                    {l.rider?.name ? ` · rider ${l.rider.name}` : ""}
+                    {l.stage === "IN_PROGRESS" ? " · during the trip" : ""}
+                  </span>
+                  <span className="text-xs text-gray-500">
+                    {l.riderPaid ? `rider paid ${formatCurrency(l.riderPaid)} · ` : ""}
+                    {new Date(l.createdAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card>
         <CardHeader className="flex flex-row items-center gap-2">

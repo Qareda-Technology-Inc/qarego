@@ -1,4 +1,5 @@
 import geolib from "geolib";
+import { handleCustomerCancel } from "../utils/lateCancel.js";
 import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
 import User from "../models/User.js";
@@ -186,8 +187,13 @@ const handleSocketConnection = (io) => {
       socket.on("cancelRide", async (rideId) => {
         try {
           if (!isValidId(rideId)) return;
-          const ride = await Ride.findOne({ _id: rideId, customer: user.id }).select("rider status").lean();
+          const ride = await Ride.findOne({ _id: rideId, customer: user.id })
+            .select("rider status serviceType customer pickup.address")
+            .lean();
           if (!ride || ride.status === "COMPLETED") return;
+          // After the rider arrived: pay the rider and count it (utils/lateCancel.js). Before the
+          // ride is deleted, so the record has what it needs.
+          await handleCustomerCancel(ride, io);
           await Ride.deleteOne({ _id: rideId });
           socket.emit("rideCanceled", { rideId, message: "Ride canceled" });
 

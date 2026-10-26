@@ -34,7 +34,7 @@ You must be at least 18 to use QareGO.
 5. When the rider arrives, **give them your 4-digit code**. Only then does the trip start.
 6. At the end, pay the fare: cash to the rider, or mobile money in the app.
 
-You can cancel while we're finding a rider, or from the trip screen.
+You can cancel while we're finding a rider, or from the trip screen. Please cancel before the rider reaches you: cancelling after they've arrived counts toward a limit, and too many late cancels pause ride bookings for a few days.
 
 ## 3. Sending or receiving a parcel
 

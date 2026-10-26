@@ -68,6 +68,10 @@ type Form = {
     minCashout: string;
     storeFreeDays: string;
     storeDebtLimit: string;
+    lateCancelFee: string;
+    lateCancelLimit: string;
+    lateCancelWindowDays: string;
+    lateCancelBlockDays: string;
   };
   vehiclePolicy: { pragyaFoodEnabled: boolean; comfortFoodEnabled: boolean };
   reliability: { strikesBeforePause: string; pauseDurationHours: string; strikeDecayOnCompletion: string };
@@ -135,6 +139,10 @@ function formFromSettings(data: any): Form {
       minCashout: String(data.minCashoutAmount ?? 1),
       storeFreeDays: String(data.storeFreePeriodDays ?? 0),
       storeDebtLimit: String(data.storeDebtLimit ?? 0),
+      lateCancelFee: String(data.lateCancelFee ?? 0),
+      lateCancelLimit: String(data.lateCancelLimit ?? 0),
+      lateCancelWindowDays: String(data.lateCancelWindowDays ?? 30),
+      lateCancelBlockDays: String(data.lateCancelBlockDays ?? 3),
     },
     vehiclePolicy: { pragyaFoodEnabled: !!vcp.pragyaFoodEnabled, comfortFoodEnabled: !!vcp.comfortFoodEnabled },
     reliability: {
@@ -197,6 +205,10 @@ function payloadFor(tab: TabKey, f: Form): Record<string, unknown> | string {
         minCashoutAmount: parseMoney(f.commission.minCashout, 1),
         storeFreePeriodDays,
         storeDebtLimit: parseMoney(f.commission.storeDebtLimit, 0),
+        lateCancelFee: parseMoney(f.commission.lateCancelFee, 0),
+        lateCancelLimit: Math.max(0, parseInt(f.commission.lateCancelLimit, 10) || 0),
+        lateCancelWindowDays: Math.max(1, parseInt(f.commission.lateCancelWindowDays, 10) || 30),
+        lateCancelBlockDays: Math.max(1, parseInt(f.commission.lateCancelBlockDays, 10) || 3),
       };
     }
     case 'dispatch':
@@ -571,6 +583,52 @@ function SettingsTabs() {
                       max="365"
                       value={form.commission.storeFreeDays}
                       onChange={(storeFreeDays) => update('commission', { storeFreeDays })}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Late cancellations</CardTitle>
+                  <CardDescription>
+                    When a customer cancels a ride or parcel after the rider has arrived (or during the trip), QareGO
+                    pays the rider for their time. The customer isn&apos;t charged, but late cancels are counted:
+                    after the limit, they can&apos;t book rides or parcels for a few days (store orders still work).
+                    You can lift a block on the customer&apos;s page.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <Field
+                      id="lateCancelFee"
+                      label={`Paid to the rider (${CURRENCY_SYMBOL})`}
+                      hint="0 = no payment"
+                      step="0.5"
+                      value={form.commission.lateCancelFee}
+                      onChange={(lateCancelFee) => update('commission', { lateCancelFee })}
+                    />
+                    <Field
+                      id="lateCancelLimit"
+                      label="Late cancels allowed"
+                      hint="0 = no limit"
+                      step="1"
+                      value={form.commission.lateCancelLimit}
+                      onChange={(lateCancelLimit) => update('commission', { lateCancelLimit })}
+                    />
+                    <Field
+                      id="lateCancelWindowDays"
+                      label="…within this many days"
+                      step="1"
+                      value={form.commission.lateCancelWindowDays}
+                      onChange={(lateCancelWindowDays) => update('commission', { lateCancelWindowDays })}
+                    />
+                    <Field
+                      id="lateCancelBlockDays"
+                      label="Days without ride bookings after the limit"
+                      step="1"
+                      value={form.commission.lateCancelBlockDays}
+                      onChange={(lateCancelBlockDays) => update('commission', { lateCancelBlockDays })}
                     />
                   </div>
                 </CardContent>

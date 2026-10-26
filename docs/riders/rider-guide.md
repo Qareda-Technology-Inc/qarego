@@ -102,7 +102,7 @@ A customer who hasn't paid for a mobile money trip can't book again until they p
 
 ## 6. Cancellations
 
-- **Customers** can cancel a ride or parcel while it's being arranged or during the trip.
+- **Customers** can cancel a ride or parcel while it's being arranged or during the trip. **If they cancel after you've arrived** (or during the trip), QareGO pays you a fee for your time, added to your wallet as "Cancellation pay". The amount is set by QareGO and shown in your history.
 - **If a store cancels** an order after you've set off, you're paid: **half** the delivery fee once you've accepted, the **full** fee once you've reached the store or are carrying the order. It's added to your wallet.
 - **If you can't complete a job**, contact the customer and QareGO support straight away. Don't just abandon it.
 
