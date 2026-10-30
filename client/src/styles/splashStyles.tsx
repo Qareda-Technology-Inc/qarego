@@ -44,6 +44,7 @@ export const splashStyles = StyleSheet.create({
     opacity: 0.1,
   },
   content: {
+    width: "100%",
     alignItems: "center",
     paddingHorizontal: 32,
     zIndex: 1,

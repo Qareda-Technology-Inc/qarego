@@ -6,6 +6,7 @@ import { router } from "expo-router";
 import CustomText from "../shared/CustomText";
 import { Colors } from "@/utils/Constants";
 import { DS } from "@/theme/designSystem";
+import { RFValue } from "react-native-responsive-fontsize";
 import CircularServiceSelector from "./CircularServiceSelector";
 import FoodPromoCarousel from "./food/FoodPromoCarousel";
 import OrderAgainRow from "./OrderAgainRow";
@@ -90,7 +91,7 @@ const ServiceSelectScreen = () => {
         key: "services",
         target: servicesRef,
         title: "Everything else",
-        body: "Order food, groceries or medicine, send a parcel, or get your gas cylinder refilled.",
+        body: "Order food, groceries or medicine, send a parcel, refill your gas cylinder, or get your laundry done.",
       },
       {
         key: "orders",
@@ -242,7 +243,8 @@ const ServiceSelectScreen = () => {
 const styles = StyleSheet.create({
   wrapper: {
     width: "100%",
-    maxWidth: 440,
+    // Fonts scale with screen height (RFValue), so the cap must too or iPad tiles truncate.
+    maxWidth: RFValue(440),
     alignSelf: "center",
     paddingTop: 4,
   },

@@ -113,7 +113,7 @@ const Role = () => {
               QareGO
             </CustomText>
             <CustomText fontFamily="Medium" fontSize={15} style={styles.tagline}>
-              Rides, food & parcels across Ghana
+              Rides, food, parcels, gas & laundry across Ghana
             </CustomText>
           </Animated.View>
 

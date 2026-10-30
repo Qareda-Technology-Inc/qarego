@@ -222,7 +222,7 @@ const Main = () => {
           QareGO
         </CustomText>
         <CustomText fontFamily="Medium" fontSize={15} style={splashStyles.tagline}>
-          Rides, food & parcels across Ghana
+          Rides, food, parcels, gas & laundry across Ghana
         </CustomText>
         <View style={splashStyles.loaderWrap}>
           <Animated.View style={[splashStyles.loaderBar, loaderStyle]} />

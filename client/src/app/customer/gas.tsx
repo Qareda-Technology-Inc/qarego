@@ -7,7 +7,7 @@ import {
   ActivityIndicator,
   TextInput,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { router } from "expo-router";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
@@ -51,6 +51,7 @@ type Point = { latitude: number; longitude: number; address: string };
 
 export default function GasRequestScreen() {
   const { location } = useUserStore();
+  const insets = useSafeAreaInsets();
   const { showToast } = useMessage();
   const [options, setOptions] = useState<GasOptions | null>(null);
   const [mode, setMode] = useState<GasMode>("REFILL");
@@ -294,7 +295,8 @@ export default function GasRequestScreen() {
           </View>
         </ScrollView>
 
-        <View style={styles.footer}>
+        {/* Android draws under the navigation bar (edge-to-edge), so pad by the real inset. */}
+        <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
           <CustomButton
             title={online ? ctaTitle : "Waiting for connection…"}
             onPress={place}
@@ -430,7 +432,6 @@ const styles = StyleSheet.create({
   footer: {
     paddingHorizontal: 16,
     paddingTop: 10,
-    paddingBottom: 28,
     backgroundColor: T.sheetBg,
     borderTopWidth: 1,
     borderTopColor: T.border,

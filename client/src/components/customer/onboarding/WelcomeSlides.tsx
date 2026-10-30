@@ -31,7 +31,7 @@ export const CUSTOMER_SLIDES: Slide[] = [
     tint: Colors.theme,
     bg: "#FFEDD5",
     title: "Everything in one app",
-    body: "Book a ride, order food, groceries or medicine, send a parcel, or get your gas cylinder refilled.",
+    body: "Book a ride, order food, groceries or medicine, send a parcel, refill your gas cylinder, or get your laundry done.",
   },
   {
     key: "price",
