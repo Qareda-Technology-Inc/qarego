@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Play Store feature graphic</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@800&amp;family=Lora:wght@500&amp;display=swap" rel="stylesheet">
+<style>
+  html, body { margin: 0; overflow: hidden; }
+  /* 1024×500. Google may crop the edges or lay text over the bottom, so key content stays near the middle. */
+  #stage { width: 1024px; height: 500px; position: relative; overflow: hidden; background: #134574; }
+  .circle { position: absolute; border-radius: 50%; }
+  .icon { position: absolute; left: 64px; top: 92px; width: 96px; height: 96px; border-radius: 22px; overflow: hidden;
+          box-shadow: 0 10px 28px rgba(0,0,0,0.25); }
+  .icon img { width: 100%; height: 100%; display: block; }
+  h1 { position: absolute; left: 62px; top: 206px; margin: 0; color: #fff;
+       font-family: "Playfair Display", serif; font-weight: 800; font-size: 74px; line-height: 1; letter-spacing: -1px; }
+  p { position: absolute; left: 64px; top: 300px; width: 400px; margin: 0; color: #fff;
+      font-family: Lora, serif; font-weight: 500; font-size: 25px; line-height: 1.3; }
+  .bar { position: absolute; left: 64px; top: 404px; width: 70px; height: 8px; border-radius: 4px; background: #edd228; }
+  .phone { position: absolute; width: 190px; filter: drop-shadow(0 14px 24px rgba(0,0,0,0.3)); }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="circle" style="background:#46665f; width:620px; height:620px; left:640px; top:-330px"></div>
+  <div class="circle" style="background:#f1ecd4; width:300px; height:300px; left:820px; top:300px"></div>
+  <div class="circle" style="background:#355b68; width:420px; height:420px; left:-170px; top:330px"></div>
+  <div class="icon"><img src="devices/app-icon.png" alt=""></div>
+  <h1>QareGO</h1>
+  <p>Rides, food, parcels, gas &amp; laundry across Ghana</p>
+  <div class="bar"></div>
+  <img class="phone" src="devices/02_ride.png" alt="" style="left:500px; top:118px; width:222px">
+  <img class="phone" src="devices/01_customer_home.png" alt="" style="left:664px; top:62px; width:240px">
+  <img class="phone" src="devices/03_customer_track.png" alt="" style="left:846px; top:118px; width:222px">
+</div>
+</body>
+</html>

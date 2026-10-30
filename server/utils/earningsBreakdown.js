@@ -24,6 +24,33 @@ export function buildEarningsBreakdownForRide(ride, settings = {}) {
   return buildEarningsBreakdown(ride?.fare, rate, serviceType);
 }
 
+export function isStoreCourierRide(ride) {
+  return ride?.serviceType === "FOOD" || Boolean(ride?.foodOrder);
+}
+
+/** Store-order courier leg: the rider keeps the order's riderNet, not fare minus the
+ * COMMISSION_DEBIT, which for cash orders is QareGO's whole platformNet.
+ * A gas refill has a collect and a return leg; each leg's fare is the order's whole
+ * delivery fee, so fare and riderNet are both split across the completed legs.
+ * Returns null when the order has not been split yet.
+ */
+export function buildEarningsBreakdownForStoreRide(ride, order, completedLegs = 1) {
+  if (order?.riderNet == null) return null;
+  const legs = Math.max(1, Number(completedLegs) || 1);
+  const grossFare = Math.round(((Number(ride?.fare) || 0) / legs) * 100) / 100;
+  const netEarning = Math.round((Number(order.riderNet) / legs) * 100) / 100;
+  const commissionAmount = Math.max(0, Math.round((grossFare - netEarning) * 100) / 100);
+  const commissionRate = grossFare > 0 ? commissionAmount / grossFare : 0;
+  return {
+    grossFare,
+    commissionRate,
+    commissionPercent: Math.round(commissionRate * 1000) / 10,
+    commissionAmount,
+    netEarning,
+    serviceType: "FOOD",
+  };
+}
+
 export function buildEarningsBreakdownFromCommissionTxn(tx) {
   const fare = Number(tx?.ride?.fare ?? 0);
   const commissionAmount = Math.abs(Number(tx?.amount ?? 0));

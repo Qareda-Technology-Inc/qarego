@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Play Store screenshot</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800&amp;family=Lora:wght@500&amp;display=swap" rel="stylesheet">
+<style>
+  html, body { margin: 0; overflow: hidden; }
+  /* Laid out on a 1080×1920 (9:16) grid, scaled to ?w= */
+  #stage { width: 1080px; height: 1920px; position: relative; overflow: hidden; transform-origin: 0 0; }
+  .circle { position: absolute; border-radius: 50%; }
+  .bar { position: absolute; left: 486px; top: 150px; width: 108px; height: 12px; border-radius: 6px; }
+  h1 { position: absolute; left: 40px; right: 40px; top: 200px; margin: 0; text-align: center;
+       font-family: "Playfair Display", serif; font-weight: 800; font-size: 104px; line-height: 1.04; letter-spacing: -1px; }
+  p { position: absolute; left: 60px; right: 60px; top: 445px; margin: 0; text-align: center;
+      font-family: Lora, serif; font-weight: 500; font-size: 44px; line-height: 1.25; }
+  .device { position: absolute; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="c1" class="circle"></div>
+  <div id="c2" class="circle"></div>
+  <div id="c3" class="circle"></div>
+  <div class="bar" id="bar"></div>
+  <h1 id="title"></h1>
+  <p id="sub"></p>
+  <img class="device" id="device" alt="">
+</div>
+<script>
+const NAVY = { bg: '#134574', text: '#ffffff', sub: '#ffffff', bar: '#edd228',
+  circles: [['#46665f', 1260, 700, -40], ['#f1ecd4', 620, 660, 760], ['#355b68', 900, -420, 1500]] };
+const CREAM = { bg: '#faf6ec', text: '#0f2f55', sub: '#134574', bar: '#ef7f22',
+  circles: [['#f7dabc', 1100, 620, -330], ['#f7dabc', 700, -360, 1450]] };
+const ORANGE = { bg: '#ef7f22', text: '#ffffff', sub: '#ffffff', bar: '#0b2a4a',
+  circles: [['#b96b2b', 1100, 620, -330], ['#cb7228', 760, -380, 1420]] };
+
+// Phone slides use the phone cut-outs; tablet slides (t1–t3) use the iPad ones.
+const PHONE = { left: 140, top: 640, width: 800 };
+const TABLET = { left: 70, top: 650, width: 940 };
+const SLIDES = {
+  1: [NAVY, 'Rides, food<br>&amp; parcels', 'Everything you need across Ghana,<br>in one app', '01_customer_home', PHONE],
+  2: [CREAM, 'See the fare<br>before you go', 'Motorcycle, Pragya or car:<br>you choose', '02_ride', PHONE],
+  3: [ORANGE, 'Track your<br>rider live', 'Share your code only<br>when they arrive', '03_customer_track', PHONE],
+  4: [CREAM, 'Food, groceries<br>&amp; pharmacy', 'Delivered from stores<br>near you', '04_food', PHONE],
+  5: [NAVY, 'Cooking gas,<br>sorted', 'Refill or swap your cylinder,<br>delivered to your door', '05_gas', PHONE],
+  6: [ORANGE, 'Ride and earn<br>with QareGO', 'See what you earn<br>before you accept', '06_rider_offer', PHONE],
+  7: [CREAM, 'Every trip,<br>step by step', 'Navigate, call and confirm<br>with the customer’s code', '07_rider_trip', PHONE],
+  t1: [NAVY, 'Rides, food<br>&amp; parcels', 'Everything you need across Ghana,<br>in one app', 'ipad_01_home', TABLET],
+  t2: [CREAM, 'See the fare<br>before you go', 'Motorcycle, Pragya or car:<br>you choose', 'ipad_02_ride', TABLET],
+  t3: [ORANGE, 'Cooking gas,<br>sorted', 'Refill or swap your cylinder,<br>delivered to your door', 'ipad_03_gas', TABLET],
+};
+
+const q = new URLSearchParams(location.search);
+const [theme, title, sub, device, box] = SLIDES[q.get('n') || 1];
+const stage = document.getElementById('stage');
+stage.style.background = theme.bg;
+document.getElementById('bar').style.background = theme.bar;
+const t = document.getElementById('title'); t.innerHTML = title; t.style.color = theme.text;
+const s = document.getElementById('sub'); s.innerHTML = sub; s.style.color = theme.sub;
+const img = document.getElementById('device');
+img.src = 'devices/' + device + '.png';
+Object.assign(img.style, { left: box.left + 'px', top: box.top + 'px', width: box.width + 'px' });
+theme.circles.forEach(([color, size, x, y], i) => {
+  const c = document.getElementById('c' + (i + 1));
+  Object.assign(c.style, { background: color, width: size + 'px', height: size + 'px', left: x + 'px', top: y + 'px' });
+});
+stage.style.transform = `scale(${Number(q.get('w') || 1080) / 1080})`;
+</script>
+</body>
+</html>

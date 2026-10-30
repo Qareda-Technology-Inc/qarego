@@ -20,6 +20,8 @@ export default function EarningsBreakdownStrip({
 }: Props) {
   const lines = formatBreakdownLines(breakdown);
   const svc = serviceCommissionLabel(breakdown.serviceType);
+  // Nothing taken (e.g. store deliveries at 0%): skip the "−GH₵0.00" line.
+  const hasCommission = Number(breakdown.commissionAmount) > 0;
 
   if (compact) {
     return (
@@ -27,9 +29,11 @@ export default function EarningsBreakdownStrip({
         <CustomText fontSize={10} style={styles.muted}>
           Gross {lines.gross}
         </CustomText>
-        <CustomText fontSize={10} style={styles.commission}>
-          −{lines.commission} ({lines.percent} {svc})
-        </CustomText>
+        {hasCommission && (
+          <CustomText fontSize={10} style={styles.commission}>
+            −{lines.commission} ({lines.percent} {svc})
+          </CustomText>
+        )}
         <CustomText fontSize={11} fontFamily="Bold" style={styles.net}>
           You get {lines.net}
         </CustomText>
@@ -47,14 +51,16 @@ export default function EarningsBreakdownStrip({
           {lines.gross}
         </CustomText>
       </View>
-      <View style={styles.row}>
-        <CustomText fontSize={11} style={styles.muted}>
-          Platform fee ({lines.percent} · {svc})
-        </CustomText>
-        <CustomText fontSize={13} fontFamily="Medium" style={styles.commission}>
-          −{lines.commission}
-        </CustomText>
-      </View>
+      {hasCommission && (
+        <View style={styles.row}>
+          <CustomText fontSize={11} style={styles.muted}>
+            Platform fee ({lines.percent} · {svc})
+          </CustomText>
+          <CustomText fontSize={13} fontFamily="Medium" style={styles.commission}>
+            −{lines.commission}
+          </CustomText>
+        </View>
+      )}
       <View style={[styles.row, styles.netRow]}>
         <CustomText fontSize={12} fontFamily="SemiBold" style={styles.netLabel}>
           You receive

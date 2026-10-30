@@ -44,8 +44,10 @@ import { getOnDutyRider } from "../utils/onDutyRidersRegistry.js";
 import { filterRidesForRider } from "../utils/rideOfferBroadcast.js";
 import {
   buildEarningsBreakdownForRide,
+  buildEarningsBreakdownForStoreRide,
   buildEarningsBreakdownFromCommissionTxn,
   buildSalesSummaryFromCommissionTxns,
+  isStoreCourierRide,
 } from "../utils/earningsBreakdown.js";
 import {
   recordReliabilityEvent,
@@ -63,6 +65,40 @@ import { cleanupStaleFoodCourierRide } from "../utils/releaseCourierRide.js";
 import { isDuplicateKeyError, readClientRequestId } from "../utils/idempotency.js";
 const VALID_VEHICLES = ["motorcycle", "pragya", "comfort"];
 const VALID_SERVICE_TYPES = ["RIDE", "DELIVERY"];
+
+/** Rider breakdowns for completed store-order courier rides, keyed by ride id (from each order's riderNet). */
+async function loadStoreRideBreakdowns(rides) {
+  const storeRides = rides.filter((r) => r && isStoreCourierRide(r) && r.foodOrder);
+  const byRide = new Map();
+  if (!storeRides.length) return byRide;
+
+  const orderIds = [...new Set(storeRides.map((r) => String(r.foodOrder?._id ?? r.foodOrder)))];
+  const [orders, legCounts] = await Promise.all([
+    FoodOrder.find({ _id: { $in: orderIds } }).select("riderNet").lean(),
+    Ride.aggregate([
+      {
+        $match: {
+          foodOrder: { $in: orderIds.map((id) => new mongoose.Types.ObjectId(id)) },
+          status: "COMPLETED",
+        },
+      },
+      { $group: { _id: "$foodOrder", n: { $sum: 1 } } },
+    ]),
+  ]);
+  const orderById = new Map(orders.map((o) => [String(o._id), o]));
+  const legsByOrder = new Map(legCounts.map((l) => [String(l._id), l.n]));
+
+  for (const ride of storeRides) {
+    const orderId = String(ride.foodOrder?._id ?? ride.foodOrder);
+    const breakdown = buildEarningsBreakdownForStoreRide(
+      ride,
+      orderById.get(orderId),
+      legsByOrder.get(orderId)
+    );
+    if (breakdown) byRide.set(String(ride._id), breakdown);
+  }
+  return byRide;
+}
 
 /** GET /ride/fare-rates — platform distance fare config for ride & parcel booking */
 export const getFareRates = async (req, res) => {
@@ -785,12 +821,15 @@ export const getMyRides = async (req, res) => {
             ride: { $in: completedIds },
             type: "COMMISSION_DEBIT",
           })
-            .populate("ride", "fare serviceType")
+            .populate("ride", "fare serviceType foodOrder")
             .lean();
-          const breakdownByRide = new Map();
+          const breakdownByRide = await loadStoreRideBreakdowns(
+            rides.filter((r) => r.status === "COMPLETED")
+          );
           for (const tx of commissionTxns) {
             const rideId = tx.ride?._id?.toString?.() ?? tx.ride?.toString?.();
-            if (rideId) {
+            // Store orders: the debit is platformNet, not a cut of the fare.
+            if (rideId && !isStoreCourierRide(tx.ride)) {
               breakdownByRide.set(rideId, buildEarningsBreakdownFromCommissionTxn(tx));
             }
           }
@@ -900,7 +939,7 @@ export const getMyTransactions = async (req, res) => {
   try {
     const user = await User.findById(driverId).select("balance driverDetails.status driverDetails.review");
     const transactions = await Transaction.find({ driver: driverId })
-      .populate("ride", "fare status paymentMethod serviceType")
+      .populate("ride", "fare status paymentMethod serviceType foodOrder")
       .sort({ createdAt: -1 })
       .limit(100);
     const currentBalance = Number(user?.balance ?? 0);
@@ -924,13 +963,16 @@ export const getMyTransactions = async (req, res) => {
       FOOD: getCommissionRateForService(settings, "FOOD"),
     };
 
+    const storeBreakdowns = await loadStoreRideBreakdowns(
+      transactions.filter((tx) => tx.type === "COMMISSION_DEBIT").map((tx) => tx.ride)
+    );
     const enrichedTransactions = transactions.map((tx) => {
       const doc = tx.toObject ? tx.toObject() : tx;
       if (doc.type === "COMMISSION_DEBIT" && doc.ride) {
-        return {
-          ...doc,
-          earningsBreakdown: buildEarningsBreakdownFromCommissionTxn(doc),
-        };
+        const earningsBreakdown = isStoreCourierRide(doc.ride)
+          ? storeBreakdowns.get(String(doc.ride._id)) ?? null
+          : buildEarningsBreakdownFromCommissionTxn(doc);
+        return earningsBreakdown ? { ...doc, earningsBreakdown } : doc;
       }
       return doc;
     });
