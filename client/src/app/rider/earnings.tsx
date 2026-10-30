@@ -10,7 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { openMomoComingSoon, useMomoPayAvailable } from "@/utils/momo";
 import PaymentCheckoutModal from "@/components/shared/PaymentCheckoutModal";
 import React, { useState, useCallback, useRef, useEffect } from "react";
@@ -138,6 +138,7 @@ function syncRiderStatusAfterTopUp(balance: number, driverStatus?: string) {
 }
 
 export default function RiderEarnings() {
+  const insets = useSafeAreaInsets();
   const [balance, setBalance] = useState<number>(0);
   const [walletBalance, setWalletBalance] = useState<number>(0);
   const [minCashoutAmount, setMinCashoutAmount] = useState<number>(1);
@@ -359,7 +360,7 @@ export default function RiderEarnings() {
       </View>
 
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: 100 + insets.bottom }]}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -599,8 +600,9 @@ export default function RiderEarnings() {
         </View>
       </ScrollView>
 
+      {/* Android draws under the navigation bar (edge-to-edge), so pad by the real inset. */}
       {showCashoutFooter ? (
-        <View style={styles.stickyFooter}>
+        <View style={[styles.stickyFooter, { paddingBottom: Math.max(insets.bottom, 16) }]}>
           {cashoutMessage && !cashoutModalVisible ? (
             <CustomText
               fontSize={12}
@@ -917,7 +919,6 @@ const styles = StyleSheet.create({
     bottom: 0,
     paddingHorizontal: 20,
     paddingVertical: 12,
-    paddingBottom: 28,
     backgroundColor: "#fff",
     borderTopWidth: 1,
     borderTopColor: "#f0f0f0",

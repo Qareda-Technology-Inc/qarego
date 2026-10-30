@@ -8,6 +8,7 @@ import {
 import { TouchableOpacity as BottomSheetTouchable } from "@gorhom/bottom-sheet";
 import React, { FC, useCallback, useMemo, useRef, useState } from "react";
 import { useWS } from "@/service/WSProvider";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import CustomText from "../shared/CustomText";
 import { getVehicleIconSource, getVehicleLabel } from "@/utils/mapUtils";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -100,6 +101,7 @@ const LiveTrackingSheet: FC<{
   item: RideItem;
   onRateDriver?: () => void;
 }> = ({ item, onRateDriver }) => {
+  const insets = useSafeAreaInsets();
   const { emit } = useWS();
   const { user } = useUserStore();
   const [showChat, setShowChat] = useState(false);
@@ -165,7 +167,8 @@ const LiveTrackingSheet: FC<{
   }, [item?.drop, routeLabels.dropLabel]);
 
   return (
-    <View style={styles.container}>
+    // The sheet reaches the screen bottom; on Android that is under the navigation bar.
+    <View style={[styles.container, { paddingBottom: Math.max(insets.bottom + 12, 28) }]}>
       {/* Status + rider */}
       <View style={styles.heroCard}>
         <View style={styles.heroTop}>
@@ -414,7 +417,6 @@ const styles = StyleSheet.create({
   container: {
     paddingHorizontal: 20,
     paddingTop: 4,
-    paddingBottom: 28,
   },
   heroCard: {
     backgroundColor: "#f8fafc",

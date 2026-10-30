@@ -7,6 +7,7 @@ import {
 } from "react-native";
 import React, { FC, useCallback } from "react";
 import { useWS } from "@/service/WSProvider";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import CustomText from "../shared/CustomText";
 import { getVehicleIconSource, getVehicleLabel } from "@/utils/mapUtils";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -29,6 +30,7 @@ interface RideItem {
 }
 
 const SearchingRideSheet: FC<{ item: RideItem }> = ({ item }) => {
+  const insets = useSafeAreaInsets();
   const { emit } = useWS();
   const isParcel = item?.serviceType === "DELIVERY";
   const parcelMode = parseRideParcelMode(item);
@@ -50,7 +52,8 @@ const SearchingRideSheet: FC<{ item: RideItem }> = ({ item }) => {
   }, [item?.pickup, item?.drop]);
 
   return (
-    <View style={styles.container}>
+    // The sheet reaches the screen bottom; on Android that is under the navigation bar.
+    <View style={[styles.container, { paddingBottom: Math.max(insets.bottom + 12, 28) }]}>
       <View style={styles.searchHero}>
         <View style={styles.iconRing}>
           <Image
@@ -186,7 +189,6 @@ const styles = StyleSheet.create({
   container: {
     paddingHorizontal: 20,
     paddingTop: 4,
-    paddingBottom: 28,
   },
   searchHero: {
     flexDirection: "row",
