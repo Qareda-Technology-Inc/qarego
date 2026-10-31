@@ -22,6 +22,7 @@ import {
   ShieldCheck,
   KeyRound,
   History,
+  Flag,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/context/AuthContext';
@@ -37,6 +38,7 @@ const navigation = [
   { name: 'Dispatch', href: '/dispatch', icon: Radio },
   { name: 'Customers', href: '/customers', icon: Users },
   { name: 'Trips', href: '/trips', icon: MapPin },
+  { name: 'Chat reports', href: '/chat-reports', icon: Flag },
   { name: 'Vendors', href: '/vendors', icon: Store },
   { name: 'Store approvals', href: '/store-approvals', icon: BadgeCheck },
   { name: 'Store types', href: '/store-types', icon: Tags },

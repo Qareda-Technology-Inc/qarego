@@ -1,5 +1,6 @@
 import express from 'express';
 import { createRide, getFareRates, getRideById, getCourierLocation, updateRideStatus, acceptRide, getMyRides, getPendingRideOffers, rateRide, updateRiderStatus, getMyTransactions, getRiderAlertSound, getRiderServicePreferences, updateRiderServicePreferences, getRiderReliability, getRiderDispatchAnalytics, declineRideOffer, getMyUnpaidRide, confirmCashPayment } from '../controllers/ride.js';
+import { reportChat } from '../controllers/chatReport.js';
 import { initiateTopUp, getTopUpStatus, initiateCashout, initiateRidePayment, getRidePaymentStatus } from '../controllers/payment.js';
 
 const router = express.Router();
@@ -31,6 +32,7 @@ router.post('/:rideId/rate', rateRide);
 router.post('/:rideId/payment/initiate', initiateRidePayment);
 router.get('/:rideId/payment-status', getRidePaymentStatus);
 router.post('/:rideId/paid-cash', confirmCashPayment);
+router.post('/:rideId/chat-report', reportChat);
 router.get('/:rideId/courier-location', getCourierLocation);
 router.get('/:rideId', getRideById);
 

@@ -409,10 +409,26 @@ const handleSocketConnection = (io) => {
       }
     });
 
-    // Chat functionality
-    socket.on("joinChat", (rideId) => {
-      socket.join(`chat_${rideId}`);
-      console.log(`User ${user.id} joined chat for ride ${rideId}`);
+    // Chat functionality: only the trip's customer and rider may join or read it.
+    const isOnRide = async (rideId) => {
+      if (!isValidId(rideId)) return false;
+      const ride = await Ride.findById(rideId).select("customer rider").lean();
+      return Boolean(
+        ride && (ride.customer?.toString() === user.id || ride.rider?.toString() === user.id)
+      );
+    };
+
+    socket.on("joinChat", async (rideId) => {
+      try {
+        if (!(await isOnRide(rideId))) {
+          socket.emit("error", { message: "Unauthorized" });
+          return;
+        }
+        socket.join(`chat_${rideId}`);
+        console.log(`User ${user.id} joined chat for ride ${rideId}`);
+      } catch (error) {
+        console.error("Error joining chat:", error);
+      }
     });
 
     socket.on("leaveChat", (rideId) => {
@@ -422,6 +438,10 @@ const handleSocketConnection = (io) => {
 
     socket.on("getChatHistory", async (rideId) => {
       try {
+        if (!(await isOnRide(rideId))) {
+          socket.emit("error", { message: "Unauthorized" });
+          return;
+        }
         const messages = await ChatMessage.find({ ride: rideId })
           .populate("sender", "name phone")
           .sort({ createdAt: 1 })

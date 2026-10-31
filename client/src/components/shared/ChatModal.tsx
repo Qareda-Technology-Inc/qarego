@@ -10,11 +10,14 @@ import {
   ScrollView,
   Image,
   Linking,
+  ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import CustomText from "./CustomText";
 import { Colors } from "@/utils/Constants";
 import { useWS } from "@/service/WSProvider";
+import { reportChat, type ChatReportReason } from "@/service/rideService";
 
 import { useConnectivity } from "@/service/connectivity";
 interface Message {
@@ -48,6 +51,14 @@ const QUICK_MESSAGES = [
   "See you soon",
 ];
 
+const REPORT_REASONS: { key: ChatReportReason; label: string }[] = [
+  { key: "ABUSIVE", label: "Abusive or offensive messages" },
+  { key: "HARASSMENT", label: "Harassment or unwanted contact" },
+  { key: "SAFETY", label: "I feel unsafe" },
+  { key: "SPAM", label: "Spam or scam" },
+  { key: "OTHER", label: "Something else" },
+];
+
 const ChatModal: FC<ChatModalProps> = ({
   visible,
   onClose,
@@ -64,6 +75,33 @@ const ChatModal: FC<ChatModalProps> = ({
   const [showQuickMessages, setShowQuickMessages] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
   const { emit, on, off } = useWS();
+  const insets = useSafeAreaInsets();
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportReason, setReportReason] = useState<ChatReportReason | null>(null);
+  const [reportDetails, setReportDetails] = useState("");
+  const [reportStatus, setReportStatus] = useState<"idle" | "sending" | "sent">("idle");
+  const [reportError, setReportError] = useState<string | null>(null);
+
+  const openReport = () => {
+    setReportReason(null);
+    setReportDetails("");
+    setReportError(null);
+    setReportStatus("idle");
+    setReportOpen(true);
+  };
+
+  const submitReport = async () => {
+    if (!reportReason || reportStatus === "sending") return;
+    setReportStatus("sending");
+    setReportError(null);
+    try {
+      await reportChat(rideId, reportReason, reportDetails.trim() || undefined);
+      setReportStatus("sent");
+    } catch (e: any) {
+      setReportError(e?.message || "Could not send the report. Please try again.");
+      setReportStatus("idle");
+    }
+  };
 
   useEffect(() => {
     if (visible && rideId) {
@@ -186,16 +224,111 @@ const ChatModal: FC<ChatModalProps> = ({
                   </CustomText>
                 </TouchableOpacity>
               ) : null}
+              <TouchableOpacity
+                onPress={openReport}
+                style={styles.reportButton}
+                accessibilityRole="button"
+                accessibilityLabel={`Report ${otherUserName || "this person"}`}
+                hitSlop={6}
+              >
+                <Ionicons name="flag-outline" size={22} color="#dc2626" />
+              </TouchableOpacity>
               <TouchableOpacity onPress={onClose} style={styles.closeButton}>
                 <Ionicons name="close" size={26} color={Colors.text} />
               </TouchableOpacity>
             </View>
           </View>
 
+          {reportOpen ? (
+            <ScrollView
+              style={styles.reportPanel}
+              contentContainerStyle={[styles.reportContent, { paddingBottom: Math.max(insets.bottom, 0) + 32 }]}
+              keyboardShouldPersistTaps="handled"
+            >
+              {reportStatus === "sent" ? (
+                <View style={styles.reportDone}>
+                  <Ionicons name="checkmark-circle" size={48} color="#22c55e" />
+                  <CustomText fontFamily="SemiBold" fontSize={17} style={styles.reportDoneTitle}>
+                    Thanks for telling us
+                  </CustomText>
+                  <CustomText fontSize={14} color="#666" style={styles.reportDoneText}>
+                    Our team will look at this chat and take action. If you are in danger, call 112 now.
+                  </CustomText>
+                  <TouchableOpacity onPress={() => setReportOpen(false)} style={styles.reportSubmit}>
+                    <CustomText fontFamily="SemiBold" fontSize={15} color="#fff">
+                      Back to chat
+                    </CustomText>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <>
+                  <CustomText fontFamily="SemiBold" fontSize={17}>
+                    Report {otherUserName || "this person"}
+                  </CustomText>
+                  <CustomText fontSize={14} color="#666" style={styles.reportIntro}>
+                    Our team will read this chat and check what happened. We won't tell {otherUserName || "them"} you reported them.
+                  </CustomText>
+                  {REPORT_REASONS.map((r) => {
+                    const selected = reportReason === r.key;
+                    return (
+                      <TouchableOpacity
+                        key={r.key}
+                        onPress={() => setReportReason(r.key)}
+                        style={[styles.reasonRow, selected && styles.reasonRowSelected]}
+                        accessibilityRole="radio"
+                        accessibilityState={{ selected }}
+                      >
+                        <Ionicons
+                          name={selected ? "radio-button-on" : "radio-button-off"}
+                          size={20}
+                          color={selected ? "#dc2626" : "#999"}
+                        />
+                        <CustomText fontSize={15} style={styles.reasonText}>
+                          {r.label}
+                        </CustomText>
+                      </TouchableOpacity>
+                    );
+                  })}
+                  <TextInput
+                    style={styles.reportInput}
+                    placeholder="Tell us more (optional)"
+                    value={reportDetails}
+                    onChangeText={setReportDetails}
+                    multiline
+                    maxLength={1000}
+                  />
+                  {reportError ? (
+                    <CustomText fontSize={13} color="#dc2626" style={styles.reportErrorText}>
+                      {reportError}
+                    </CustomText>
+                  ) : null}
+                  <TouchableOpacity
+                    onPress={submitReport}
+                    disabled={!reportReason || reportStatus === "sending"}
+                    style={[styles.reportSubmit, (!reportReason || reportStatus === "sending") && styles.reportSubmitDisabled]}
+                  >
+                    {reportStatus === "sending" ? (
+                      <ActivityIndicator color="#fff" />
+                    ) : (
+                      <CustomText fontFamily="SemiBold" fontSize={15} color="#fff">
+                        Send report
+                      </CustomText>
+                    )}
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => setReportOpen(false)} style={styles.reportCancel}>
+                    <CustomText fontSize={15} color="#666">
+                      Cancel
+                    </CustomText>
+                  </TouchableOpacity>
+                </>
+              )}
+            </ScrollView>
+          ) : null}
+
           {/* Messages */}
           <ScrollView
             ref={scrollViewRef}
-            style={styles.messagesContainer}
+            style={[styles.messagesContainer, reportOpen && styles.hidden]}
             contentContainerStyle={styles.messagesContent}
             onContentSizeChange={() => {
               scrollViewRef.current?.scrollToEnd({ animated: true });
@@ -256,7 +389,7 @@ const ChatModal: FC<ChatModalProps> = ({
           </ScrollView>
 
           {/* Quick Messages */}
-          {showQuickMessages && (
+          {showQuickMessages && !reportOpen && (
             <View style={styles.quickMessagesContainer}>
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                 {QUICK_MESSAGES.map((msg, index) => (
@@ -273,7 +406,9 @@ const ChatModal: FC<ChatModalProps> = ({
           )}
 
           {/* Input Area */}
-          <View style={styles.inputContainer}>
+          <View
+            style={[styles.inputContainer, { paddingBottom: Math.max(insets.bottom, 10) }, reportOpen && styles.hidden]}
+          >
             <TouchableOpacity
               onPress={() => setShowQuickMessages(!showQuickMessages)}
               style={styles.quickButton}
@@ -378,6 +513,81 @@ const styles = StyleSheet.create({
   },
   closeButton: {
     padding: 6,
+  },
+  reportButton: {
+    padding: 6,
+  },
+  hidden: {
+    display: "none",
+  },
+  reportPanel: {
+    flex: 1,
+  },
+  reportContent: {
+    padding: 20,
+    paddingBottom: 32,
+  },
+  reportIntro: {
+    marginTop: 6,
+    marginBottom: 16,
+  },
+  reasonRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderColor: "#e5e5e5",
+    borderRadius: 14,
+    marginBottom: 10,
+  },
+  reasonRowSelected: {
+    borderColor: "#dc2626",
+    backgroundColor: "#fef2f2",
+  },
+  reasonText: {
+    flex: 1,
+  },
+  reportInput: {
+    borderWidth: 1,
+    borderColor: "#e0e0e0",
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    minHeight: 90,
+    fontSize: 15,
+    textAlignVertical: "top",
+    marginTop: 4,
+  },
+  reportErrorText: {
+    marginTop: 10,
+  },
+  reportSubmit: {
+    marginTop: 16,
+    backgroundColor: "#dc2626",
+    borderRadius: 24,
+    paddingVertical: 14,
+    alignItems: "center",
+    alignSelf: "stretch",
+  },
+  reportSubmitDisabled: {
+    opacity: 0.4,
+  },
+  reportCancel: {
+    alignItems: "center",
+    paddingVertical: 14,
+  },
+  reportDone: {
+    alignItems: "center",
+    paddingTop: 32,
+  },
+  reportDoneTitle: {
+    marginTop: 12,
+  },
+  reportDoneText: {
+    textAlign: "center",
+    marginTop: 8,
   },
   emptyChat: {
     flex: 1,

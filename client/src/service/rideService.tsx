@@ -140,6 +140,17 @@ export const getRideById = async (rideId: string): Promise<any | null> => {
   }
 };
 
+export type ChatReportReason = "ABUSIVE" | "HARASSMENT" | "SPAM" | "SAFETY" | "OTHER";
+
+/** Report the other person in a trip chat. Throws with a readable message on failure. */
+export const reportChat = async (rideId: string, reason: ChatReportReason, details?: string) => {
+  try {
+    await appAxios.post(`/ride/${rideId}/chat-report`, { reason, details });
+  } catch (error: any) {
+    throw new Error(error?.response?.data?.msg || "Could not send the report. Please try again.");
+  }
+};
+
 export type RidePaymentInit = {
   status: "pending" | "success" | "failed" | "cancelled" | "initiated";
   clientReference: string;

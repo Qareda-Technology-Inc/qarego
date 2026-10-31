@@ -12,6 +12,7 @@ import FoodPayment from "../models/FoodPayment.js";
 import CommerceStoreType from "../models/CommerceStoreType.js";
 import ServiceZone from "../models/ServiceZone.js";
 import VendorApplication from "../models/VendorApplication.js";
+import ChatReport from "../models/ChatReport.js";
 import { adminRoleOf } from "./adminAccess.js";
 
 const money = (n) => `GH₵${(Number(n) || 0).toFixed(2)}`;
@@ -59,6 +60,11 @@ const RULES = [
   ["PATCH", "/admin/vendor-applications/:id", "vendor", "application.update", ({ body, t }) =>
     `marked the store application from ${t} as ${body.status || "updated"}`],
   ["POST", "/admin/vendor-applications/:id/invite", "vendor", "application.invite", "invited {t} from their store application"],
+  // Chat reports
+  ["PATCH", "/admin/chat-reports/:id", "trip", "chat_report.update", ({ body, t }) =>
+    body.status === "resolved" ? `resolved the chat report about ${t}`
+      : body.status === "open" ? `reopened the chat report about ${t}`
+      : `added a note to the chat report about ${t}`],
   ["POST", "/admin/restaurants", "store", "store.add", "added store {t}"],
   ["PATCH", "/admin/restaurants/:id", "store", "store.edit", ({ body, t }) => {
     if (body.commissionFreeUntil !== undefined) {
@@ -148,6 +154,10 @@ async function labelFor(type, id, action) {
     if (action?.startsWith("application.")) {
       const a = await VendorApplication.findById(id).select("businessName name ownerName").lean();
       return a?.businessName || a?.name || a?.ownerName || null;
+    }
+    if (action?.startsWith("chat_report.")) {
+      const r = await ChatReport.findById(id).populate("reportedUser", "name phone").lean();
+      return r?.reportedUser?.name || r?.reportedUser?.phone || null;
     }
     if (action === "order.retry_payout") {
       const p = await FoodPayment.findById(id).select("order").lean();

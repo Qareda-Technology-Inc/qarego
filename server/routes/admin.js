@@ -81,6 +81,7 @@ import {
   adminUpdateVendorApplication,
   adminInviteFromApplication,
 } from '../controllers/vendorApplication.js';
+import { adminListChatReports, adminUpdateChatReport } from '../controllers/chatReport.js';
 import { registerAdminServiceZoneRoutes } from './serviceZone.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -173,6 +174,8 @@ adminRouter.post('/vendors/:vendorId/reset-password', adminResetVendorPassword);
 adminRouter.get('/vendor-applications', adminListVendorApplications);
 adminRouter.patch('/vendor-applications/:id', adminUpdateVendorApplication);
 adminRouter.post('/vendor-applications/:id/invite', adminInviteFromApplication);
+adminRouter.get('/chat-reports', adminListChatReports);
+adminRouter.patch('/chat-reports/:id', adminUpdateChatReport);
 adminRouter.delete('/vendors/:vendorId', adminDeleteVendor);
 adminRouter.get('/vendors/:vendorId/categories', adminListVendorCategories);
 adminRouter.post('/vendors/:vendorId/categories', adminCreateVendorCategory);
