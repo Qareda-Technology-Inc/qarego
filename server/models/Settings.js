@@ -150,7 +150,7 @@ const settingsSchema = new Schema(
      */
     /**
      * Cooking gas (LPG). Owner sets sizes and prices here; stations don't.
-     * { enabled, momoEnabled, stationCommissionRate,
+     * { enabled, momoEnabled, stationCommissionRate, delivery, amountRefill: { enabled, minAmount },
      *   cylinders: [{ sizeKg, label, refillPrice, exchangePrice, active }] }
      */
     gas: {

@@ -118,6 +118,8 @@ const foodOrderSchema = new Schema(
     /** Cooking gas orders (vertical GAS) */
     gasMode: { type: String, enum: ["REFILL", "EXCHANGE", null], default: null },
     gasSizeKg: { type: Number, default: null },
+    /** REFILL bought by amount: cedis of gas to put in the cylinder. Null = fill it up. */
+    gasAmount: { type: Number, default: null },
     /**
      * Collect-first orders (gas REFILL, laundry): courier taking it to the store, then at the store.
      * The gas* names predate laundry; they're kept so existing apps keep reading them.

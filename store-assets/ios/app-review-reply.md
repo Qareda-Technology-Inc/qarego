@@ -64,3 +64,24 @@ QareGO operates only in Ghana. Prices are in Ghana cedis (GHS), sign-in uses Gha
 Thank you,
 [Your name]
 QareGO
+
+---
+
+# Short version for App Review Information → Notes (under 4,000 characters)
+
+QareGO is an on-demand ride and delivery app for Ghana: rides (motorbike, Pragya, car), food, groceries, pharmacy, parcels, cooking gas refill/exchange and laundry pickup. Riders use the same app to accept trips and earn.
+
+DEMO ACCOUNTS (no SMS code needed; +233 is preselected)
+- Customer: enter 22222222, tap Continue
+- Rider: Account → Log out, enter 11111111, tap Continue, then "Go on duty"
+Account deletion: Account → Delete my account (both account types).
+
+PAYMENT: cash on delivery works for testing. Mobile money and card go through Paystack. All purchases are physical goods and services, so In-App Purchase does not apply (3.1.3(e)).
+
+USER-GENERATED CONTENT: only the text chat between a customer and their rider during an active trip. Either person can tap the flag icon in the chat to report the other. Our team reviews every report and can suspend accounts. The chat closes when the trip ends.
+
+EXTERNAL SERVICES: Paystack (payments), Google Maps Platform (maps, search, routes), Firebase Cloud Messaging and APNs (notifications), Arkasel (SMS codes), Render (API hosting), MongoDB (database), Vercel (business and admin web portals).
+
+REGIONS: Ghana only. Prices in GHS, Ghana phone numbers, stores and riders in Ghana. From outside Ghana you can pick a Ghana address on the map.
+
+REGULATED SERVICES: QareGO is operated by [registered company name], registered in Ghana under [registration number]. We do not sell or dispense medicine: partner pharmacies licensed by the Pharmacy Council of Ghana fulfil orders and check uploaded prescriptions. Payments are processed by Paystack, licensed by the Bank of Ghana.

@@ -10,7 +10,13 @@ export type GasCylinder = {
   exchangePrice: number;
 };
 
-export type GasOptions = { enabled: boolean; momoEnabled: boolean; cylinders: GasCylinder[] };
+export type GasOptions = {
+  enabled: boolean;
+  momoEnabled: boolean;
+  /** Refill by amount (buy GH₵50 of gas instead of a full cylinder). Missing on older servers. */
+  amountRefill?: { enabled: boolean; minAmount: number };
+  cylinders: GasCylinder[];
+};
 
 export type GasQuote = {
   station: { _id: string; name: string };
@@ -21,6 +27,8 @@ export type GasQuote = {
   serviceFee: number;
   total: number;
   distanceKm: number;
+  /** Cedis of gas for a refill bought by amount; null for a full cylinder. */
+  gasAmount?: number | null;
   itemName: string;
 };
 
@@ -35,10 +43,18 @@ export const fetchGasQuote = async (
   point: Point,
   mode: GasMode,
   sizeKg: number,
-  quantity: number
+  quantity: number,
+  amount?: number | null
 ): Promise<GasQuote> => {
   const res = await appAxios.get("/food/gas/quote", {
-    params: { latitude: point.latitude, longitude: point.longitude, mode, sizeKg, quantity },
+    params: {
+      latitude: point.latitude,
+      longitude: point.longitude,
+      mode,
+      sizeKg,
+      quantity,
+      ...(amount != null ? { amount } : {}),
+    },
   });
   return res.data;
 };
@@ -47,6 +63,8 @@ export const createGasOrder = async (payload: {
   mode: GasMode;
   sizeKg: number;
   quantity: number;
+  /** Refill by amount: cedis of gas. Omit for a full cylinder. */
+  amount?: number;
   delivery: Point;
   paymentMethod: "CASH" | "MOBILE_MONEY";
   notes?: string;

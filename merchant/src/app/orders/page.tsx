@@ -561,6 +561,7 @@ function OrderCard({
           <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-800">
             {order.gasMode === "REFILL" ? "Refill" : "Exchange"}
             {order.gasSizeKg ? ` · ${order.gasSizeKg} kg` : ""}
+            {order.gasAmount != null ? ` · fill ${formatCurrency(order.gasAmount)} worth` : ""}
           </span>
         ) : null}
       </div>

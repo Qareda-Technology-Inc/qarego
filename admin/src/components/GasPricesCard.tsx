@@ -23,6 +23,7 @@ type GasConfig = {
   momoEnabled: boolean;
   stationCommissionRate: number;
   delivery?: { baseFare: number; perKmRate: number; minimumFare: number };
+  amountRefill?: { enabled: boolean; minAmount: number };
   cylinders: { sizeKg: number; label: string; refillPrice: number; exchangePrice: number; active: boolean }[];
 };
 
@@ -35,6 +36,8 @@ export function GasPricesCard() {
   const [momoEnabled, setMomoEnabled] = useState(false);
   const [commissionPct, setCommissionPct] = useState("5");
   const [delivery, setDelivery] = useState({ baseFare: "10", perKmRate: "3", minimumFare: "15" });
+  const [amountEnabled, setAmountEnabled] = useState(true);
+  const [minAmount, setMinAmount] = useState("20");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -46,6 +49,10 @@ export function GasPricesCard() {
         setEnabled(gas.enabled !== false);
         setMomoEnabled(gas.momoEnabled === true);
         setCommissionPct(String(Math.round((gas.stationCommissionRate ?? 0.05) * 1000) / 10));
+        if (gas.amountRefill) {
+          setAmountEnabled(gas.amountRefill.enabled !== false);
+          setMinAmount(String(gas.amountRefill.minAmount));
+        }
         if (gas.delivery) {
           setDelivery({
             baseFare: String(gas.delivery.baseFare),
@@ -85,6 +92,7 @@ export function GasPricesCard() {
               perKmRate: Number(delivery.perKmRate),
               minimumFare: Number(delivery.minimumFare),
             },
+            amountRefill: { enabled: amountEnabled, minAmount: Number(minAmount) },
             cylinders: rows.map((r) => ({
               sizeKg: Number(r.sizeKg),
               label: r.label.trim() || `${r.sizeKg} kg`,
@@ -149,6 +157,32 @@ export function GasPricesCard() {
                 onChange={(e) => setCommissionPct(e.target.value)}
               />
               <p className="mt-1 text-xs text-gray-500">QareGO&apos;s share of the gas price.</p>
+            </div>
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={amountEnabled}
+                  onChange={(e) => setAmountEnabled(e.target.checked)}
+                />
+                Let customers buy gas by amount (e.g. {CURRENCY_SYMBOL}50 worth instead of a full refill)
+              </label>
+              {amountEnabled ? (
+                <div className="max-w-xs">
+                  <Label htmlFor="gas-min-amount">Smallest amount ({CURRENCY_SYMBOL})</Label>
+                  <Input
+                    id="gas-min-amount"
+                    type="number"
+                    min={0}
+                    step={1}
+                    value={minAmount}
+                    onChange={(e) => setMinAmount(e.target.value)}
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    Refills only. The most a customer can buy is that size&apos;s full refill price.
+                  </p>
+                </div>
+              ) : null}
             </div>
 
             <div>

@@ -7,6 +7,7 @@ import { storeOpenState } from "./storeDebt.js";
 import { getSettings } from "./tripSettlement.js";
 import { computeFoodServiceFee } from "./foodServiceFee.js";
 import { MAX_FOOD_DELIVERY_KM, MIN_FOOD_DELIVERY_KM } from "./deliveryFare.js";
+import { formatCurrency } from "./currency.js";
 
 export const GAS_MODES = ["REFILL", "EXCHANGE"];
 export const MAX_GAS_CYLINDERS = 3;
@@ -20,6 +21,18 @@ const DEFAULT_CYLINDERS = [
 ];
 
 const round2 = (n) => Math.round(Number(n) * 100) / 100;
+
+// Refill by amount: the customer buys a cedi amount of gas instead of a full cylinder.
+const DEFAULT_AMOUNT_REFILL = { enabled: true, minAmount: 20 };
+
+function normalizeAmountRefill(raw) {
+  const a = raw && typeof raw === "object" ? raw : {};
+  const min = Number(a.minAmount);
+  return {
+    enabled: a.enabled !== false,
+    minAmount: Number.isFinite(min) && min >= 0 ? round2(min) : DEFAULT_AMOUNT_REFILL.minAmount,
+  };
+}
 
 // Courier fee for the round trip; separate from ride/food rates so gas can be priced on its own.
 const DEFAULT_DELIVERY = { baseFare: 10, perKmRate: 3, minimumFare: 15 };
@@ -63,6 +76,7 @@ export function getGasConfig(settings) {
     momoEnabled: raw.momoEnabled === true,
     stationCommissionRate: Number.isFinite(rate) && rate >= 0 && rate <= 1 ? rate : 0.05,
     delivery: normalizeDelivery(raw.delivery),
+    amountRefill: normalizeAmountRefill(raw.amountRefill),
     cylinders,
   };
 }
@@ -75,8 +89,13 @@ export function normalizeGasConfigInput(input) {
     momoEnabled: input.momoEnabled === true,
     stationCommissionRate: Number(input.stationCommissionRate ?? 0.05),
     delivery: normalizeDelivery(input.delivery),
+    amountRefill: normalizeAmountRefill(input.amountRefill),
     cylinders: [],
   };
+  const minAmount = input.amountRefill?.minAmount;
+  if (minAmount !== undefined && !(Number(minAmount) >= 0)) {
+    throw new Error("The smallest gas amount must be 0 or more");
+  }
   for (const k of ["baseFare", "perKmRate", "minimumFare"]) {
     const v = input.delivery?.[k];
     if (v !== undefined && !(Number(v) >= 0)) throw new Error("Gas delivery rates must be 0 or more");
@@ -122,16 +141,39 @@ export async function findNearestGasStation(lat, lon, now = new Date()) {
 }
 
 /**
+ * A refill-by-amount request, or null for a full cylinder. Only refills can be bought by amount:
+ * an exchange cylinder is already full. Capped at the size's full refill price.
+ */
+export function readGasAmount(rawAmount, mode, cylinder, config) {
+  if (rawAmount == null || rawAmount === "") return null;
+  if (mode !== "REFILL") throw new Error("Only a refill can be bought by amount");
+  if (!config.amountRefill.enabled) throw new Error("Buying gas by amount is not available right now");
+  const amount = round2(rawAmount);
+  if (!(amount > 0)) throw new Error("Enter how much gas you want to buy");
+  if (amount < config.amountRefill.minAmount) {
+    throw new Error(`The smallest amount is ${formatCurrency(config.amountRefill.minAmount)}`);
+  }
+  if (amount > cylinder.refillPrice) {
+    throw new Error(
+      `A full ${cylinder.label} refill is ${formatCurrency(cylinder.refillPrice)}. Choose Full refill instead.`
+    );
+  }
+  return amount;
+}
+
+/**
  * Price a gas order. Both modes are a round trip between the customer and the station
  * (REFILL: collect empty → station → back; EXCHANGE: full to customer → empty back to station),
- * so the courier fee covers twice the one-way distance.
+ * so the courier fee covers twice the one-way distance. With `amount`, a refill is that many
+ * cedis of gas in one cylinder instead of a full fill.
  */
-export function buildGasQuote({ config, settings, mode, sizeKg, quantity, distanceKm }) {
+export function buildGasQuote({ config, settings, mode, sizeKg, quantity, distanceKm, amount }) {
   if (!GAS_MODES.includes(mode)) throw new Error("Choose refill or exchange");
   const cylinder = config.cylinders.find((c) => c.active && c.sizeKg === Number(sizeKg));
   if (!cylinder) throw new Error("That cylinder size is not available");
-  const qty = Math.min(MAX_GAS_CYLINDERS, Math.max(1, parseInt(quantity, 10) || 1));
-  const unitPrice = mode === "REFILL" ? cylinder.refillPrice : cylinder.exchangePrice;
+  const gasAmount = readGasAmount(amount, mode, cylinder, config);
+  const qty = gasAmount != null ? 1 : Math.min(MAX_GAS_CYLINDERS, Math.max(1, parseInt(quantity, 10) || 1));
+  const unitPrice = gasAmount ?? (mode === "REFILL" ? cylinder.refillPrice : cylinder.exchangePrice);
   const subtotal = round2(unitPrice * qty);
   const oneWayKm = Math.max(MIN_FOOD_DELIVERY_KM, Number(distanceKm) || 0);
   const deliveryFee = computeGasDeliveryFee(oneWayKm * 2, config.delivery);
@@ -145,6 +187,10 @@ export function buildGasQuote({ config, settings, mode, sizeKg, quantity, distan
     serviceFee,
     total: round2(subtotal + deliveryFee + serviceFee),
     distanceKm: Math.round(oneWayKm * 100) / 100,
-    itemName: `${cylinder.label} gas ${mode === "REFILL" ? "refill" : "exchange"}`,
+    gasAmount,
+    itemName:
+      gasAmount != null
+        ? `${formatCurrency(gasAmount)} of gas (${cylinder.label} cylinder)`
+        : `${cylinder.label} gas ${mode === "REFILL" ? "refill" : "exchange"}`,
   };
 }

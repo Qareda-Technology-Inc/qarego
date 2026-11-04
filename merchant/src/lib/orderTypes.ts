@@ -9,6 +9,8 @@ export type FoodOrderRow = {
   gasMode?: "REFILL" | "EXCHANGE" | null;
   gasStage?: "TO_STATION" | "AT_STATION" | null;
   gasSizeKg?: number | null;
+  /** Refill bought by amount: cedis of gas to put in. Null = fill it up. */
+  gasAmount?: number | null;
   gasEmptyReturnedAt?: string | null;
   /** Laundry orders: the customer's estimate, then the shop's count. */
   laundry?: {

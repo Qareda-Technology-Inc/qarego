@@ -38,11 +38,12 @@ export const getGasOptions = async (_req, res) => {
   res.status(StatusCodes.OK).json({
     enabled: config.enabled,
     momoEnabled: config.momoEnabled,
+    amountRefill: config.amountRefill,
     cylinders: config.cylinders.filter((c) => c.active),
   });
 };
 
-/** GET /food/gas/quote?latitude&longitude&sizeKg&mode&quantity — price from the nearest station. */
+/** GET /food/gas/quote?latitude&longitude&sizeKg&mode&quantity&amount? — price from the nearest station. */
 export const getGasQuote = async (req, res) => {
   const settings = await getSettings();
   const config = getGasConfig(settings);
@@ -58,6 +59,7 @@ export const getGasQuote = async (req, res) => {
       mode: String(req.query.mode || "").toUpperCase(),
       sizeKg: req.query.sizeKg,
       quantity: req.query.quantity,
+      amount: req.query.amount,
       distanceKm: nearest.distanceKm,
     });
   } catch (err) {
@@ -86,7 +88,7 @@ export const createGasOrder = async (req, res) => {
     const replay = await findReplayedGasOrder(req.user.id, clientRequestId);
     if (replay) return res.status(StatusCodes.OK).json({ order: replay });
   }
-  const { mode: rawMode, sizeKg, quantity, delivery, paymentMethod, notes } = req.body || {};
+  const { mode: rawMode, sizeKg, quantity, amount, delivery, paymentMethod, notes } = req.body || {};
   const settings = await getSettings();
   const config = getGasConfig(settings);
   if (!config.enabled) throw new BadRequestError("Gas delivery is not available right now");
@@ -110,7 +112,7 @@ export const createGasOrder = async (req, res) => {
 
   let quote;
   try {
-    quote = buildGasQuote({ config, settings, mode, sizeKg, quantity, distanceKm: nearest.distanceKm });
+    quote = buildGasQuote({ config, settings, mode, sizeKg, quantity, amount, distanceKm: nearest.distanceKm });
   } catch (err) {
     throw new BadRequestError(err.message);
   }
@@ -144,6 +146,7 @@ export const createGasOrder = async (req, res) => {
     status: "PLACED",
     gasMode: mode,
     gasSizeKg: quote.cylinder.sizeKg,
+    gasAmount: quote.gasAmount,
   });
   } catch (err) {
     if (clientRequestId && isDuplicateKeyError(err)) {

@@ -48,6 +48,10 @@ const MODES: { key: GasMode; title: string; detail: string; icon: keyof typeof I
 ];
 
 type Point = { latitude: number; longitude: number; address: string };
+type FillBy = "FULL" | "AMOUNT";
+
+/** Quick picks for "Buy an amount"; only those between the minimum and a full refill are shown. */
+const AMOUNT_PICKS = [30, 50, 100, 150];
 
 export default function GasRequestScreen() {
   const { location } = useUserStore();
@@ -57,6 +61,8 @@ export default function GasRequestScreen() {
   const [mode, setMode] = useState<GasMode>("REFILL");
   const [sizeKg, setSizeKg] = useState<number | null>(null);
   const [quantity, setQuantity] = useState(1);
+  const [fillBy, setFillBy] = useState<FillBy>("FULL");
+  const [amountText, setAmountText] = useState("");
   const [point, setPoint] = useState<Point | null>(location ?? null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [notes, setNotes] = useState("");
@@ -76,23 +82,52 @@ export default function GasRequestScreen() {
       .catch(() => setQuoteError("Couldn't load gas prices. Pull down to try again."));
   }, []);
 
+  const amountRefill = options?.amountRefill?.enabled ? options.amountRefill : null;
+  const byAmount = mode === "REFILL" && fillBy === "AMOUNT" && !!amountRefill;
+  const cylinder = options?.cylinders.find((c) => c.sizeKg === sizeKg) ?? null;
+  const amount = byAmount ? Math.round(Number(amountText.replace(",", ".")) * 100) / 100 : null;
+  // Checked here too so the customer sees the limits while typing, before asking for a price.
+  const amountError = useMemo(() => {
+    if (!byAmount || !amountRefill || !cylinder) return null;
+    if (!amountText.trim()) return "Enter how much gas you want to buy";
+    if (!(amount! > 0)) return "Enter an amount in cedis, e.g. 50";
+    if (amount! < amountRefill.minAmount) return `The smallest amount is ${formatCurrency(amountRefill.minAmount)}`;
+    if (amount! > cylinder.refillPrice) {
+      return `A full ${cylinder.label} refill is ${formatCurrency(cylinder.refillPrice)}. Choose Full refill instead.`;
+    }
+    return null;
+  }, [byAmount, amountRefill, cylinder, amountText, amount]);
+
   useEffect(() => {
     if (!point || sizeKg == null) return;
+    setQuote(null);
+    if (amountError) {
+      setQuoting(false);
+      setQuoteError(amountError);
+      return;
+    }
     let cancelled = false;
     setQuoting(true);
     setQuoteError(null);
-    fetchGasQuote(point, mode, sizeKg, quantity)
-      .then((q) => !cancelled && setQuote(q))
-      .catch((err) => {
-        if (cancelled) return;
-        setQuote(null);
-        setQuoteError(err?.response?.data?.msg || "Couldn't get a price right now");
-      })
-      .finally(() => !cancelled && setQuoting(false));
+    // Wait for the customer to stop typing an amount before asking for a price.
+    const timer = setTimeout(
+      () => {
+        fetchGasQuote(point, mode, sizeKg, quantity, amount)
+          .then((q) => !cancelled && setQuote(q))
+          .catch((err) => {
+            if (cancelled) return;
+            setQuote(null);
+            setQuoteError(err?.response?.data?.msg || "Couldn't get a price right now");
+          })
+          .finally(() => !cancelled && setQuoting(false));
+      },
+      byAmount ? 400 : 0
+    );
     return () => {
       cancelled = true;
+      clearTimeout(timer);
     };
-  }, [point, mode, sizeKg, quantity]);
+  }, [point, mode, sizeKg, quantity, amount, byAmount, amountError]);
 
   const unitPriceFor = useCallback(
     (c: { refillPrice: number; exchangePrice: number }) =>
@@ -109,7 +144,7 @@ export default function GasRequestScreen() {
   const online = useConnectivity((st) => st.online);
   // Same request retried → same id (no duplicate order); any change → a new id.
   const clientRequestId = useRequestId(
-    JSON.stringify([mode, sizeKg, quantity, point?.latitude, point?.longitude, notes.trim()])
+    JSON.stringify([mode, sizeKg, quantity, amount, point?.latitude, point?.longitude, notes.trim()])
   );
 
   const place = async () => {
@@ -119,7 +154,8 @@ export default function GasRequestScreen() {
       const order = await createGasOrder({
         mode,
         sizeKg,
-        quantity,
+        quantity: byAmount ? 1 : quantity,
+        ...(byAmount && amount != null ? { amount } : {}),
         delivery: point,
         paymentMethod: "CASH",
         notes: notes.trim() || undefined,
@@ -223,7 +259,80 @@ export default function GasRequestScreen() {
             </View>
           )}
 
-          <View style={styles.qtyRow}>
+          {mode === "REFILL" && amountRefill ? (
+            <>
+              <CustomText fontFamily="SemiBold" fontSize={15} style={styles.sectionTitle}>
+                How much gas?
+              </CustomText>
+              <View style={styles.fillToggle}>
+                {(
+                  [
+                    ["FULL", "Full refill"],
+                    ["AMOUNT", "Buy an amount"],
+                  ] as const
+                ).map(([key, label]) => {
+                  const on = fillBy === key;
+                  return (
+                    <TouchableOpacity
+                      key={key}
+                      style={[styles.fillOption, on && styles.fillOptionOn]}
+                      onPress={() => setFillBy(key)}
+                      activeOpacity={0.85}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected: on }}
+                    >
+                      <CustomText fontFamily="SemiBold" fontSize={14} color={on ? "#fff" : T.ink}>
+                        {label}
+                      </CustomText>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+              {byAmount ? (
+                <>
+                  <View style={styles.amountField}>
+                    <CustomText fontFamily="Bold" fontSize={18} color={T.inkMuted}>
+                      GH₵
+                    </CustomText>
+                    <TextInput
+                      style={styles.amountInput}
+                      value={amountText}
+                      onChangeText={(t) => setAmountText(t.replace(/[^0-9.,]/g, ""))}
+                      placeholder="50"
+                      placeholderTextColor={T.inkSoft}
+                      keyboardType="decimal-pad"
+                      maxLength={7}
+                      accessibilityLabel="Amount of gas in cedis"
+                    />
+                  </View>
+                  <View style={styles.amountPicks}>
+                    {AMOUNT_PICKS.filter(
+                      (a) => a >= amountRefill.minAmount && (!cylinder || a < cylinder.refillPrice)
+                    ).map((a) => (
+                      <TouchableOpacity
+                        key={a}
+                        style={[styles.amountPick, amount === a && styles.amountPickOn]}
+                        onPress={() => setAmountText(String(a))}
+                        activeOpacity={0.85}
+                      >
+                        <CustomText fontFamily="SemiBold" fontSize={13} color={amount === a ? GAS.accent : T.ink}>
+                          {formatCurrency(a)}
+                        </CustomText>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  <CustomText fontSize={12} color={T.inkMuted}>
+                    The station puts this much gas in your cylinder.
+                    {cylinder
+                      ? ` From ${formatCurrency(amountRefill.minAmount)} up to ${formatCurrency(cylinder.refillPrice)} (a full ${cylinder.label}).`
+                      : ""}
+                  </CustomText>
+                </>
+              ) : null}
+            </>
+          ) : null}
+
+          <View style={[styles.qtyRow, byAmount && styles.hidden]}>
             <CustomText fontFamily="SemiBold" fontSize={15} style={styles.flex}>
               Number of cylinders
             </CustomText>
@@ -275,7 +384,10 @@ export default function GasRequestScreen() {
                 <CustomText fontSize={12} color={T.inkMuted} style={{ marginBottom: 8 }}>
                   {mode === "REFILL" ? "Filled by" : "Full cylinder from"} {quote.station.name}
                 </CustomText>
-                <Line label={`Gas (${quote.quantity}×)`} value={quote.subtotal} />
+                <Line
+                  label={quote.gasAmount != null ? "Gas (your amount)" : `Gas (${quote.quantity}×)`}
+                  value={quote.subtotal}
+                />
                 <Line label="Delivery (both ways)" value={quote.deliveryFee} />
                 <Line label="Service fee" value={quote.serviceFee} />
                 <View style={styles.divider} />
@@ -383,6 +495,40 @@ const styles = StyleSheet.create({
   },
   sizeChipOn: { borderColor: GAS.accent, backgroundColor: GAS.soft },
   qtyRow: { flexDirection: "row", alignItems: "center", marginTop: 18 },
+  hidden: { display: "none" },
+  fillToggle: {
+    flexDirection: "row",
+    backgroundColor: T.sheetBg,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: T.border,
+    padding: 4,
+    gap: 4,
+  },
+  fillOption: { flex: 1, alignItems: "center", paddingVertical: 10, borderRadius: 10 },
+  fillOptionOn: { backgroundColor: GAS.accent },
+  amountField: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 12,
+    backgroundColor: T.sheetBg,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: GAS.border,
+    paddingHorizontal: 14,
+  },
+  amountInput: { flex: 1, fontSize: 22, fontFamily: "Bold", color: T.ink, paddingVertical: 12 },
+  amountPicks: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10, marginBottom: 8 },
+  amountPick: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: T.sheetBg,
+    borderWidth: 1,
+    borderColor: T.border,
+  },
+  amountPickOn: { borderColor: GAS.accent, backgroundColor: GAS.soft },
   qtyBtn: {
     width: 36,
     height: 36,

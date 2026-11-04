@@ -79,6 +79,7 @@ type OrderDetail = {
   refund?: { status: "requested" | "processed" | "failed"; requestedAt?: string | null; error?: string | null } | null;
   gasMode?: "REFILL" | "EXCHANGE" | null;
   gasSizeKg?: number | null;
+  gasAmount?: number | null;
   gasEmptyReturnedAt?: string | null;
   createdAt: string;
   timeline: { status: string; at: string; approximate?: boolean }[];
@@ -368,6 +369,7 @@ export default function StoreOrderDetailPage() {
                 <p className="mt-2 text-sm text-gray-700">
                   Gas: {order.gasMode === "REFILL" ? "refill" : "exchange"}
                   {order.gasSizeKg ? ` · ${order.gasSizeKg} kg` : ""}
+                  {order.gasAmount != null ? ` · ${formatCurrency(order.gasAmount)} worth` : ""}
                 </p>
               ) : null}
               {order.notes ? (

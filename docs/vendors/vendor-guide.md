@@ -81,7 +81,7 @@ Keep the merchant portal open on the **Orders** page during opening hours. Turn 
 - Riders are not shown the names of medicines, only how many items there are.
 
 **Gas stations**
-- **Refill:** a rider collects the customer's empty cylinder and brings it to you. You fill it, and a rider takes it back.
+- **Refill:** a rider collects the customer's empty cylinder and brings it to you. You fill it, and a rider takes it back. If the order says **fill GH₵50 worth** (or another amount), the customer bought that amount of gas: put in that much, not a full fill.
 - **Exchange:** you hand a full cylinder to the rider. When the customer's empty cylinder comes back, mark **Empty returned**.
 - Cylinder prices are set by QareGO and shown to the customer before they order.
 

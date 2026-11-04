@@ -100,6 +100,8 @@ export type FoodOrder = {
   gasMode?: "REFILL" | "EXCHANGE" | null;
   gasStage?: "TO_STATION" | "AT_STATION" | null;
   gasSizeKg?: number | null;
+  /** Refill bought by amount: cedis of gas. Null = full cylinder. */
+  gasAmount?: number | null;
   /** Laundry orders: collected first, counted at the shop, then returned. */
   laundry?: {
     estimatedSubtotal: number;
