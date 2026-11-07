@@ -1,30 +1,31 @@
-# EAS uploads from the git repo root — only the client app is needed for mobile builds.
+# EAS uploads from the git repo root, and this file replaces .gitignore for that upload.
+# Only the mobile app (client/) is needed, so everything else is left out, then client's own
+# caches, native folders and secrets.
 
-# Other apps in this monorepo
-/admin/
-/merchant/
-/server/
+# Everything at the top level except the client app
+/*
+!/client/
 
-# Dependencies & caches (all packages)
+# Dependencies & caches
 **/node_modules/
 **/.expo/
 **/.eas/
-**/.next/
 **/dist/
 **/web-build/
 **/.metro-health-check*
+**/*.tsbuildinfo
 
 # Native projects (EAS runs prebuild)
 /client/ios/
 /client/android/
 
-# Git
-.git/
-
-# Secrets & local env (Firebase files come from EAS file env vars)
-**/.env*.local
+# Secrets & local env. EAS gets env and Firebase files from its own environment variables.
+**/.env
+**/.env.*
+!**/.env.example
 /client/google-services.json
 /client/GoogleService-Info.plist
+/client/ServiceAccountQareGo.json
 *.jks
 *.p8
 *.p12
@@ -32,19 +33,17 @@
 *.mobileprovision
 *.pem
 
-# macOS / debug
-.DS_Store
+# macOS / debug / misc
 **/.DS_Store
 npm-debug.*
 yarn-debug.*
 yarn-error.*
+*.orig.*
+/client/app-example/
+/client/expo-env.d.ts
 
 # Large media
 *.mp4
 *.mov
 *.wav
 *.mp3
-
-# Misc
-*.tsbuildinfo
-*.orig.*

@@ -12,7 +12,11 @@ import { Modal } from "@/components/ui/Modal";
 import MenuCategoryField from "@/components/MenuCategoryField";
 import StoreLocationPicker, { type StoreLocation } from "@/components/StoreLocationPicker";
 import CommissionFreeCard from "@/components/CommissionFreeCard";
-import { ArrowLeft, Plus, Trash2, Edit2, Loader2, Save } from "lucide-react";
+import { ImageCropModal } from "@/components/ImageCropModal";
+import { uploadMediaFile } from "@/lib/uploadMedia";
+import { resolveMediaUrl } from "@/lib/mediaUrl";
+import { IMAGE_SHAPES, loadImage, prepareImage, type PixelArea } from "@/lib/prepareImage";
+import { ArrowLeft, Plus, Trash2, Edit2, Loader2, Save, ImagePlus, UtensilsCrossed } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
 interface Owner {
@@ -54,9 +58,10 @@ interface MenuItem {
   price: number;
   category: string;
   isAvailable: boolean;
+  imageUrl?: string | null;
 }
 
-const EMPTY_ITEM = { name: "", description: "", price: "", category: "Mains", isAvailable: true };
+const EMPTY_ITEM = { name: "", description: "", price: "", category: "Mains", isAvailable: true, imageUrl: "" };
 
 function normalizeCategory(cat?: string) {
   if (!cat || cat === "Main") return "Mains";
@@ -77,6 +82,9 @@ export default function RestaurantDetailPage({ params }: { params: Promise<{ id:
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
   const [itemForm, setItemForm] = useState({ ...EMPTY_ITEM });
   const [savingItem, setSavingItem] = useState(false);
+  // Picked photo waiting in the crop window before it's uploaded.
+  const [cropping, setCropping] = useState<{ img: HTMLImageElement; src: string; name: string } | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   const load = async () => {
     try {
@@ -165,8 +173,36 @@ export default function RestaurantDetailPage({ params }: { params: Promise<{ id:
       price: String(item.price),
       category: normalizeCategory(item.category),
       isAvailable: item.isAvailable,
+      imageUrl: item.imageUrl || "",
     });
     setItemModalOpen(true);
+  };
+
+  const pickItemImage = async (file: File) => {
+    try {
+      const img = await loadImage(file);
+      setCropping({ img, src: URL.createObjectURL(file), name: file.name });
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Couldn't open that image");
+    }
+  };
+
+  // Square, like the merchant portal, so items look the same however they were added.
+  const onItemImageCropped = async (area: PixelArea) => {
+    if (!cropping) return;
+    const { img, src, name } = cropping;
+    setUploadingImage(true);
+    try {
+      const file = await prepareImage(img, IMAGE_SHAPES.square, area, name);
+      const { url } = await uploadMediaFile(file, "menu");
+      setItemForm((prev) => ({ ...prev, imageUrl: url }));
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      URL.revokeObjectURL(src);
+      setCropping(null);
+      setUploadingImage(false);
+    }
   };
 
   const saveItem = async (e: React.FormEvent) => {
@@ -179,6 +215,7 @@ export default function RestaurantDetailPage({ params }: { params: Promise<{ id:
         price: Number(itemForm.price),
         category: itemForm.category,
         isAvailable: itemForm.isAvailable,
+        imageUrl: itemForm.imageUrl || null,
       };
       if (editingItem) {
         await fetcher(`/admin/restaurants/${id}/menu/${editingItem._id}`, {
@@ -462,6 +499,18 @@ export default function RestaurantDetailPage({ params }: { params: Promise<{ id:
                     <div className="divide-y divide-gray-100">
                       {items.map((item) => (
                         <div key={item._id} className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between py-2">
+                          {resolveMediaUrl(item.imageUrl) ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={resolveMediaUrl(item.imageUrl) || ""}
+                              alt=""
+                              className="h-12 w-12 shrink-0 rounded-md object-cover sm:mr-3"
+                            />
+                          ) : (
+                            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-gray-100 sm:mr-3" title="No photo">
+                              <UtensilsCrossed className="h-5 w-5 text-gray-300" />
+                            </div>
+                          )}
                           <div className="flex-1">
                             <div className="flex items-center gap-2">
                               <span className="text-sm font-medium text-gray-900">{item.name}</span>
@@ -500,6 +549,51 @@ export default function RestaurantDetailPage({ params }: { params: Promise<{ id:
       <Modal isOpen={itemModalOpen} onClose={() => setItemModalOpen(false)} title={editingItem ? "Edit Menu Item" : "Add Menu Item"}>
         <form onSubmit={saveItem} className="space-y-4">
           <div>
+            <Label>Photo</Label>
+            <div className="mt-1 flex items-center gap-3">
+              {resolveMediaUrl(itemForm.imageUrl) ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={resolveMediaUrl(itemForm.imageUrl) || ""}
+                  alt=""
+                  className="h-20 w-20 rounded-lg object-cover"
+                />
+              ) : (
+                <div className="flex h-20 w-20 items-center justify-center rounded-lg border border-dashed border-gray-300 bg-gray-50">
+                  <ImagePlus className="h-6 w-6 text-gray-400" />
+                </div>
+              )}
+              <div className="flex flex-col items-start gap-1">
+                <label className="inline-flex cursor-pointer items-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                  {uploadingImage ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <ImagePlus className="mr-1.5 h-4 w-4" />}
+                  {itemForm.imageUrl ? "Change photo" : "Add photo"}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    disabled={uploadingImage}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      e.target.value = "";
+                      if (file) void pickItemImage(file);
+                    }}
+                  />
+                </label>
+                {itemForm.imageUrl ? (
+                  <button
+                    type="button"
+                    onClick={() => setItemForm({ ...itemForm, imageUrl: "" })}
+                    className="text-xs text-red-600 hover:underline"
+                  >
+                    Remove photo
+                  </button>
+                ) : (
+                  <span className="text-xs text-gray-500">Square photos look best. You can crop after picking.</span>
+                )}
+              </div>
+            </div>
+          </div>
+          <div>
             <Label htmlFor="itemName">Name</Label>
             <Input id="itemName" value={itemForm.name} onChange={(e) => setItemForm({ ...itemForm, name: e.target.value })} required placeholder="Jollof Rice & Chicken" />
           </div>
@@ -526,12 +620,26 @@ export default function RestaurantDetailPage({ params }: { params: Promise<{ id:
             <Button type="button" variant="outline" onClick={() => setItemModalOpen(false)} className="mr-2">
               Cancel
             </Button>
-            <Button type="submit" disabled={savingItem}>
+            <Button type="submit" disabled={savingItem || uploadingImage}>
               {savingItem ? "Saving..." : editingItem ? "Save Changes" : "Add Item"}
             </Button>
           </div>
         </form>
       </Modal>
+
+      {cropping ? (
+        <ImageCropModal
+          imageSrc={cropping.src}
+          aspect={IMAGE_SHAPES.square.aspect}
+          shapeLabel="menu item"
+          busy={uploadingImage}
+          onCancel={() => {
+            URL.revokeObjectURL(cropping.src);
+            setCropping(null);
+          }}
+          onConfirm={onItemImageCropped}
+        />
+      ) : null}
     </div>
   );
 }
