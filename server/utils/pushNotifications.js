@@ -102,7 +102,7 @@ export function notifyRidersPushOffer(riders, ride) {
 /**
  * Send FCM notification to one device token (from expo-notifications getDevicePushTokenAsync).
  */
-export async function sendFcmToToken(token, { title, body, data = {} }) {
+export async function sendFcmToToken(token, { title, body, data = {}, imageUrl = null }) {
   const messaging = await getFirebaseMessaging();
   if (!messaging) {
     console.warn("[push] Firebase not configured — skip FCM send");
@@ -112,7 +112,10 @@ export async function sendFcmToToken(token, { title, body, data = {} }) {
   try {
     const messageId = await messaging.send({
       token,
-      notification: title || body ? { title: title || "QareGO", body: body || "" } : undefined,
+      notification:
+        title || body
+          ? { title: title || "QareGO", body: body || "", ...(imageUrl ? { imageUrl } : {}) }
+          : undefined,
       data: Object.fromEntries(
         Object.entries(data).map(([k, v]) => [k, String(v ?? "")])
       ),
@@ -120,9 +123,13 @@ export async function sendFcmToToken(token, { title, body, data = {} }) {
         priority: "high",
         notification: { channelId: "default", sound: "default" },
       },
-      apns: {
-        payload: { aps: { sound: "default" } },
-      },
+      // iOS only shows the picture when the app has a notification service extension.
+      apns: imageUrl
+        ? {
+            payload: { aps: { sound: "default", mutableContent: true } },
+            fcmOptions: { imageUrl },
+          }
+        : { payload: { aps: { sound: "default" } } },
     });
     return { ok: true, messageId };
   } catch (err) {

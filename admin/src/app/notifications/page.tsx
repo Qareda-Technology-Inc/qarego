@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { fetcher } from "@/lib/api";
+import { resolveMediaUrl } from "@/lib/mediaUrl";
+import { PromoPicker, promoDraftText, type PromoChoice } from "@/components/PromoPicker";
 import { Loader2, Bell, Eye, Megaphone, RotateCcw, Save, Send } from "lucide-react";
 
 type BroadcastAudience = {
@@ -21,6 +23,7 @@ type BroadcastRecord = {
   body: string;
   audience: string;
   audienceLabel: string;
+  imageUrl?: string | null;
   usersTargeted: number;
   devicesTargeted: number;
   sentOk: number;
@@ -69,6 +72,9 @@ const SAMPLE_VARS: Record<string, Record<string, string>> = {
   test_push: {},
 };
 
+/** Promotions open a store in the customer app. */
+const PROMO_AUDIENCES = ["all", "app_users", "customers"];
+
 export default function PushNotificationsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -85,6 +91,7 @@ export default function PushNotificationsPage() {
   const [broadcastTitle, setBroadcastTitle] = useState("");
   const [broadcastBody, setBroadcastBody] = useState("");
   const [broadcastDeepLink, setBroadcastDeepLink] = useState("");
+  const [promo, setPromo] = useState<PromoChoice | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -115,6 +122,21 @@ export default function PushNotificationsPage() {
   }, []);
 
   const selectedAudience = audiences.find((a) => a.id === broadcastAudience);
+  // Customers and riders also get the message in the app's notifications list.
+  const reachesInbox = broadcastAudience !== "merchants";
+  const audienceOptions = promo ? audiences.filter((a) => PROMO_AUDIENCES.includes(a.id)) : audiences;
+
+  const choosePromo = (choice: PromoChoice | null) => {
+    // Swap in fresh text unless the admin already wrote their own.
+    const previous = promo ? promoDraftText(promo) : { title: "", body: "" };
+    setPromo(choice);
+    if (!choice) return;
+    const next = promoDraftText(choice);
+    if (!broadcastTitle.trim() || broadcastTitle === previous.title) setBroadcastTitle(next.title);
+    if (!broadcastBody.trim() || broadcastBody === previous.body) setBroadcastBody(next.body);
+    if (!PROMO_AUDIENCES.includes(broadcastAudience)) setBroadcastAudience("customers");
+    setBroadcastDeepLink("");
+  };
 
   const grouped = useMemo(() => {
     const rider = templates.filter((t) => t.audience === "rider");
@@ -173,8 +195,11 @@ export default function PushNotificationsPage() {
     const reach = selectedAudience?.devices ?? 0;
     const audienceLabel = selectedAudience?.label || broadcastAudience;
     const ok = window.confirm(
-      `Send this push to ${reach} device${reach === 1 ? "" : "s"} (${audienceLabel})?\n\n` +
-        `Title: ${broadcastTitle.trim()}\n` +
+      `Send this to ${audienceLabel}?\n` +
+        (firebaseConfigured ? `Phone notification to ${reach} device${reach === 1 ? "" : "s"}.\n` : "") +
+        (reachesInbox ? "It also stays in the app's notifications list.\n" : "") +
+        (promo ? `Photo and link: ${promo.name}\n` : "") +
+        `\nTitle: ${broadcastTitle.trim()}\n` +
         `Message: ${broadcastBody.trim()}`
     );
     if (!ok) return;
@@ -188,20 +213,28 @@ export default function PushNotificationsPage() {
           title: broadcastTitle.trim(),
           body: broadcastBody.trim(),
           audience: broadcastAudience,
-          deepLink: broadcastDeepLink.trim() || undefined,
+          deepLink: promo ? undefined : broadcastDeepLink.trim() || undefined,
+          promo: promo
+            ? promo.kind === "item"
+              ? { menuItemId: promo.id }
+              : { restaurantId: promo.id }
+            : undefined,
         }),
       });
       alert(
-        `Broadcast sent to ${res.broadcast?.devicesTargeted ?? reach} devices ` +
-          `(${res.broadcast?.sentOk ?? 0} delivered, ${res.broadcast?.sentFailed ?? 0} failed).`
+        firebaseConfigured
+          ? `Broadcast sent to ${res.broadcast?.devicesTargeted ?? reach} devices ` +
+              `(${res.broadcast?.sentOk ?? 0} delivered, ${res.broadcast?.sentFailed ?? 0} failed).`
+          : res.message || "Broadcast saved."
       );
       setBroadcastTitle("");
       setBroadcastBody("");
       setBroadcastDeepLink("");
+      setPromo(null);
       await refreshBroadcasts();
     } catch (e) {
       console.error(e);
-      alert("Failed to send broadcast.");
+      alert(e instanceof Error && e.message ? e.message : "Failed to send broadcast.");
     } finally {
       setSendingBroadcast(false);
     }
@@ -360,11 +393,21 @@ export default function PushNotificationsPage() {
             Broadcast message
           </CardTitle>
           <CardDescription>
-            Send a one-off push to every registered device in the selected audience. Users must have
-            opened the app and allowed notifications.
+            Send a one-off message to the selected audience. It goes out as a phone notification to
+            everyone who allowed notifications, and customers and riders also find it under the bell
+            in the app. Pick a menu item or store to add its photo and open it when tapped.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <div>
+            <Label>Promote an item or store (optional)</Label>
+            <p className="mb-2 text-xs text-gray-500">
+              Uses the photo already in the app. Tapping the message opens that store
+              {promo?.kind === "item" ? " on this item" : ""}.
+            </p>
+            <PromoPicker value={promo} onChange={choosePromo} />
+          </div>
+
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <Label htmlFor="broadcast-audience">Audience</Label>
@@ -374,7 +417,7 @@ export default function PushNotificationsPage() {
                 onChange={(e) => setBroadcastAudience(e.target.value)}
                 className="mt-1 flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900"
               >
-                {audiences.map((a) => (
+                {audienceOptions.map((a) => (
                   <option key={a.id} value={a.id}>
                     {a.label} ({a.devices} device{a.devices === 1 ? "" : "s"})
                   </option>
@@ -387,7 +430,7 @@ export default function PushNotificationsPage() {
                 </p>
               ) : null}
             </div>
-            <div>
+            <div className={promo ? "hidden" : ""}>
               <Label htmlFor="broadcast-deeplink">Deep link (optional)</Label>
               <Input
                 id="broadcast-deeplink"
@@ -425,9 +468,31 @@ export default function PushNotificationsPage() {
 
           {(broadcastTitle.trim() || broadcastBody.trim()) && (
             <div className="rounded-lg border border-dashed border-indigo-200 bg-indigo-50 p-3 text-sm">
-              <p className="font-semibold text-indigo-900">Preview</p>
-              <p className="mt-1 font-medium text-gray-900">{broadcastTitle.trim() || "QareGO"}</p>
-              <p className="text-gray-700">{broadcastBody.trim() || "…"}</p>
+              <p className="font-semibold text-indigo-900">Preview on a phone</p>
+              <div className="mt-2 max-w-sm overflow-hidden rounded-xl bg-white shadow-sm">
+                <div className="flex items-start gap-2 p-3">
+                  <Bell className="mt-0.5 h-4 w-4 shrink-0 text-indigo-600" />
+                  <div className="min-w-0">
+                    <p className="text-xs text-gray-500">QareGO · now</p>
+                    <p className="font-medium text-gray-900">{broadcastTitle.trim() || "QareGO"}</p>
+                    <p className="text-gray-700">{broadcastBody.trim() || "…"}</p>
+                  </div>
+                </div>
+                {promo && resolveMediaUrl(promo.imageUrl) ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={resolveMediaUrl(promo.imageUrl) || ""}
+                    alt=""
+                    className="aspect-[2/1] w-full object-cover"
+                  />
+                ) : null}
+              </div>
+              {promo?.imageUrl ? (
+                <p className="mt-2 text-xs text-gray-600">
+                  Android phones show the photo in the notification. iPhones show it in the app&apos;s
+                  notifications list (in the notification itself from the next iOS update).
+                </p>
+              ) : null}
             </div>
           )}
 
@@ -436,10 +501,9 @@ export default function PushNotificationsPage() {
             onClick={handleSendBroadcast}
             disabled={
               sendingBroadcast ||
-              !firebaseConfigured ||
               !broadcastTitle.trim() ||
               !broadcastBody.trim() ||
-              (selectedAudience?.devices ?? 0) === 0
+              (!reachesInbox && (!firebaseConfigured || (selectedAudience?.devices ?? 0) === 0))
             }
             className="bg-indigo-600 hover:bg-indigo-700 text-white"
           >
@@ -477,8 +541,20 @@ export default function PushNotificationsPage() {
                     </td>
                     <td className="py-2 pr-3">{row.audienceLabel}</td>
                     <td className="py-2 pr-3">
-                      <span className="font-medium">{row.title}</span>
-                      <span className="block text-xs text-gray-500 line-clamp-1">{row.body}</span>
+                      <div className="flex items-center gap-2">
+                        {row.imageUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={resolveMediaUrl(row.imageUrl) || ""}
+                            alt=""
+                            className="h-9 w-9 shrink-0 rounded object-cover"
+                          />
+                        ) : null}
+                        <div className="min-w-0">
+                          <span className="font-medium">{row.title}</span>
+                          <span className="block text-xs text-gray-500 line-clamp-1">{row.body}</span>
+                        </div>
+                      </div>
                     </td>
                     <td className="py-2 pr-3 whitespace-nowrap">
                       {row.sentOk}/{row.devicesTargeted}

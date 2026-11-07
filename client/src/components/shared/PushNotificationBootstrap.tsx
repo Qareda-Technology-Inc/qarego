@@ -8,8 +8,16 @@ import {
   loadNotifications,
   refreshPushRegistration,
 } from "@/service/pushNotifications";
+import { promoPath } from "@/service/inboxService";
 
-type PushTarget = { id: string; type: string; rideId?: string; orderId?: string };
+type PushTarget = {
+  id: string;
+  type: string;
+  rideId?: string;
+  orderId?: string;
+  restaurantId?: string;
+  menuItemId?: string;
+};
 
 /** Push data arrives as strings; on Android it can sit on the FCM message instead of content. */
 function targetFromResponse(response: NotificationResponse | null | undefined): PushTarget | null {
@@ -30,6 +38,8 @@ function targetFromResponse(response: NotificationResponse | null | undefined): 
     type,
     rideId: typeof data.rideId === "string" ? data.rideId : undefined,
     orderId: typeof data.orderId === "string" ? data.orderId : undefined,
+    restaurantId: typeof data.restaurantId === "string" ? data.restaurantId : undefined,
+    menuItemId: typeof data.menuItemId === "string" ? data.menuItemId : undefined,
   };
 }
 
@@ -106,6 +116,14 @@ export function PushNotificationBootstrap() {
     if (pending.type === "food_order" && pending.orderId && role === "customer") {
       const path = `/customer/stores/order/${pending.orderId}`;
       if (pathname !== path) router.push(path as never);
+      return;
+    }
+    if (pending.type === "admin_broadcast" && role === "customer") {
+      // A promotion opens its store (on the item); other messages open the notifications list.
+      const path = pending.restaurantId
+        ? promoPath({ restaurantId: pending.restaurantId, menuItemId: pending.menuItemId })
+        : "/customer/notifications";
+      router.push(path as never);
       return;
     }
     if (pending.type === "ride_offer" && role === "rider") {

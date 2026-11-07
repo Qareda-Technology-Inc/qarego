@@ -13,6 +13,26 @@ export const BROADCAST_AUDIENCES = {
 
 export const BROADCAST_AUDIENCE_IDS = Object.keys(BROADCAST_AUDIENCES);
 
+/** Audiences whose broadcasts a user with this role should see in the in-app list. */
+export function audiencesForRole(role) {
+  return BROADCAST_AUDIENCE_IDS.filter((id) => {
+    const roles = BROADCAST_AUDIENCES[id].roles;
+    return !roles || roles.includes(role);
+  });
+}
+
+/**
+ * Phones fetch notification pictures themselves, so the URL must be absolute.
+ * Cloudinary URLs already are; local /uploads paths need the API's public address.
+ */
+export function absoluteImageUrl(stored) {
+  if (!stored) return null;
+  if (/^https?:\/\//i.test(stored)) return stored;
+  const base = (process.env.PUBLIC_API_URL || process.env.RENDER_EXTERNAL_URL || "").replace(/\/$/, "");
+  if (!base || !stored.startsWith("/")) return null;
+  return `${base}${stored}`;
+}
+
 function audienceFilter(audience) {
   const cfg = BROADCAST_AUDIENCES[audience];
   if (!cfg) return null;
@@ -69,6 +89,8 @@ export async function sendBroadcastPush({
   body,
   audience,
   deepLink = null,
+  imageUrl = null,
+  data = {},
   sentBy,
   broadcastId = null,
 }) {
@@ -84,10 +106,13 @@ export async function sendBroadcastPush({
   const payload = {
     title: title.trim(),
     body: body.trim(),
+    imageUrl: absoluteImageUrl(imageUrl),
     data: {
       type: "admin_broadcast",
       audience,
+      ...(broadcastId ? { broadcastId: String(broadcastId) } : {}),
       ...(deepLink ? { deepLink: String(deepLink) } : {}),
+      ...data,
     },
   };
 

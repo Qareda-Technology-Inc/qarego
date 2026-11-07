@@ -2,7 +2,7 @@ import { View, StyleSheet, Image, Pressable } from "react-native";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import CustomText from "../shared/CustomText";
 import { Colors } from "@/utils/Constants";
 import { DS } from "@/theme/designSystem";
@@ -24,6 +24,7 @@ import { STORE_VERTICAL_CONFIG } from "@/utils/storeVertical";
 import WelcomeSlides from "./onboarding/WelcomeSlides";
 import SpotlightTour, { type TourStep } from "./onboarding/SpotlightTour";
 import { onboardingUserId, useOnboardingStore } from "@/store/onboardingStore";
+import { fetchInboxUnread } from "@/service/inboxService";
 
 function getGreeting(): string {
   const hour = new Date().getHours();
@@ -79,6 +80,22 @@ const ServiceSelectScreen = () => {
   const servicesRef = useRef<View>(null);
   const ordersRef = useRef<View>(null);
   const profileRef = useRef<View>(null);
+  const [unread, setUnread] = useState(0);
+
+  // Refresh the bell's badge each time the screen comes back into view.
+  useFocusEffect(
+    React.useCallback(() => {
+      let active = true;
+      fetchInboxUnread()
+        .then((count) => {
+          if (active) setUnread(count);
+        })
+        .catch(() => {});
+      return () => {
+        active = false;
+      };
+    }, [])
+  );
   const tourSteps = useMemo<TourStep[]>(
     () => [
       {
@@ -125,6 +142,22 @@ const ServiceSelectScreen = () => {
             {firstName ? `Hi, ${firstName}` : "Welcome to QareGO"}
           </CustomText>
         </View>
+        <Pressable
+          onPress={() => router.push("/customer/notifications" as never)}
+          style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}
+          accessibilityRole="button"
+          accessibilityLabel={unread ? `Notifications, ${unread} new` : "Notifications"}
+          hitSlop={6}
+        >
+          <Ionicons name="notifications-outline" size={20} color={Colors.text} />
+          {unread > 0 ? (
+            <View style={styles.badge}>
+              <CustomText fontFamily="Bold" fontSize={10} style={styles.badgeText}>
+                {unread > 9 ? "9+" : unread}
+              </CustomText>
+            </View>
+          ) : null}
+        </Pressable>
         <Pressable
           ref={ordersRef}
           onPress={() => router.push("/customer/orders")}
@@ -283,6 +316,24 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     ...DS.shadow.card,
+  },
+  badge: {
+    position: "absolute",
+    top: -2,
+    right: -2,
+    minWidth: 18,
+    height: 18,
+    paddingHorizontal: 4,
+    borderRadius: 9,
+    backgroundColor: "#EF4444",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "#fff",
+  },
+  badgeText: {
+    color: "#fff",
+    lineHeight: 12,
   },
   avatar: {
     width: 40,

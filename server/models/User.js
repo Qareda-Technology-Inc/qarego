@@ -92,6 +92,8 @@ const userSchema = new Schema(
         updatedAt: { type: Date, default: Date.now },
       },
     ],
+    /** Last time the user opened the in-app notifications list (for the unread count). */
+    inboxSeenAt: { type: Date, default: null },
     // Real-time status fields
     isOnline: {
       type: Boolean,

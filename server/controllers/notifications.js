@@ -9,6 +9,8 @@ import {
 } from "../utils/pushNotifications.js";
 import { isFirebaseConfigured } from "../utils/firebaseAdmin.js";
 import { buildPushFromTemplate } from "../utils/pushNotificationTemplates.js";
+import PushBroadcast from "../models/PushBroadcast.js";
+import { audiencesForRole } from "../utils/pushBroadcast.js";
 
 const VALID_PROVIDERS = ["fcm", "expo"];
 
@@ -118,4 +120,78 @@ export const sendTestPush = async (req, res) => {
     results,
     firebaseConfigured: isFirebaseConfigured(),
   });
+};
+
+/** Admin messages stay in the app's list this long. */
+const INBOX_DAYS = 60;
+
+async function inboxQuery(userId, role) {
+  const user = await User.findById(userId).select("createdAt inboxSeenAt").lean();
+  const windowStart = new Date(Date.now() - INBOX_DAYS * 24 * 60 * 60 * 1000);
+  // Unread counts from sign-up, so a new user doesn't start with a pile of old messages.
+  const seenAt = user?.inboxSeenAt || user?.createdAt || windowStart;
+  return {
+    seenAt,
+    filter: {
+      audience: { $in: audiencesForRole(role) },
+      status: { $ne: "failed" },
+      createdAt: { $gte: windowStart },
+    },
+  };
+}
+
+/** GET /notifications/inbox — admin messages (with promo photos) for this user's role */
+export const getInbox = async (req, res) => {
+  const { seenAt, filter } = await inboxQuery(req.user.id, req.user.role);
+  const rows = await PushBroadcast.find(filter)
+    .sort({ createdAt: -1 })
+    .limit(40)
+    .select("title body imageUrl promo createdAt")
+    .populate("promo.restaurant", "name vertical isActive")
+    .populate("promo.menuItem", "name price isAvailable")
+    .lean();
+
+  const unread = rows.filter((row) => row.createdAt > seenAt).length;
+  res.status(StatusCodes.OK).json({
+    unread,
+    messages: rows.map((row) => {
+      const store = row.promo?.restaurant;
+      const item = row.promo?.menuItem;
+      return {
+        _id: row._id,
+        title: row.title,
+        body: row.body,
+        imageUrl: row.imageUrl || null,
+        createdAt: row.createdAt,
+        unread: row.createdAt > seenAt,
+        // Only link to stores still in the app.
+        promo: store?.isActive
+          ? {
+              restaurantId: store._id,
+              restaurantName: store.name,
+              vertical: store.vertical,
+              menuItemId: item?._id || null,
+              menuItemName: item?.name || null,
+              price: item?.price ?? null,
+            }
+          : null,
+      };
+    }),
+  });
+};
+
+/** GET /notifications/inbox/unread — just the badge count */
+export const getInboxUnread = async (req, res) => {
+  const { seenAt, filter } = await inboxQuery(req.user.id, req.user.role);
+  const unread = await PushBroadcast.countDocuments({
+    ...filter,
+    createdAt: { ...filter.createdAt, $gt: seenAt },
+  });
+  res.status(StatusCodes.OK).json({ unread });
+};
+
+/** POST /notifications/inbox/seen — clears the unread badge */
+export const markInboxSeen = async (req, res) => {
+  await User.updateOne({ _id: req.user.id }, { $set: { inboxSeenAt: new Date() } });
+  res.status(StatusCodes.OK).json({ unread: 0 });
 };

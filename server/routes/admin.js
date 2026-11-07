@@ -33,6 +33,7 @@ import {
   previewPushTemplateAdmin,
   getPushBroadcastAdmin,
   sendPushBroadcastAdmin,
+  searchPromoTargetsAdmin,
   getTransactionsAdmin,
   getFoodPaymentsAdmin,
   creditDriverBalance,
@@ -131,6 +132,7 @@ adminRouter.get('/push-templates', getPushTemplatesAdmin);
 adminRouter.patch('/push-templates', updatePushTemplatesAdmin);
 adminRouter.post('/push-templates/preview', previewPushTemplateAdmin);
 adminRouter.get('/push-broadcast', getPushBroadcastAdmin);
+adminRouter.get('/push-broadcast/promo-search', searchPromoTargetsAdmin);
 adminRouter.post('/push-broadcast', sendPushBroadcastAdmin);
 adminRouter.post(
   '/settings/kitchen-alert-sound',

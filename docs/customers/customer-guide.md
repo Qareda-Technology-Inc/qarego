@@ -99,6 +99,7 @@ Laundry is paid in **cash** for now.
 
 - Edit your name, email and photo under **Account**.
 - Your past store orders are under **Orders**.
+- Offers and news from QareGO are under the **bell** at the top of the home screen. A red dot shows how many are new. Tap an offer to open that store or dish and order it.
 - You can **delete your account** any time: **Account → Delete my account**.
 - How we use your information: [Privacy Policy](https://qarego.com/privacy). The rules for using QareGO: [Terms of Service](https://qarego.com/terms).
 

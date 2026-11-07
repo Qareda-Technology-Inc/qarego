@@ -73,7 +73,11 @@ function sectionTitle(name: string, vertical: string): string {
 }
 
 const RestaurantMenu = () => {
-  const { id, vertical: verticalParam } = useLocalSearchParams<{ id: string; vertical?: string }>();
+  const {
+    id,
+    vertical: verticalParam,
+    item: itemParam,
+  } = useLocalSearchParams<{ id: string; vertical?: string; item?: string }>();
   const insets = useSafeAreaInsets();
   const { showMessage } = useMessage();
   const scrollY = useRef(new Animated.Value(0)).current;
@@ -104,6 +108,8 @@ const RestaurantMenu = () => {
   const [heroLight, setHeroLight] = useState(true);
   const [stickyInteractive, setStickyInteractive] = useState(false);
   const [customizeItem, setCustomizeItem] = useState<MenuItem | null>(null);
+  /** Item a promotion linked to; shown once when the menu loads. */
+  const openedItemParam = useRef<string | null>(null);
 
   const [serviceFeeConfig, setServiceFeeConfig] = useState<{
     fareRates: Record<string, { baseFare: number; perKmRate: number; minimumFare: number }> | null;
@@ -378,6 +384,25 @@ const RestaurantMenu = () => {
     proceed();
   };
 
+  // A promotion links here with ?item=: show that item once the menu is in. A closed store
+  // explains itself instead. The cart check waits until the customer actually adds it.
+  const promoItemId = useRef<string | null>(null);
+  useEffect(() => {
+    if (!itemParam || !restaurant || openedItemParam.current === itemParam) return;
+    const item = Object.values(menu)
+      .flat()
+      .find((m) => m._id === itemParam);
+    if (!item) return;
+    openedItemParam.current = itemParam;
+    if (blockOrdering) {
+      handleAdd(item);
+      return;
+    }
+    promoItemId.current = item._id;
+    setCustomizeItem(item);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [itemParam, restaurant, menu, blockOrdering]);
+
   const goToCart = () => {
     router.push({
       pathname: "/customer/stores/cart",
@@ -641,10 +666,30 @@ const RestaurantMenu = () => {
         visible={!!customizeItem}
         item={customizeItem}
         accent={accent}
-        onClose={() => setCustomizeItem(null)}
+        onClose={() => {
+          promoItemId.current = null;
+          setCustomizeItem(null);
+        }}
         onConfirm={({ modifiers, unitPrice, quantity }) => {
-          if (!customizeItem) return;
-          pushToCart(customizeItem, { price: unitPrice, modifiers, quantity });
+          if (!customizeItem || !restaurant) return;
+          const item = customizeItem;
+          const add = () => pushToCart(item, { price: unitPrice, modifiers, quantity });
+          // Opened from a promotion, so the other-store check in handleAdd hasn't run yet.
+          if (promoItemId.current === item._id && cartRestaurantId && cartRestaurantId !== restaurant._id) {
+            promoItemId.current = null;
+            showMessage({
+              title: `Different ${verticalConfig.storeLabel}`,
+              message: `Your cart has items from another ${verticalConfig.storeLabel}. Adding this will replace your cart.`,
+              type: "confirm",
+              buttons: [
+                { text: "Cancel", style: "cancel" },
+                { text: "Replace cart", onPress: add },
+              ],
+            });
+            return;
+          }
+          promoItemId.current = null;
+          add();
         }}
       />
     </View>

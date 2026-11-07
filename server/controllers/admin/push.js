@@ -12,12 +12,106 @@ import {
 } from "../../utils/pushNotificationTemplates.js";
 import { isFirebaseConfigured } from "../../utils/firebaseAdmin.js";
 import PushBroadcast from "../../models/PushBroadcast.js";
+import MenuItem from "../../models/MenuItem.js";
+import Restaurant from "../../models/Restaurant.js";
 import {
   BROADCAST_AUDIENCE_IDS,
   BROADCAST_AUDIENCES,
   getBroadcastAudienceStats,
   sendBroadcastPush,
 } from "../../utils/pushBroadcast.js";
+
+/** Promotions open a store in the customer app, so they only go to audiences with customers. */
+const PROMO_AUDIENCES = ["all", "app_users", "customers"];
+
+function escapeRegex(text) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * Look up the item or store a broadcast promotes. Its own photo is used, so admins pick from
+ * what is already in the app instead of uploading.
+ */
+async function resolvePromo(raw) {
+  const menuItemId = raw?.menuItemId ? String(raw.menuItemId) : null;
+  const restaurantId = raw?.restaurantId ? String(raw.restaurantId) : null;
+  if (!menuItemId && !restaurantId) return null;
+
+  if (menuItemId) {
+    const item = await MenuItem.findById(menuItemId)
+      .select("name imageUrl restaurant")
+      .populate("restaurant", "name imageUrl isActive")
+      .lean()
+      .catch(() => null);
+    if (!item?.restaurant?.isActive) {
+      return { error: "That item is no longer in the app" };
+    }
+    return {
+      restaurant: item.restaurant._id,
+      menuItem: item._id,
+      imageUrl: item.imageUrl || item.restaurant.imageUrl || null,
+    };
+  }
+
+  const store = await Restaurant.findById(restaurantId)
+    .select("name imageUrl isActive")
+    .lean()
+    .catch(() => null);
+  if (!store?.isActive) {
+    return { error: "That store is no longer in the app" };
+  }
+  return { restaurant: store._id, menuItem: null, imageUrl: store.imageUrl || null };
+}
+
+/** GET /admin/push-broadcast/promo-search?q= — items and stores (with their photos) to promote */
+export const searchPromoTargetsAdmin = async (req, res) => {
+  const q = String(req.query.q || "").trim().slice(0, 60);
+  const nameMatch = q ? { name: { $regex: escapeRegex(q), $options: "i" } } : {};
+
+  const activeStores = await Restaurant.find({ isActive: true })
+    .select("_id")
+    .lean();
+  const activeIds = activeStores.map((r) => r._id);
+
+  const [items, stores] = await Promise.all([
+    MenuItem.find({
+      ...nameMatch,
+      restaurant: { $in: activeIds },
+      imageUrl: { $nin: [null, ""] },
+    })
+      .sort(q ? { name: 1 } : { updatedAt: -1 })
+      .limit(24)
+      .select("name price imageUrl isAvailable restaurant")
+      .populate("restaurant", "name vertical")
+      .lean(),
+    Restaurant.find({ isActive: true, ...nameMatch })
+      .sort({ name: 1 })
+      .limit(q ? 12 : 8)
+      .select("name vertical imageUrl imageEmoji address")
+      .lean(),
+  ]);
+
+  res.status(StatusCodes.OK).json({
+    items: items.map((item) => ({
+      _id: item._id,
+      name: item.name,
+      price: item.price,
+      imageUrl: item.imageUrl,
+      isAvailable: item.isAvailable,
+      restaurantId: item.restaurant?._id,
+      restaurantName: item.restaurant?.name || "",
+      vertical: item.restaurant?.vertical || "FOOD",
+    })),
+    stores: stores.map((store) => ({
+      _id: store._id,
+      name: store.name,
+      vertical: store.vertical,
+      imageUrl: store.imageUrl,
+      imageEmoji: store.imageEmoji,
+      address: store.address,
+    })),
+  });
+};
 
 /** GET /admin/push-templates — catalog + current title/body/enabled */
 export const getPushTemplatesAdmin = async (_req, res) => {
@@ -129,6 +223,8 @@ export const getPushBroadcastAdmin = async (_req, res) => {
         audience: row.audience,
         audienceLabel: BROADCAST_AUDIENCES[row.audience]?.label || row.audience,
         deepLink: row.deepLink,
+        imageUrl: row.imageUrl || null,
+        promoted: row.promo?.menuItem || row.promo?.restaurant ? true : false,
         usersTargeted: row.usersTargeted,
         devicesTargeted: row.devicesTargeted,
         sentOk: row.sentOk,
@@ -169,7 +265,19 @@ export const sendPushBroadcastAdmin = async (req, res) => {
     if (!BROADCAST_AUDIENCE_IDS.includes(audience)) {
       return res.status(StatusCodes.BAD_REQUEST).json({ message: "Invalid audience" });
     }
-    if (!isFirebaseConfigured()) {
+    const promo = await resolvePromo(req.body?.promo);
+    if (promo?.error) {
+      return res.status(StatusCodes.BAD_REQUEST).json({ message: promo.error });
+    }
+    if (promo && !PROMO_AUDIENCES.includes(audience)) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        message: "A promotion opens a store in the customer app, so send it to customers",
+      });
+    }
+    // Messages for customers and riders also stay in the app's notifications list, so they
+    // can go out without Firebase. Merchants have no such list.
+    const reachesInbox = audience !== "merchants";
+    if (!isFirebaseConfigured() && !reachesInbox) {
       return res.status(StatusCodes.BAD_REQUEST).json({
         message: "Firebase is not configured on the server — pushes cannot be sent",
       });
@@ -180,22 +288,38 @@ export const sendPushBroadcastAdmin = async (req, res) => {
       body,
       audience,
       deepLink,
+      imageUrl: promo?.imageUrl || null,
+      promo: promo ? { restaurant: promo.restaurant, menuItem: promo.menuItem } : undefined,
       sentBy: req.user.id,
       status: "sending",
     });
 
     try {
-      const stats = await sendBroadcastPush({
-        title,
-        body,
-        audience,
-        deepLink,
-        sentBy: req.user.id,
-        broadcastId: record._id,
-      });
+      const stats = isFirebaseConfigured()
+        ? await sendBroadcastPush({
+            title,
+            body,
+            audience,
+            deepLink,
+            imageUrl: promo?.imageUrl || null,
+            data: promo
+              ? {
+                  restaurantId: String(promo.restaurant),
+                  ...(promo.menuItem ? { menuItemId: String(promo.menuItem) } : {}),
+                }
+              : {},
+            sentBy: req.user.id,
+            broadcastId: record._id,
+          })
+        : { usersTargeted: 0, devicesTargeted: 0, sentOk: 0, sentFailed: 0, status: "completed" };
+      if (!isFirebaseConfigured()) {
+        await PushBroadcast.findByIdAndUpdate(record._id, stats);
+      }
 
       res.status(StatusCodes.OK).json({
-        message: "Broadcast sent",
+        message: isFirebaseConfigured()
+          ? "Broadcast sent"
+          : "Saved to the app's notifications list (phone notifications are off on this server)",
         broadcast: {
           _id: record._id,
           ...stats,

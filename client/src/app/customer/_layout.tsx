@@ -21,6 +21,7 @@ const CustomerLayout = () => {
       <Stack.Screen name="ridebooking" />
       <Stack.Screen name="liveride" />
       <Stack.Screen name="profile" />
+      <Stack.Screen name="notifications" />
     </Stack>
   );
 };

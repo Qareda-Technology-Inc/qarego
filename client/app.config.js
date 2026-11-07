@@ -63,6 +63,9 @@ module.exports = {
     "./plugins/withStripPhotoPermissions",
     "./plugins/withFmtCxx17",
     "./plugins/withPodsMinDeploymentTarget",
+    // Pictures in iPhone notifications (a notification service extension). Off until the
+    // build Apple is reviewing is approved; set IOS_NOTIFICATION_IMAGES=1 for the next build.
+    ...(process.env.IOS_NOTIFICATION_IMAGES === "1" ? ["./plugins/withNotificationImages"] : []),
     // react-native-maps >= 1.21 adds Google Maps on iOS itself (pod subspec + AppDelegate init).
     // Expo's built-in ios.config.googleMapsApiKey would add the old 'react-native-google-maps'
     // pod, which no longer exists, so the iOS key is passed here instead.
