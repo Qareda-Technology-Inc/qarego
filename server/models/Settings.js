@@ -157,6 +157,14 @@ const settingsSchema = new Schema(
       type: Schema.Types.Mixed,
       default: null,
     },
+    /**
+     * Orders a store hasn't accepted: remind the store, then text QareGO's team.
+     * { storeReminderMinutes, teamAlertMinutes, phones: ["+233…"] } (see utils/orderWaitAlerts.js)
+     */
+    orderAlerts: {
+      type: Schema.Types.Mixed,
+      default: null,
+    },
     foodPromoBanners: {
       type: Schema.Types.Mixed,
       default: () => [],

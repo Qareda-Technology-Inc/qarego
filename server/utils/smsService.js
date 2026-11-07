@@ -12,13 +12,24 @@ import axios from "axios";
  * @param {string} message - Message content
  * @returns {Promise<Object>} - Response from Arkasel API
  */
+const ARKESEL_SMS_URL = "https://sms.arkesel.com/api/v2/sms/send";
+
+/**
+ * Arkesel's send-SMS address. The old default (api.arkasel.com, misspelled) doesn't exist, so
+ * an env value pointing there is ignored too; otherwise every store SMS fails.
+ */
+export function smsApiUrl() {
+  const configured = String(process.env.ARKASEL_API_URL || "").trim();
+  if (!configured || /arkasel\.com/i.test(configured)) return ARKESEL_SMS_URL;
+  return configured;
+}
+
 export const sendSMS = async (phone, message) => {
   try {
     // Get Arkasel credentials from environment variables
     const apiKey = process.env.ARKASEL_API_KEY;
-    const apiSecret = process.env.ARKASEL_API_SECRET;
     const senderId = process.env.ARKASEL_SENDER_ID || "QareGO";
-    const apiUrl = process.env.ARKASEL_API_URL || "https://api.arkasel.com/api/v1/sms/send";
+    const apiUrl = smsApiUrl();
 
     if (!apiKey) {
       console.error("Arkasel API key not configured. Please set ARKASEL_API_KEY in .env");
@@ -58,19 +69,14 @@ export const sendSMS = async (phone, message) => {
       "Content-Type": "application/json",
     };
 
-    // Add authentication based on Arkasel's requirements
-    if (apiSecret) {
-      // Basic auth: apiKey:apiSecret
-      const auth = Buffer.from(`${apiKey}:${apiSecret}`).toString("base64");
-      headers["Authorization"] = `Basic ${auth}`;
-    } else {
-      // API key in header
-      headers["api-key"] = apiKey;
-      // Or: headers["X-API-Key"] = apiKey;
-      // Or: headers["Authorization"] = `Bearer ${apiKey}`;
-    }
+    // Arkesel v2 takes the key in this header only (a Basic auth header is rejected).
+    headers["api-key"] = apiKey;
 
-    const response = await axios.post(apiUrl, payload, { headers });
+    const response = await axios.post(apiUrl, payload, { headers, timeout: 15000 });
+    // Arkesel can answer 200 with status "error" (e.g. no credit or an unapproved sender ID).
+    if (response.data?.status && response.data.status !== "success") {
+      throw new Error(response.data?.message || `Arkesel status ${response.data.status}`);
+    }
 
     console.log(`SMS sent successfully to ${phone} via Arkasel:`, response.data);
     
@@ -124,7 +130,7 @@ export const sendSMSGet = async (phone, message) => {
     const apiKey = process.env.ARKASEL_API_KEY;
     const apiSecret = process.env.ARKASEL_API_SECRET;
     const senderId = process.env.ARKASEL_SENDER_ID || "QareGO";
-    const apiUrl = process.env.ARKASEL_API_URL || "https://api.arkasel.com/api/v1/sms/send";
+    const apiUrl = smsApiUrl();
 
     const formattedPhone = phone.replace(/^\+/, "");
 

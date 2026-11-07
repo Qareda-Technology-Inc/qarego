@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Copy, KeyRound, Loader2, Plus, ShieldCheck } from "lucide-react";
+import { Copy, KeyRound, Loader2, Mail, Plus, ShieldCheck } from "lucide-react";
 import { fetcher } from "@/lib/api";
 import { ADMIN_ROLE_LABEL, type AdminRole } from "@/lib/adminAccess";
 import { useAuth } from "@/context/AuthContext";
@@ -16,6 +16,7 @@ type Member = {
   name: string | null;
   username: string;
   phone: string | null;
+  email: string | null;
   adminRole: AdminRole;
   active: boolean;
   mustChangePassword: boolean;
@@ -31,7 +32,7 @@ const ROLE_HELP: Record<AdminRole, string> = {
   staff: "Onboarding only: add and approve riders, invite vendors, set up and approve their stores. No money, settings, trips, orders or customer data.",
 };
 
-const EMPTY = { name: "", username: "", phone: "", adminRole: "staff" as AdminRole };
+const EMPTY = { name: "", username: "", phone: "", email: "", adminRole: "staff" as AdminRole };
 
 /** Super admin: who can use the admin portal, and what each person can do. */
 export default function TeamPage() {
@@ -68,7 +69,7 @@ export default function TeamPage() {
     try {
       const data = await fetcher("/admin/team", {
         method: "POST",
-        body: JSON.stringify({ ...form, phone: form.phone.trim() || null }),
+        body: JSON.stringify({ ...form, phone: form.phone.trim() || null, email: form.email.trim() || null }),
       });
       setAdding(false);
       setForm({ ...EMPTY });
@@ -81,7 +82,11 @@ export default function TeamPage() {
     }
   };
 
-  const update = async (m: Member, patch: Partial<{ adminRole: AdminRole; active: boolean }>, confirmText?: string) => {
+  const update = async (
+    m: Member,
+    patch: Partial<{ adminRole: AdminRole; active: boolean; email: string | null }>,
+    confirmText?: string
+  ) => {
     if (confirmText && !window.confirm(confirmText)) return;
     setBusy(m._id);
     try {
@@ -92,6 +97,15 @@ export default function TeamPage() {
     } finally {
       setBusy(null);
     }
+  };
+
+  const editEmail = (m: Member) => {
+    const next = window.prompt(
+      `Email for ${m.name || m.username}. Super admins get alerts here, e.g. orders a store hasn't accepted. Leave empty to remove it.`,
+      m.email || ""
+    );
+    if (next === null || next.trim() === (m.email || "")) return;
+    void update(m, { email: next.trim() || null });
   };
 
   const resetPassword = async (m: Member) => {
@@ -187,6 +201,15 @@ export default function TeamPage() {
                             @{m.username}
                             {m.phone ? ` · ${m.phone}` : ""}
                           </div>
+                          <button
+                            type="button"
+                            onClick={() => editEmail(m)}
+                            disabled={busy === m._id}
+                            className="mt-0.5 inline-flex items-center gap-1 text-xs text-blue-700 hover:underline"
+                          >
+                            <Mail className="h-3 w-3" />
+                            {m.email || "Add email"}
+                          </button>
                         </td>
                         <td className="py-2.5 pr-3">
                           <select
@@ -267,6 +290,10 @@ export default function TeamPage() {
           <div>
             <Label htmlFor="phone">Phone (optional, to text them their sign-in details)</Label>
             <Input id="phone" type="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="024 000 0000" />
+          </div>
+          <div>
+            <Label htmlFor="email">Email (optional; super admins get order alerts here)</Label>
+            <Input id="email" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="name@example.com" />
           </div>
           <div>
             <Label htmlFor="role">Role</Label>

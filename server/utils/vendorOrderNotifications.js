@@ -111,7 +111,7 @@ export async function resolveRestaurantStaff(restaurantId) {
   };
 }
 
-async function notifyStaffMember(user, { pushPayload, smsMessage }) {
+export async function notifyStaffMember(user, { pushPayload, smsMessage }) {
   const label = `${user.role || "staff"} ${user._id}`;
 
   if (pushPayload && isFirebaseConfigured()) {

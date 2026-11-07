@@ -15,6 +15,7 @@ import { SettingsAudioUpload } from '@/components/SettingsAudioUpload';
 import { MenuCategoryLayoutsCard } from '@/components/MenuCategoryLayoutsCard';
 import { FoodPromoBannersCard } from '@/components/FoodPromoBannersCard';
 import { GasPricesCard } from '@/components/GasPricesCard';
+import { OrderAlertsCard } from '@/components/OrderAlertsCard';
 import { useFeatures } from "@/lib/features";
 
 /** Parse a number field; allow 0. Returns null when empty/invalid. */
@@ -834,6 +835,7 @@ function SettingsTabs() {
 
           {tab === 'stores' ? (
             <>
+              <OrderAlertsCard />
               <FoodPromoBannersCard />
               <MenuCategoryLayoutsCard />
             </>

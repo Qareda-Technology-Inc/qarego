@@ -7,6 +7,7 @@ import {
 } from "./foodOrderFlow.js";
 import { isCollectFirstOrder } from "./laundryOrders.js";
 import { cancelStaleUnpaidOrders } from "./unpaidOrders.js";
+import { processWaitingOrders } from "./orderWaitAlerts.js";
 
 const POLL_MS = 30_000;
 
@@ -76,6 +77,9 @@ export function startFoodCourierBroadcastScheduler(io) {
     });
     cancelStaleUnpaidOrders(io).catch((err) => {
       console.error("[food] unpaid order cleanup error:", err?.message || err);
+    });
+    processWaitingOrders(io).catch((err) => {
+      console.error("[food] waiting order alerts error:", err?.message || err);
     });
   };
 

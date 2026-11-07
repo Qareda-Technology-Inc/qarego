@@ -4,7 +4,7 @@ This guide will help you configure Arkasel SMS for OTP notifications in QareGO.
 
 ## Prerequisites
 
-1. An Arkasel account (sign up at https://arkasel.com)
+1. An Arkasel account (sign up at https://arkesel.com)
 2. API credentials from your Arkasel dashboard
 3. A verified sender ID (usually your business name)
 
@@ -28,7 +28,7 @@ Add the following to your `.env` file in the `server` directory:
 ARKASEL_API_KEY=your_api_key_here
 ARKASEL_API_SECRET=your_api_secret_here
 ARKASEL_SENDER_ID=QareGO
-ARKASEL_API_URL=https://api.arkasel.com/api/v1/sms/send
+ARKASEL_API_URL=https://sms.arkesel.com/api/v2/sms/send
 ```
 
 **Note:** The API URL might vary based on your Arkasel account type. Check your Arkasel dashboard for the correct endpoint.

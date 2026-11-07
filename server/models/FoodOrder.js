@@ -104,6 +104,9 @@ const foodOrderSchema = new Schema(
       default: "PLACED",
     },
     ride: { type: Schema.Types.ObjectId, ref: "Ride", default: null },
+    /** Order sat unaccepted: when the store was reminded and when QareGO's team was alerted. */
+    storeReminderSentAt: { type: Date, default: null },
+    teamAlertSentAt: { type: Date, default: null },
     /** When the store started preparing (accept). */
     preparingStartedAt: { type: Date, default: null },
     /** Scheduled time to broadcast courier offers (half prep or 5 min before ready, whichever is later). */

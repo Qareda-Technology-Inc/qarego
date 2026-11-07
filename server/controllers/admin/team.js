@@ -17,6 +17,7 @@ const shape = (u) => ({
   name: u.name || null,
   username: u.username,
   phone: u.phone || null,
+  email: u.email || null,
   adminRole: adminRoleOf(u),
   active: !u.isSuspended,
   mustChangePassword: !!u.mustChangePassword,
@@ -86,12 +87,21 @@ export const listTeam = async (_req, res) => {
   res.status(StatusCodes.OK).json({ members: members.map(shape) });
 };
 
-/** POST /admin/team { name, username, phone?, adminRole } — add an admin or staff member. */
+/** Optional email (super admins get order alerts there). Throws on a malformed one. */
+function readEmail(raw) {
+  const email = String(raw || "").trim().toLowerCase();
+  if (!email) return null;
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new BadRequestError("Enter a valid email address");
+  return email;
+}
+
+/** POST /admin/team { name, username, phone?, email?, adminRole } — add an admin or staff member. */
 export const createTeamMember = async (req, res) => {
   const name = String(req.body?.name || "").trim();
   const username = String(req.body?.username || "").trim().toLowerCase();
   const adminRole = String(req.body?.adminRole || "");
   const phone = req.body?.phone ? normalizePhone(req.body.phone) : null;
+  const email = readEmail(req.body?.email);
   if (!name) throw new BadRequestError("Enter their name");
   if (!/^[a-z0-9._-]{3,30}$/.test(username)) {
     throw new BadRequestError("Username: 3–30 letters, numbers, dots, dashes or underscores");
@@ -109,6 +119,7 @@ export const createTeamMember = async (req, res) => {
     name,
     username,
     ...(phone ? { phone } : {}),
+    ...(email ? { email } : {}),
     password: tempPassword,
     mustChangePassword: true,
   });
@@ -116,12 +127,12 @@ export const createTeamMember = async (req, res) => {
   res.status(StatusCodes.CREATED).json({ member: shape(user.toObject()), tempPassword, sms });
 };
 
-/** PATCH /admin/team/:id { name?, phone?, adminRole?, active? } */
+/** PATCH /admin/team/:id { name?, phone?, email?, adminRole?, active? } */
 export const updateTeamMember = async (req, res) => {
   const user = await User.findOne({ _id: req.params.id, role: "admin", deletedAt: null });
   if (!user) throw new NotFoundError("Team member not found");
   const isSelf = String(user._id) === String(req.user.id);
-  const { name, phone, adminRole, active } = req.body || {};
+  const { name, phone, email, adminRole, active } = req.body || {};
 
   if (name !== undefined) {
     if (!String(name).trim()) throw new BadRequestError("Enter their name");
@@ -133,6 +144,9 @@ export const updateTeamMember = async (req, res) => {
       throw new BadRequestError("That phone number already belongs to another account");
     }
     user.phone = next || undefined;
+  }
+  if (email !== undefined) {
+    user.email = readEmail(email) || undefined;
   }
   if (adminRole !== undefined && adminRole !== adminRoleOf(user)) {
     if (!ADMIN_ROLES.includes(adminRole)) throw new BadRequestError("Choose a role: super, admin or staff");

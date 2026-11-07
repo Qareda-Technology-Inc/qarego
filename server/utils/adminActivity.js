@@ -124,6 +124,7 @@ const RULES = [
   ["PATCH", "/admin/team/:id", "team", "team.edit", ({ body, t }) => {
     if (body.active !== undefined) return body.active ? `turned ${pos(t)} account back on` : `turned off ${pos(t)} account`;
     if (body.adminRole) return `made ${t} ${ROLE_WORD[body.adminRole] || body.adminRole}`;
+    if (body.email !== undefined) return body.email ? `set ${pos(t)} email` : `removed ${pos(t)} email`;
     return `edited ${pos(t)} team details`;
   }],
   ["POST", "/admin/team/:id/reset-password", "team", "team.reset_password", "reset {t's} password"],

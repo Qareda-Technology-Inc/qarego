@@ -4,9 +4,15 @@ import { StatusCodes } from "http-status-codes";
 import { getSettings } from "../../utils/tripSettlement.js";
 import { normalizePushTemplateOverrides, invalidatePushTemplateCache } from "../../utils/pushNotificationTemplates.js";
 import { getGasConfig, normalizeGasConfigInput } from "../../utils/gasOrders.js";
+import { getOrderAlertConfig, normalizeOrderAlertsInput } from "../../utils/orderWaitAlerts.js";
 
-// Always send gas settings with defaults filled in, so the admin form has something to edit.
-const withGas = (settings) => ({ ...settings.toObject(), gas: getGasConfig(settings) });
+// Always send gas and order-alert settings with defaults filled in, so the admin forms have
+// something to edit.
+const withGas = (settings) => ({
+  ...settings.toObject(),
+  gas: getGasConfig(settings),
+  orderAlerts: getOrderAlertConfig(settings),
+});
 
 /** GET /admin/settings - Get global settings (commission, debt limit) */
 export const getSettingsAdmin = async (req, res) => {
@@ -48,6 +54,7 @@ export const updateSettingsAdmin = async (req, res) => {
       menuCategoryLayouts,
       foodPromoBanners,
       gas,
+      orderAlerts,
     } = req.body;
     let settings = await Settings.findOne({ key: 'global' });
     if (!settings) {
@@ -208,6 +215,13 @@ export const updateSettingsAdmin = async (req, res) => {
     if (gas !== undefined) {
       try {
         settings.gas = normalizeGasConfigInput(gas);
+      } catch (err) {
+        return res.status(StatusCodes.BAD_REQUEST).json({ message: err.message });
+      }
+    }
+    if (orderAlerts !== undefined) {
+      try {
+        settings.orderAlerts = normalizeOrderAlertsInput(orderAlerts);
       } catch (err) {
         return res.status(StatusCodes.BAD_REQUEST).json({ message: err.message });
       }

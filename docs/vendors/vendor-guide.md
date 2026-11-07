@@ -60,6 +60,8 @@ Your store needs these before you can submit it:
 
 Keep the merchant portal open on the **Orders** page during opening hours. Turn the sound on: new orders ring until someone looks at them.
 
+Every new order also comes to the store's phone numbers by **SMS**, so you hear about it even when the portal is closed. If an order still isn't accepted after a few minutes, you get a **reminder SMS**, and soon after that QareGO's team is alerted and may call you. Make sure the owner's and cooks' phone numbers in the portal are correct.
+
 | Order status | What you do |
 |---|---|
 | **New** | Accept it (or reject it if you can't make it). A mobile money order can only be accepted once the customer has paid. |
