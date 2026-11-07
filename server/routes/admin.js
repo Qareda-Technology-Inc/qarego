@@ -27,6 +27,7 @@ import {
   getSettingsAdmin,
   updateSettingsAdmin,
   uploadKitchenAlertSound,
+  sendTestEmailAdmin,
   uploadRiderAlertSound,
   getPushTemplatesAdmin,
   updatePushTemplatesAdmin,
@@ -131,6 +132,7 @@ adminRouter.patch('/settings', updateSettingsAdmin);
 adminRouter.get('/push-templates', getPushTemplatesAdmin);
 adminRouter.patch('/push-templates', updatePushTemplatesAdmin);
 adminRouter.post('/push-templates/preview', previewPushTemplateAdmin);
+adminRouter.post('/settings/test-email', sendTestEmailAdmin);
 adminRouter.get('/push-broadcast', getPushBroadcastAdmin);
 adminRouter.get('/push-broadcast/promo-search', searchPromoTargetsAdmin);
 adminRouter.post('/push-broadcast', sendPushBroadcastAdmin);

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
-import { BellRing, Loader2, Save } from "lucide-react";
+import { BellRing, Loader2, Mail, Save } from "lucide-react";
 
 type OrderAlerts = { storeReminderMinutes: number; teamAlertMinutes: number; phones: string[] };
 
@@ -17,10 +17,13 @@ export function OrderAlertsCard() {
   const [phones, setPhones] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [emailConfigured, setEmailConfigured] = useState(false);
+  const [testing, setTesting] = useState(false);
 
   useEffect(() => {
     fetcher("/admin/settings")
       .then((data) => {
+        setEmailConfigured(data.emailConfigured === true);
         const cfg: OrderAlerts | undefined = data.orderAlerts;
         if (!cfg) return;
         setReminder(String(cfg.storeReminderMinutes));
@@ -51,6 +54,18 @@ export function OrderAlertsCard() {
       alert(e instanceof Error ? e.message : "Failed to save order alerts.");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const sendTest = async () => {
+    setTesting(true);
+    try {
+      const data = await fetcher("/admin/settings/test-email", { method: "POST" });
+      alert(data.message || "Test email sent.");
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Couldn't send a test email.");
+    } finally {
+      setTesting(false);
     }
   };
 
@@ -116,11 +131,23 @@ export function OrderAlertsCard() {
                 Super admins also get the alert by email. Add their email under Team (click &quot;Add
                 email&quot; under their name).
               </p>
+              {!emailConfigured ? (
+                <p className="mt-1 text-xs text-amber-700">
+                  Email isn&apos;t set up on the server yet, so only the SMS goes out. Add SMTP_HOST,
+                  SMTP_PORT, SMTP_USER and SMTP_PASS on Render.
+                </p>
+              ) : null}
             </div>
-            <Button onClick={save} disabled={saving}>
-              {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-              Save order alerts
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={save} disabled={saving}>
+                {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                Save order alerts
+              </Button>
+              <Button variant="outline" onClick={sendTest} disabled={testing}>
+                {testing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Mail className="mr-2 h-4 w-4" />}
+                Send me a test email
+              </Button>
+            </div>
           </>
         )}
       </CardContent>

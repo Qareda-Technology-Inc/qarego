@@ -110,6 +110,7 @@ const RULES = [
   ["DELETE", "/customers/:id", "customer", "customer.delete", "deleted customer {t}"],
   // Platform
   ["PATCH", "/admin/settings", "settings", "settings.edit", ({ body }) => `changed settings: ${Object.keys(body).join(", ") || "none"}`],
+  ["POST", "/admin/settings/test-email", null, null, null], // sends a test, changes nothing
   ["POST", "/admin/settings/kitchen-alert-sound", "settings", "settings.sound", "changed the store new-order sound"],
   ["POST", "/admin/settings/rider-alert-sound", "settings", "settings.sound", "changed the rider offer sound"],
   ["PATCH", "/admin/push-templates", "settings", "push.templates", "edited the push notification texts"],

@@ -5,6 +5,8 @@ import { getSettings } from "../../utils/tripSettlement.js";
 import { normalizePushTemplateOverrides, invalidatePushTemplateCache } from "../../utils/pushNotificationTemplates.js";
 import { getGasConfig, normalizeGasConfigInput } from "../../utils/gasOrders.js";
 import { getOrderAlertConfig, normalizeOrderAlertsInput } from "../../utils/orderWaitAlerts.js";
+import { isEmailConfigured, sendEmail } from "../../utils/emailService.js";
+import User from "../../models/User.js";
 
 // Always send gas and order-alert settings with defaults filled in, so the admin forms have
 // something to edit.
@@ -12,6 +14,7 @@ const withGas = (settings) => ({
   ...settings.toObject(),
   gas: getGasConfig(settings),
   orderAlerts: getOrderAlertConfig(settings),
+  emailConfigured: isEmailConfigured(),
 });
 
 /** GET /admin/settings - Get global settings (commission, debt limit) */
@@ -269,4 +272,28 @@ export const uploadRiderAlertSound = async (req, res) => {
     console.error('Upload rider alert sound error:', error);
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ message: 'Failed to upload sound' });
   }
+};
+
+/** POST /admin/settings/test-email — send a test email to the signed-in admin's own address */
+export const sendTestEmailAdmin = async (req, res) => {
+  if (!isEmailConfigured()) {
+    return res.status(StatusCodes.BAD_REQUEST).json({
+      message: "Email isn't set up on the server yet. Add SMTP_HOST, SMTP_USER and SMTP_PASS on Render.",
+    });
+  }
+  const me = await User.findById(req.user.id).select("email name").lean();
+  if (!me?.email) {
+    return res.status(StatusCodes.BAD_REQUEST).json({
+      message: "Your account has no email. Add it on the Team page first.",
+    });
+  }
+  const result = await sendEmail({
+    to: me.email,
+    subject: "QareGO test email",
+    text: `Hi ${me.name || "there"},\n\nEmail from QareGO is working. Alerts about orders a store hasn't accepted will come to this address.`,
+  });
+  if (!result.success) {
+    return res.status(StatusCodes.BAD_REQUEST).json({ message: `Couldn't send: ${result.error}` });
+  }
+  res.status(StatusCodes.OK).json({ message: `Test email sent to ${me.email}` });
 };
