@@ -4,7 +4,7 @@
 
 # Everything at the top level except the client app
 /*
-!/client/
+!/client
 
 # Dependencies & caches
 **/node_modules/
