@@ -19,6 +19,8 @@ type Props = {
     foodOrderSummary?: string;
     status?: string;
     cashCollection?: RideCashCollection | null;
+    gasLeg?: string | null;
+    gasFillAnywhere?: boolean;
     recipientName?: string;
     recipientPhone?: string;
     parcelDescription?: string;
@@ -54,6 +56,7 @@ const RiderDeliveryBanner: FC<Props> = ({ ride, variant = "overlay" }) => {
         {variant === "inline" ? (
           <CashCollectionNote
             cash={ride.cashCollection}
+            fillAnywhere={ride.gasLeg === "COLLECT" && !!ride.gasFillAnywhere}
             // Before pickup the next cash step is paying the store; after, collecting.
             step={ride.status === "START" ? "pickup" : "dropoff"}
           />

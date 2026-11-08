@@ -34,24 +34,16 @@ function normalizeAmountRefill(raw) {
   };
 }
 
-// Courier fee for the round trip; separate from ride/food rates so gas can be priced on its own.
-const DEFAULT_DELIVERY = { baseFare: 10, perKmRate: 3, minimumFare: 15 };
+// Gas delivery is one flat fee per order (the rider's whole trip), set by the owner.
+const DEFAULT_DELIVERY = { flatFee: 20 };
 
 function normalizeDelivery(raw) {
   const d = raw && typeof raw === "object" ? raw : {};
-  const num = (v, fallback) => (Number.isFinite(Number(v)) && Number(v) >= 0 ? round2(v) : fallback);
-  return {
-    baseFare: num(d.baseFare, DEFAULT_DELIVERY.baseFare),
-    perKmRate: num(d.perKmRate, DEFAULT_DELIVERY.perKmRate),
-    minimumFare: num(d.minimumFare, DEFAULT_DELIVERY.minimumFare),
-  };
+  const fee = Number(d.flatFee);
+  return { flatFee: Number.isFinite(fee) && fee >= 0 ? round2(fee) : DEFAULT_DELIVERY.flatFee };
 }
 
-/** Round-trip courier fee: base + km × rate (km already covers both directions), at least the minimum. */
-export function computeGasDeliveryFee(roundTripKm, delivery) {
-  const d = normalizeDelivery(delivery);
-  return round2(Math.max(d.minimumFare, d.baseFare + Number(roundTripKm) * d.perKmRate));
-}
+const isObjectIdString = (v) => typeof v === "string" && /^[a-f\d]{24}$/i.test(v);
 
 /** Normalised gas config from settings, with safe defaults. */
 export function getGasConfig(settings) {
@@ -77,6 +69,8 @@ export function getGasConfig(settings) {
     stationCommissionRate: Number.isFinite(rate) && rate >= 0 && rate <= 1 ? rate : 0.05,
     delivery: normalizeDelivery(raw.delivery),
     amountRefill: normalizeAmountRefill(raw.amountRefill),
+    // QareGO's own gas store: every order goes to it (no partner station needed).
+    houseStoreId: isObjectIdString(String(raw.houseStoreId || "")) ? String(raw.houseStoreId) : null,
     cylinders,
   };
 }
@@ -90,16 +84,16 @@ export function normalizeGasConfigInput(input) {
     stationCommissionRate: Number(input.stationCommissionRate ?? 0.05),
     delivery: normalizeDelivery(input.delivery),
     amountRefill: normalizeAmountRefill(input.amountRefill),
+    houseStoreId: input.houseStoreId ? String(input.houseStoreId) : null,
     cylinders: [],
   };
+  if (out.houseStoreId && !isObjectIdString(out.houseStoreId)) throw new Error("Choose a valid gas store");
   const minAmount = input.amountRefill?.minAmount;
   if (minAmount !== undefined && !(Number(minAmount) >= 0)) {
     throw new Error("The smallest gas amount must be 0 or more");
   }
-  for (const k of ["baseFare", "perKmRate", "minimumFare"]) {
-    const v = input.delivery?.[k];
-    if (v !== undefined && !(Number(v) >= 0)) throw new Error("Gas delivery rates must be 0 or more");
-  }
+  const flatFee = input.delivery?.flatFee;
+  if (flatFee !== undefined && !(Number(flatFee) >= 0)) throw new Error("The gas delivery fee must be 0 or more");
   if (!(out.stationCommissionRate >= 0 && out.stationCommissionRate <= 1)) {
     throw new Error("Station commission must be between 0 and 1");
   }
@@ -124,7 +118,7 @@ export function normalizeGasConfigInput(input) {
   return out;
 }
 
-/** Nearest active, open, accepting gas station within delivery range, or null. */
+/** Nearest active, open, accepting partner gas station within delivery range, or null. */
 export async function findNearestGasStation(lat, lon, now = new Date()) {
   const stations = await Restaurant.find({ vertical: "GAS", isActive: true }).lean();
   const settings = await getSettings();
@@ -138,6 +132,31 @@ export async function findNearestGasStation(lat, lon, now = new Date()) {
     if (!best || km < best.distanceKm) best = { station: s, distanceKm: km };
   }
   return best;
+}
+
+/**
+ * The store a gas order goes to. With QareGO's own gas store set, that's always it, wherever
+ * the customer is (riders fill refills at any nearby filling place; exchanges start from its
+ * address). Without one, the nearest partner station.
+ * @returns {Promise<{ station, distanceKm, house: boolean } | { closed: true } | null>}
+ */
+export async function findGasStore(lat, lon, config, now = new Date()) {
+  if (config.houseStoreId) {
+    const store = await Restaurant.findOne({ _id: config.houseStoreId, vertical: "GAS", isActive: true }).lean();
+    if (store) {
+      const settings = await getSettings();
+      if (store.isAcceptingOrders === false || !storeOpenState(store, settings, now).isOpen) {
+        return { closed: true };
+      }
+      const km =
+        store.latitude != null && store.longitude != null
+          ? calculateDistance(Number(store.latitude), Number(store.longitude), lat, lon)
+          : 0;
+      return { station: store, distanceKm: Number.isFinite(km) ? km : 0, house: true };
+    }
+  }
+  const nearest = await findNearestGasStation(lat, lon, now);
+  return nearest ? { ...nearest, house: false } : null;
 }
 
 /**
@@ -162,10 +181,9 @@ export function readGasAmount(rawAmount, mode, cylinder, config) {
 }
 
 /**
- * Price a gas order. Both modes are a round trip between the customer and the station
- * (REFILL: collect empty → station → back; EXCHANGE: full to customer → empty back to station),
- * so the courier fee covers twice the one-way distance. With `amount`, a refill is that many
- * cedis of gas in one cylinder instead of a full fill.
+ * Price a gas order: the gas plus one flat delivery fee for the rider's whole trip
+ * (REFILL: collect empty → fill → back; EXCHANGE: full to customer → empty back to the store).
+ * With `amount`, a refill is that many cedis of gas in one cylinder instead of a full fill.
  */
 export function buildGasQuote({ config, settings, mode, sizeKg, quantity, distanceKm, amount }) {
   if (!GAS_MODES.includes(mode)) throw new Error("Choose refill or exchange");
@@ -176,7 +194,7 @@ export function buildGasQuote({ config, settings, mode, sizeKg, quantity, distan
   const unitPrice = gasAmount ?? (mode === "REFILL" ? cylinder.refillPrice : cylinder.exchangePrice);
   const subtotal = round2(unitPrice * qty);
   const oneWayKm = Math.max(MIN_FOOD_DELIVERY_KM, Number(distanceKm) || 0);
-  const deliveryFee = computeGasDeliveryFee(oneWayKm * 2, config.delivery);
+  const deliveryFee = config.delivery.flatFee;
   const serviceFee = computeFoodServiceFee(subtotal, settings);
   return {
     cylinder,

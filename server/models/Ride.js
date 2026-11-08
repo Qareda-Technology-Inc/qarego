@@ -51,6 +51,8 @@ const rideSchema = new Schema(
     /** Cooking gas legs: COLLECT = customer's empty to station (REFILL), RETURN = filled back to customer,
      *  DELIVER = full cylinder to customer (EXCHANGE). */
     gasLeg: { type: String, enum: ["COLLECT", "RETURN", "DELIVER", null], default: null },
+    /** QareGO's own refill: the rider fills the cylinder at any filling place, not a partner station. */
+    gasFillAnywhere: { type: Boolean, default: false },
     storeVertical: {
       type: String,
       enum: ["FOOD", "GROCERY", "PHARMACY", "GAS", "LAUNDRY"],

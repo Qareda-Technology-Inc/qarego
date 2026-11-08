@@ -12,14 +12,20 @@ import { assertServiceAvailableAt } from "../utils/serviceZones.js";
 import { parseCoord } from "../utils/deliveryFare.js";
 import { notifyCustomerFoodOrderPush } from "../utils/pushNotifications.js";
 import { notifyRestaurantStaffNewOrder } from "../utils/vendorOrderNotifications.js";
-import {
-  buildGasQuote,
-  findNearestGasStation,
-  getGasConfig,
-} from "../utils/gasOrders.js";
+import { buildGasQuote, findGasStore, getGasConfig } from "../utils/gasOrders.js";
+import { applyRestaurantAction } from "../utils/foodOrderFlow.js";
 
 import { isDuplicateKeyError, readClientRequestId } from "../utils/idempotency.js";
 const NO_STATION = "No gas station is open near you right now. Please try again later.";
+const CLOSED = "Gas delivery is closed right now. Please try again later.";
+
+/** The store for this location, or a BadRequestError explaining why there isn't one. */
+async function gasStoreFor(lat, lon, config) {
+  const found = await findGasStore(lat, lon, config);
+  if (!found) throw new BadRequestError(NO_STATION);
+  if (found.closed) throw new BadRequestError(CLOSED);
+  return found;
+}
 
 function readLocation(src) {
   try {
@@ -49,8 +55,7 @@ export const getGasQuote = async (req, res) => {
   const config = getGasConfig(settings);
   if (!config.enabled) throw new BadRequestError("Gas delivery is not available right now");
   const { lat, lon } = readLocation(req.query);
-  const nearest = await findNearestGasStation(lat, lon);
-  if (!nearest) throw new BadRequestError(NO_STATION);
+  const nearest = await gasStoreFor(lat, lon, config);
   let quote;
   try {
     quote = buildGasQuote({
@@ -67,6 +72,8 @@ export const getGasQuote = async (req, res) => {
   }
   res.status(StatusCodes.OK).json({
     station: { _id: nearest.station._id, name: nearest.station.name },
+    // QareGO's own gas: refills are paid in cash to the rider when they collect the cylinder.
+    cashOnly: nearest.house && String(req.query.mode || "").toUpperCase() === "REFILL",
     ...quote,
   });
 };
@@ -105,10 +112,14 @@ export const createGasOrder = async (req, res) => {
   if (customer?.isSuspended) throw new BadRequestError("Your account is suspended. Contact support.");
   await assertServiceAvailableAt(lat, lon, "GAS");
 
-  const nearest = await findNearestGasStation(lat, lon);
-  if (!nearest) throw new BadRequestError(NO_STATION);
-  const { station } = nearest;
+  const nearest = await gasStoreFor(lat, lon, config);
+  const { station, house } = nearest;
   const mode = String(rawMode || "").toUpperCase();
+  // QareGO's own refills: the rider takes the gas money in cash when collecting the empty and
+  // pays the filling place with it, so they're cash only.
+  if (house && mode === "REFILL" && method === "MOBILE_MONEY") {
+    throw new BadRequestError("Gas refills are paid in cash to the rider when they collect your cylinder");
+  }
 
   let quote;
   try {
@@ -120,7 +131,8 @@ export const createGasOrder = async (req, res) => {
   const split = computeFoodOrderSplit(
     { subtotal: quote.subtotal, deliveryFee: quote.deliveryFee, serviceFee: quote.serviceFee },
     settings,
-    { stationCommissionRate: config.stationCommissionRate, commissionFree: isCommissionFree(station) }
+    // QareGO's own store earns the whole gas price, so there's no station commission.
+    { stationCommissionRate: house ? 0 : config.stationCommissionRate, commissionFree: isCommissionFree(station) }
   );
 
   let order;
@@ -147,6 +159,7 @@ export const createGasOrder = async (req, res) => {
     gasMode: mode,
     gasSizeKg: quote.cylinder.sizeKg,
     gasAmount: quote.gasAmount,
+    gasByQarego: house,
   });
   } catch (err) {
     if (clientRequestId && isDuplicateKeyError(err)) {
@@ -156,16 +169,25 @@ export const createGasOrder = async (req, res) => {
     throw err;
   }
 
+  const io = req.app.get("io");
+  // QareGO's own gas is accepted straight away (a rider is sent at once). MoMo orders wait for
+  // the payment; the order scheduler accepts them once paid.
+  let autoAccepted = false;
+  if (house && method === "CASH") {
+    const accepted = await applyRestaurantAction(order._id, "accept", io);
+    if (accepted.error) console.warn("[gas] auto-accept failed:", String(order._id), accepted.error);
+    else autoAccepted = true; // that already told the customer
+  }
+
   const populated = await FoodOrder.findById(order._id)
     .populate("restaurant", "name cuisine imageEmoji address latitude longitude vertical estimatedPrepMinutes")
     .populate("customer", "name phone")
     .lean();
-  const io = req.app.get("io");
   if (io) {
     io.to(`customer_${req.user.id}`).emit("foodOrderUpdated", populated);
     io.to(`restaurant_${station._id}`).emit("newFoodOrder", populated);
   }
-  notifyCustomerFoodOrderPush(req.user.id, populated);
+  if (!autoAccepted) notifyCustomerFoodOrderPush(req.user.id, populated);
   notifyRestaurantStaffNewOrder(station._id, populated);
 
   res.status(StatusCodes.CREATED).json({ order: populated });

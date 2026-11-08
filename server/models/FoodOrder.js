@@ -134,6 +134,16 @@ const foodOrderSchema = new Schema(
     /** EXCHANGE: station confirms the customer's empty cylinder came back. */
     gasEmptyReturnedAt: { type: Date, default: null },
     /**
+     * Sold by QareGO's own gas store (settings.gas.houseStoreId), not a partner station. For a
+     * refill the rider fills the cylinder at any filling place near them.
+     */
+    gasByQarego: { type: Boolean, default: false },
+    /** REFILL by QareGO: where the rider was when they reached the filling place. */
+    gasFillPoint: {
+      latitude: { type: Number, default: null },
+      longitude: { type: Number, default: null },
+    },
+    /**
      * Laundry orders (vertical LAUNDRY). Like a gas refill they are collected first: a courier
      * brings the bag to the shop (gasStage/gasCourier/collectionRide track that leg), the shop
      * counts the items and confirms the price, washes, then a courier returns it.

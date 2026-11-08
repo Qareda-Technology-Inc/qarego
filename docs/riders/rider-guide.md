@@ -62,7 +62,7 @@ You must be at least 18, hold a valid licence for your vehicle, and keep your ve
 
 ## 4. Special deliveries
 
-- **Gas refill:** collect the customer's empty cylinder, take it to the gas station, then take the full one back. **Gas exchange:** take a full cylinder from the station to the customer and bring their empty one back to the station.
+- **Gas refill:** collect the customer's empty cylinder **and the gas money** (cash, the amount the app shows). Take it to the **nearest gas filling station**, swipe when you get there, and pay for the gas with that money. The return trip opens for you straight away: confirm when the cylinder is full, take it back, collect the delivery and service fee and enter the customer's code. You're paid once, for the whole job, when it's delivered. **Gas exchange:** pick up a full cylinder at QareGO's gas store, deliver it, and bring the customer's empty one back to the store.
 - **Laundry:** collect the customer's bag and take it to the laundry. Later a rider (maybe you, maybe another rider) takes it back. When two riders share a laundry job, the delivery pay is **split in half** between them automatically.
 - **Pharmacy:** you see how many items there are, not the names of the medicines. Keep the order sealed.
 - **Parcels:** don't carry anything illegal or dangerous. You may refuse a parcel you reasonably believe breaks the rules.

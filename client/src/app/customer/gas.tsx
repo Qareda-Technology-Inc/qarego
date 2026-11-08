@@ -322,7 +322,7 @@ export default function GasRequestScreen() {
                     ))}
                   </View>
                   <CustomText fontSize={12} color={T.inkMuted}>
-                    The station puts this much gas in your cylinder.
+                    This much gas goes in your cylinder.
                     {cylinder
                       ? ` From ${formatCurrency(amountRefill.minAmount)} up to ${formatCurrency(cylinder.refillPrice)} (a full ${cylinder.label}).`
                       : ""}
@@ -382,20 +382,24 @@ export default function GasRequestScreen() {
             ) : quote ? (
               <>
                 <CustomText fontSize={12} color={T.inkMuted} style={{ marginBottom: 8 }}>
-                  {mode === "REFILL" ? "Filled by" : "Full cylinder from"} {quote.station.name}
+                  {quote.cashOnly
+                    ? "Our courier fills it at the nearest gas filling station"
+                    : `${mode === "REFILL" ? "Filled by" : "Full cylinder from"} ${quote.station.name}`}
                 </CustomText>
                 <Line
                   label={quote.gasAmount != null ? "Gas (your amount)" : `Gas (${quote.quantity}×)`}
                   value={quote.subtotal}
                 />
-                <Line label="Delivery (both ways)" value={quote.deliveryFee} />
+                <Line label="Delivery" value={quote.deliveryFee} />
                 <Line label="Service fee" value={quote.serviceFee} />
                 <View style={styles.divider} />
                 <Line label="Total" value={quote.total} bold />
                 <View style={styles.cashRow}>
                   <Ionicons name="cash-outline" size={16} color={T.inkMuted} />
                   <CustomText fontSize={12} color={T.inkMuted} style={styles.flex}>
-                    Pay cash to the courier {mode === "REFILL" ? "when your gas is returned" : "on delivery"}
+                    {quote.cashOnly
+                      ? `Pay the courier ${formatCurrency(quote.subtotal)} for the gas when they collect your cylinder, and ${formatCurrency(quote.total - quote.subtotal)} when they bring it back`
+                      : `Pay cash to the courier ${mode === "REFILL" ? "when your gas is returned" : "on delivery"}`}
                   </CustomText>
                 </View>
               </>

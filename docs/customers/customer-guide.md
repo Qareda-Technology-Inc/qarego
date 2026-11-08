@@ -68,8 +68,11 @@ Don't send anything illegal or dangerous: weapons, drugs, explosives, flammable 
 ## 5. Cooking gas
 
 1. Choose **Gas**, then **Refill** (we collect your empty cylinder, fill it and bring it back) or **Exchange** (we bring a full cylinder and take your empty one).
-2. Choose the cylinder size. For a refill, choose **Full refill** (choose how many cylinders) or **Buy an amount** (type how much gas you want, e.g. GH₵50, for one cylinder). The smallest amount is GH₵20, and the most is the price of a full refill for that size. QareGO picks the nearest open gas station.
-3. The price, including delivery, is shown before you confirm.
+2. Choose the cylinder size. For a refill, choose **Full refill** (choose how many cylinders) or **Buy an amount** (type how much gas you want, e.g. GH₵50, for one cylinder). The smallest amount is GH₵20, and the most is the price of a full refill for that size.
+3. The price is shown before you confirm: the gas, one flat delivery fee and the service fee. QareGO accepts your request straight away and sends a courier.
+4. **Refill:** pay the courier the gas price in cash when they collect your empty cylinder. They fill it at the nearest gas filling station and bring it back; then pay the delivery and service fee and give them your code.
+5. **Exchange:** the courier brings a full cylinder from QareGO. Pay in cash on delivery, give them your code and hand over your empty cylinder.
+6. You can cancel until a courier takes the job.
 
 ## 6. Laundry
 

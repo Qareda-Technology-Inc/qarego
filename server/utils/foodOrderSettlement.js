@@ -41,12 +41,34 @@ export function buildCourierCashCollection(order) {
   if (order.restaurantNet == null || order.riderNet == null || order.platformNet == null) {
     return null;
   }
+  // QareGO's own refill: the gas money was taken (and spent at the filling place) on the
+  // collection trip, so the return trip only collects the delivery and service fees.
+  if (isQaregoRefill(order)) {
+    return {
+      collectFromCustomer: roundMoney((order.total ?? 0) - (order.subtotal ?? 0)),
+      payStore: 0,
+      riderKeeps: roundMoney(order.riderNet),
+      platformShare: roundMoney(order.platformNet),
+    };
+  }
   return {
     collectFromCustomer: roundMoney(order.total ?? 0),
     payStore: roundMoney(order.restaurantNet),
     riderKeeps: roundMoney(order.riderNet),
     platformShare: roundMoney(order.platformNet),
   };
+}
+
+const isQaregoRefill = (order) => !!order?.gasByQarego && order.gasMode === "REFILL";
+
+/**
+ * QareGO's own refill, collection trip: the rider takes the gas money from the customer with
+ * the empty cylinder and pays it to whichever filling place they use. Nothing is kept.
+ */
+export function buildGasCollectCashCollection(order) {
+  if (order?.paymentMethod !== "CASH" || !isQaregoRefill(order)) return null;
+  const gas = roundMoney(order.subtotal ?? 0);
+  return { collectFromCustomer: gas, payStore: gas, riderKeeps: 0, platformShare: 0 };
 }
 
 /**
@@ -550,7 +572,9 @@ export async function settleFoodOrderOnDelivery(orderId) {
   const split = computeFoodOrderSplit(
     order,
     settings,
-    order.gasMode ? { stationCommissionRate: getGasConfig(settings).stationCommissionRate } : {}
+    order.gasMode
+      ? { stationCommissionRate: order.gasByQarego ? 0 : getGasConfig(settings).stationCommissionRate }
+      : {}
   );
 
   if (order.restaurantNet == null) {

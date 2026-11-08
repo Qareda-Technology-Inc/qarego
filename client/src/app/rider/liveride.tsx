@@ -316,6 +316,20 @@ const LiveRide = () => {
         }
         if (result.ride) setRideData(result.ride);
         const laundry = (current as { storeVertical?: string }).storeVertical === "LAUNDRY";
+        // QareGO's own refill: fill it at any nearby station; the return trip follows at once.
+        const fillAnywhere = !!(current as { gasFillAnywhere?: boolean }).gasFillAnywhere;
+        if (fillAnywhere) {
+          if (next === "ARRIVED") {
+            Alert.alert("Empty collected", "Check the cylinder, then take it to the nearest gas filling station.");
+          } else if (next === "COMPLETED") {
+            Alert.alert(
+              "At the filling station",
+              "Pay for the gas with the money the customer gave you. Your return trip opens now."
+            );
+            resetAndNavigate("/rider/home");
+          }
+          return;
+        }
         if (next === "ARRIVED") {
           Alert.alert(
             laundry ? "Bag collected" : "Empty collected",

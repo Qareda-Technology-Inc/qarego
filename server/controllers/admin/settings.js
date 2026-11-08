@@ -7,6 +7,7 @@ import { getGasConfig, normalizeGasConfigInput } from "../../utils/gasOrders.js"
 import { getOrderAlertConfig, normalizeOrderAlertsInput } from "../../utils/orderWaitAlerts.js";
 import { isEmailConfigured, sendEmail } from "../../utils/emailService.js";
 import User from "../../models/User.js";
+import Restaurant from "../../models/Restaurant.js";
 
 // Always send gas and order-alert settings with defaults filled in, so the admin forms have
 // something to edit.
@@ -216,11 +217,16 @@ export const updateSettingsAdmin = async (req, res) => {
         .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
     }
     if (gas !== undefined) {
+      let next;
       try {
-        settings.gas = normalizeGasConfigInput(gas);
+        next = normalizeGasConfigInput(gas);
       } catch (err) {
         return res.status(StatusCodes.BAD_REQUEST).json({ message: err.message });
       }
+      if (next.houseStoreId && !(await Restaurant.exists({ _id: next.houseStoreId, vertical: "GAS" }))) {
+        return res.status(StatusCodes.BAD_REQUEST).json({ message: "QareGO's gas store must be a gas store" });
+      }
+      settings.gas = next;
     }
     if (orderAlerts !== undefined) {
       try {

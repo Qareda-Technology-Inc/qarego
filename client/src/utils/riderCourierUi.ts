@@ -12,6 +12,8 @@ type CourierRide = {
   recipientName?: string;
   recipientPhone?: string;
   gasLeg?: string | null;
+  /** QareGO's own refill: fill the cylinder at any nearby filling station. */
+  gasFillAnywhere?: boolean;
   restaurantName?: string;
 };
 
@@ -44,6 +46,17 @@ function parcelDropContactName(ride: CourierRide | null | undefined, mode: Parce
 export function getRiderCourierUi(ride?: CourierRide | null): RiderCourierUi {
   const status = ride?.status;
   const labels = parcelLabels(parseRideParcelMode(ride));
+
+  if (ride?.gasLeg === "COLLECT" && ride.gasFillAnywhere) {
+    const atCustomer = status === "START";
+    return {
+      meetLabel: atCustomer ? "Collect the empty and the gas money" : "Fill it at the nearest station",
+      contactName: atCustomer ? ride?.customer?.name || "Customer" : "Gas filling station",
+      contactPhone: ride?.customer?.phone,
+      pickupLabel: "Customer (empty cylinder)",
+      dropLabel: "Nearest filling station",
+    };
+  }
 
   if (ride?.gasLeg === "COLLECT") {
     const atCustomer = status === "START";
@@ -133,6 +146,12 @@ export function getRiderSwipeTitle(ride?: CourierRide | null): string {
   const isFood = isFoodDelivery(ride);
   const isParcel = ride?.serviceType === "DELIVERY";
 
+  if (ride?.gasLeg === "COLLECT" && ride.gasFillAnywhere) {
+    if (status === "START") return "Collected empty and cash";
+    if (status === "ARRIVED") return "Heading to fill it";
+    if (status === "IN_PROGRESS") return "At the filling station";
+  }
+  if (ride?.gasLeg === "RETURN" && ride.gasFillAnywhere && status === "START") return "Cylinder is full";
   if (ride?.gasLeg === "COLLECT") {
     const laundry = isLaundryTrip(ride);
     if (status === "START") return laundry ? "Collected the bag" : "Collected the empty";
@@ -171,6 +190,32 @@ export function getRiderDeliveryPhase(ride?: CourierRide | null): RiderDeliveryP
   const isParcel = ride?.serviceType === "DELIVERY";
   const parcelMode = parseRideParcelMode(ride);
 
+  if (ride?.gasLeg === "COLLECT" && ride.gasFillAnywhere) {
+    const step = status === "START" ? 1 : status === "ARRIVED" ? 2 : 3;
+    return {
+      step,
+      totalSteps: 3,
+      phaseLabel: step === 1 ? "Collect empty + cash" : step === 2 ? "Go to a filling station" : "At the filling station",
+      phaseHint:
+        step === 1
+          ? "Collect the customer's empty cylinder and the gas money (cash)"
+          : step === 2
+            ? "Take it to the nearest gas filling station"
+            : "Swipe when you get there. Your return trip opens straight away",
+      accentColor: "#c2410c",
+      swipeColor: "#c2410c",
+    };
+  }
+  if (ride?.gasLeg === "RETURN" && ride.gasFillAnywhere && status === "START") {
+    return {
+      step: 1,
+      totalSteps: 3,
+      phaseLabel: "Fill the cylinder",
+      phaseHint: "Pay the station with the gas money, then confirm when the cylinder is full",
+      accentColor: Colors.theme,
+      swipeColor: Colors.theme,
+    };
+  }
   if (ride?.gasLeg === "COLLECT") {
     const step = status === "START" ? 1 : status === "ARRIVED" ? 2 : 3;
     if (isLaundryTrip(ride)) {

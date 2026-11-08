@@ -30,6 +30,8 @@ export type GasQuote = {
   /** Cedis of gas for a refill bought by amount; null for a full cylinder. */
   gasAmount?: number | null;
   itemName: string;
+  /** QareGO's own refill: the courier fills it at the nearest station; the gas is paid in cash at collection. */
+  cashOnly?: boolean;
 };
 
 type Point = { latitude: number; longitude: number; address: string };

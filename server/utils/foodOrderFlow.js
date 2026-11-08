@@ -24,6 +24,7 @@ import {
 } from "./laundryOrders.js";
 import {
   buildCourierCashCollection,
+  buildGasCollectCashCollection,
   settleFoodOrderOnDelivery,
 } from "./foodOrderSettlement.js";
 import {
@@ -157,6 +158,21 @@ export function courierItemSummary(foodOrder, restaurant) {
   return foodOrder.items.map((i) => `${i.quantity}x ${i.name}`).join(", ");
 }
 
+/** QareGO's own refill goes to no particular store: the rider fills it wherever is nearest. */
+const isQaregoRefill = (foodOrder) => !!foodOrder?.gasByQarego && foodOrder.gasMode === "REFILL";
+const FILLING_PLACE = "Nearest gas filling station";
+
+/** Return trip of QareGO's own refill: starts where the rider filled the cylinder. */
+function qaregoRefillReturnPickup(foodOrder) {
+  const p = foodOrder.gasFillPoint || {};
+  const has = p.latitude != null && p.longitude != null;
+  return {
+    address: "Gas filling station (where you filled the cylinder)",
+    latitude: has ? p.latitude : foodOrder.delivery.latitude,
+    longitude: has ? p.longitude : foodOrder.delivery.longitude,
+  };
+}
+
 export async function createCourierRideForOrder(foodOrder, restaurant, io, options = {}) {
   const { broadcast = true, driverId = null } = options;
   // Gas: EXCHANGE delivers a full cylinder; REFILL's second leg returns the filled one.
@@ -227,11 +243,13 @@ export async function createCourierRideForOrder(foodOrder, restaurant, io, optio
     vehicle: "motorcycle",
     distance: distanceKm,
     fare: driverFee,
-    pickup: {
-      address: `${restaurant.name} — ${restaurant.address}`,
-      latitude: restaurant.latitude,
-      longitude: restaurant.longitude,
-    },
+    pickup: isQaregoRefill(foodOrder)
+      ? qaregoRefillReturnPickup(foodOrder)
+      : {
+          address: `${restaurant.name} — ${restaurant.address}`,
+          latitude: restaurant.latitude,
+          longitude: restaurant.longitude,
+        },
     drop: {
       address: foodOrder.delivery.address,
       latitude: foodOrder.delivery.latitude,
@@ -241,11 +259,12 @@ export async function createCourierRideForOrder(foodOrder, restaurant, io, optio
     otp: deliveryCode,
     paymentMethod: foodOrder.paymentMethod,
     foodOrder: foodOrder._id,
-    restaurantName: restaurant.name,
+    restaurantName: isQaregoRefill(foodOrder) ? "Gas filling station" : restaurant.name,
     storeVertical: restaurant.vertical || "FOOD",
     foodOrderSummary: itemSummary,
     cashCollection: buildCourierCashCollection(foodOrder),
     gasLeg,
+    gasFillAnywhere: isQaregoRefill(foodOrder),
   });
 
   foodOrder.ride = ride._id;
@@ -278,6 +297,9 @@ export async function createCourierRideForOrder(foodOrder, restaurant, io, optio
  */
 export async function createCollectionRide(foodOrder, restaurant, io) {
   const itemSummary = courierItemSummary(foodOrder, restaurant);
+  // QareGO's own refill: no store to drop at. The rider takes it to the nearest filling place
+  // (their choice), so the drop is only a label; it points back at the customer's address.
+  const qarego = isQaregoRefill(foodOrder);
   const ride = await Ride.create({
     serviceType: "FOOD",
     vehicle: "motorcycle",
@@ -288,25 +310,39 @@ export async function createCollectionRide(foodOrder, restaurant, io) {
       latitude: foodOrder.delivery.latitude,
       longitude: foodOrder.delivery.longitude,
     },
-    drop: {
-      address: `${restaurant.name} — ${restaurant.address}`,
-      latitude: restaurant.latitude,
-      longitude: restaurant.longitude,
-    },
+    drop: qarego
+      ? {
+          address: `${FILLING_PLACE} (your choice)`,
+          latitude: foodOrder.delivery.latitude,
+          longitude: foodOrder.delivery.longitude,
+        }
+      : {
+          address: `${restaurant.name} — ${restaurant.address}`,
+          latitude: restaurant.latitude,
+          longitude: restaurant.longitude,
+        },
     customer: foodOrder.customer,
     otp: generateOTP(),
     paymentMethod: foodOrder.paymentMethod,
     foodOrder: foodOrder._id,
-    restaurantName: restaurant.name,
+    restaurantName: qarego ? FILLING_PLACE : restaurant.name,
     storeVertical: restaurant.vertical || "GAS",
     foodOrderSummary: itemSummary,
-    cashCollection: null,
+    cashCollection: buildGasCollectCashCollection(foodOrder),
     gasLeg: "COLLECT",
+    gasFillAnywhere: qarego,
   });
   foodOrder.ride = ride._id;
   foodOrder.collectionRide = ride._id;
   await broadcastRideToDrivers(io, ride);
   return ride;
+}
+
+/** A rider has accepted this courier trip (it's no longer just being offered). */
+async function riderHasJob(rideId) {
+  if (!rideId) return false;
+  const ride = await Ride.findById(rideId).select("status rider").lean();
+  return !!ride && (!!ride.rider || ride.status !== "SEARCHING_FOR_RIDER");
 }
 
 export async function applyRestaurantAction(orderId, action, io, options = {}) {
@@ -351,8 +387,11 @@ export async function applyRestaurantAction(orderId, action, io, options = {}) {
       // Store/admin can cancel until the courier has the food (incl. ready for pickup, e.g.
       // when no courier comes). Customers can only cancel before the store accepts.
       // A booked laundry pickup can still be called off by the customer until a rider is sent.
+      // QareGO's own gas is accepted automatically, so the customer can still call it off
+      // until a rider takes the job.
       const waitingForPickup =
-        isLaundryOrder(foodOrder) && foodOrder.status === "PREPARING" && !foodOrder.collectionRide && !foodOrder.gasStage;
+        (isLaundryOrder(foodOrder) && foodOrder.status === "PREPARING" && !foodOrder.collectionRide && !foodOrder.gasStage) ||
+        (foodOrder.gasByQarego && foodOrder.status === "PREPARING" && !foodOrder.gasStage && !(await riderHasJob(foodOrder.ride)));
       const allowed =
         action === "customer_cancel"
           ? waitingForPickup

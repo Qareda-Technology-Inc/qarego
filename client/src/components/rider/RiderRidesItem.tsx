@@ -213,7 +213,11 @@ const RiderRidesItem: FC<{ item: RideItem; removeIt: () => void; isBestOffer?: b
               {item.foodOrderSummary}
             </CustomText>
           ) : null}
-          <CashCollectionNote cash={item.cashCollection} step="offer" />
+          <CashCollectionNote
+            cash={item.cashCollection}
+            step="offer"
+            fillAnywhere={(item as { gasLeg?: string; gasFillAnywhere?: boolean }).gasLeg === "COLLECT" && !!(item as { gasFillAnywhere?: boolean }).gasFillAnywhere}
+          />
         </View>
       ) : null}
 

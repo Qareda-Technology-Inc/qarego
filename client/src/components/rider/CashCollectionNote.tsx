@@ -17,14 +17,63 @@ type Props = {
   cash?: RideCashCollection | null;
   /** Highlights the step the rider is on: paying the store, or collecting from the customer. */
   step?: "offer" | "pickup" | "dropoff";
+  /** QareGO's own refill, collection trip: collect the gas money first, then pay a filling station. */
+  fillAnywhere?: boolean;
 };
 
 /**
  * Cash order breakdown for riders: collect from the customer, pay the store at pickup,
  * keep the delivery fee. The platform share is the remainder, added to Commission Owed.
  */
-const CashCollectionNote: FC<Props> = ({ cash, step = "offer" }) => {
+const CashCollectionNote: FC<Props> = ({ cash, step = "offer", fillAnywhere = false }) => {
   if (!cash || !(cash.collectFromCustomer > 0)) return null;
+
+  if (fillAnywhere) {
+    if (step === "offer") {
+      return (
+        <CustomText fontSize={10} numberOfLines={2} style={styles.compactText}>
+          <CustomText fontFamily="SemiBold" fontSize={10} style={styles.headerText}>
+            Cash:{" "}
+          </CustomText>
+          collect {formatCurrency(cash.collectFromCustomer)} for the gas · pay the filling station
+        </CustomText>
+      );
+    }
+    return (
+      <View style={styles.wrap}>
+        <View style={styles.header}>
+          <Ionicons name="cash" size={14} color="#166534" />
+          <CustomText fontFamily="SemiBold" fontSize={12} style={styles.headerText}>
+            Gas money
+          </CustomText>
+        </View>
+        {[
+          { key: "pickup", icon: "cash-outline" as const, label: "Collect from customer" },
+          { key: "dropoff", icon: "flame-outline" as const, label: "Pay the filling station" },
+        ].map((row) => {
+          const active = step === row.key;
+          return (
+            <View key={row.key} style={[styles.row, active && styles.rowActive]}>
+              <Ionicons name={row.icon} size={14} color={active ? "#166534" : DS.color.textMuted} />
+              <CustomText
+                fontFamily={active ? "SemiBold" : "Regular"}
+                fontSize={12}
+                style={[styles.label, active && styles.textActive]}
+              >
+                {row.label}
+              </CustomText>
+              <CustomText fontFamily="SemiBold" fontSize={13} style={active ? styles.textActive : undefined}>
+                {formatCurrency(cash.collectFromCustomer)}
+              </CustomText>
+            </View>
+          );
+        })}
+        <CustomText fontSize={11} color={DS.color.textMuted} style={styles.footnote}>
+          All of it goes on the gas. Your delivery pay is collected on the return trip.
+        </CustomText>
+      </View>
+    );
+  }
 
   // Offer cards run on a short timer: one inline line (wraps on narrow phones rather than
   // cutting off the amounts), so "Accept" stays on screen.
@@ -41,12 +90,17 @@ const CashCollectionNote: FC<Props> = ({ cash, step = "offer" }) => {
   }
 
   const rows = [
-    {
-      key: "pickup",
-      icon: "storefront-outline" as const,
-      label: "Pay store at pickup",
-      amount: cash.payStore,
-    },
+    // Nothing to pay at pickup (e.g. a gas return trip): just the amount to collect.
+    ...(cash.payStore > 0
+      ? [
+          {
+            key: "pickup",
+            icon: "storefront-outline" as const,
+            label: "Pay store at pickup",
+            amount: cash.payStore,
+          },
+        ]
+      : []),
     {
       key: "dropoff",
       icon: "cash-outline" as const,

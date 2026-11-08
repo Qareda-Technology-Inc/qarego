@@ -99,6 +99,8 @@ export type FoodOrder = {
   refundStatus?: "NONE" | "DUE" | "REFUNDED";
   gasMode?: "REFILL" | "EXCHANGE" | null;
   gasStage?: "TO_STATION" | "AT_STATION" | null;
+  /** QareGO's own gas: the courier fills the cylinder at the nearest filling station. */
+  gasByQarego?: boolean;
   gasSizeKg?: number | null;
   /** Refill bought by amount: cedis of gas. Null = full cylinder. */
   gasAmount?: number | null;

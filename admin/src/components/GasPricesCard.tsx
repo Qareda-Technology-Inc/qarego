@@ -22,12 +22,15 @@ type GasConfig = {
   enabled: boolean;
   momoEnabled: boolean;
   stationCommissionRate: number;
-  delivery?: { baseFare: number; perKmRate: number; minimumFare: number };
+  delivery?: { flatFee: number };
   amountRefill?: { enabled: boolean; minAmount: number };
+  houseStoreId?: string | null;
   cylinders: { sizeKg: number; label: string; refillPrice: number; exchangePrice: number; active: boolean }[];
 };
 
-/** Cooking gas: cylinder sizes and prices are set here for every station. */
+type GasStore = { _id: string; name: string; address?: string; vertical?: string; isActive?: boolean };
+
+/** Cooking gas: cylinder sizes and prices, the delivery fee, and QareGO's own gas store. */
 export function GasPricesCard() {
   // Hidden while mobile money is paused platform-wide; the saved choice is kept.
   const { momoEnabled: platformMomo } = useFeatures();
@@ -35,13 +38,20 @@ export function GasPricesCard() {
   const [enabled, setEnabled] = useState(true);
   const [momoEnabled, setMomoEnabled] = useState(false);
   const [commissionPct, setCommissionPct] = useState("5");
-  const [delivery, setDelivery] = useState({ baseFare: "10", perKmRate: "3", minimumFare: "15" });
+  const [flatFee, setFlatFee] = useState("20");
+  const [houseStoreId, setHouseStoreId] = useState("");
+  const [gasStores, setGasStores] = useState<GasStore[]>([]);
   const [amountEnabled, setAmountEnabled] = useState(true);
   const [minAmount, setMinAmount] = useState("20");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
+    fetcher("/admin/restaurants")
+      .then((data: { restaurants?: GasStore[] }) =>
+        setGasStores((data.restaurants || []).filter((r) => r.vertical === "GAS"))
+      )
+      .catch(console.error);
     fetcher("/admin/settings")
       .then((data) => {
         const gas: GasConfig | undefined = data.gas;
@@ -53,13 +63,8 @@ export function GasPricesCard() {
           setAmountEnabled(gas.amountRefill.enabled !== false);
           setMinAmount(String(gas.amountRefill.minAmount));
         }
-        if (gas.delivery) {
-          setDelivery({
-            baseFare: String(gas.delivery.baseFare),
-            perKmRate: String(gas.delivery.perKmRate),
-            minimumFare: String(gas.delivery.minimumFare),
-          });
-        }
+        if (gas.delivery) setFlatFee(String(gas.delivery.flatFee));
+        setHouseStoreId(gas.houseStoreId || "");
         setRows(
           gas.cylinders.map((c) => ({
             sizeKg: String(c.sizeKg),
@@ -87,11 +92,8 @@ export function GasPricesCard() {
             enabled,
             momoEnabled,
             stationCommissionRate: Number(commissionPct) / 100,
-            delivery: {
-              baseFare: Number(delivery.baseFare),
-              perKmRate: Number(delivery.perKmRate),
-              minimumFare: Number(delivery.minimumFare),
-            },
+            delivery: { flatFee: Number(flatFee) },
+            houseStoreId: houseStoreId || null,
             amountRefill: { enabled: amountEnabled, minAmount: Number(minAmount) },
             cylinders: rows.map((r) => ({
               sizeKg: Number(r.sizeKg),
@@ -119,7 +121,7 @@ export function GasPricesCard() {
           Cooking gas
         </CardTitle>
         <CardDescription>
-          Cylinder sizes and prices for every gas station. Refill = the customer&apos;s own cylinder
+          Cylinder sizes and prices for every gas order. Refill = the customer&apos;s own cylinder
           is filled; exchange = they get a full cylinder for their empty one. The gas delivery fee
           below is added on top.
         </CardDescription>
@@ -145,8 +147,42 @@ export function GasPricesCard() {
                 </label>
               ) : null}
             </div>
+            <div className="max-w-xl space-y-1">
+              <Label htmlFor="gas-house-store">QareGO&apos;s gas store</Label>
+              <select
+                id="gas-house-store"
+                value={houseStoreId}
+                onChange={(e) => setHouseStoreId(e.target.value)}
+                className="h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-sm"
+              >
+                <option value="">None: send orders to the nearest partner station</option>
+                {gasStores.map((s) => (
+                  <option key={s._id} value={s._id}>
+                    {s.name}
+                    {s.address ? ` · ${s.address}` : ""}
+                    {s.isActive === false ? " (inactive)" : ""}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-500">
+                {houseStoreId ? (
+                  <>
+                    Every gas order goes to this store and is accepted automatically, wherever the
+                    customer is. For a refill the rider collects the empty and the gas money (cash),
+                    fills it at the nearest filling place, and brings it back. For an exchange the
+                    rider picks up a full cylinder at this store&apos;s address. Its opening hours and
+                    pause switch turn gas orders on and off.
+                  </>
+                ) : (
+                  <>
+                    Create a gas store for QareGO in Stores (its address is where riders pick up
+                    full cylinders for exchanges), then choose it here.
+                  </>
+                )}
+              </p>
+            </div>
             <div className="max-w-xs">
-              <Label htmlFor="gas-commission">Station commission (%)</Label>
+              <Label htmlFor="gas-commission">Partner station commission (%)</Label>
               <Input
                 id="gas-commission"
                 type="number"
@@ -156,7 +192,9 @@ export function GasPricesCard() {
                 value={commissionPct}
                 onChange={(e) => setCommissionPct(e.target.value)}
               />
-              <p className="mt-1 text-xs text-gray-500">QareGO&apos;s share of the gas price.</p>
+              <p className="mt-1 text-xs text-gray-500">
+                QareGO&apos;s share of a partner station&apos;s gas price. Not charged on QareGO&apos;s own store.
+              </p>
             </div>
             <div className="space-y-2">
               <label className="flex items-center gap-2 text-sm">
@@ -185,35 +223,19 @@ export function GasPricesCard() {
               ) : null}
             </div>
 
-            <div>
-              <p className="text-sm font-medium text-gray-900">Gas delivery fee</p>
-              <p className="mb-2 text-xs text-gray-500">
-                Charged once per order for the courier&apos;s round trip: base + (km there and back × rate),
-                never below the minimum.
+            <div className="max-w-xs">
+              <Label htmlFor="gas-flat-fee">Gas delivery fee ({CURRENCY_SYMBOL})</Label>
+              <Input
+                id="gas-flat-fee"
+                type="number"
+                min={0}
+                step={0.5}
+                value={flatFee}
+                onChange={(e) => setFlatFee(e.target.value)}
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                One fee per order for the rider&apos;s whole trip, whatever the distance.
               </p>
-              <div className="grid max-w-xl grid-cols-1 gap-3 sm:grid-cols-3">
-                {(
-                  [
-                    ["baseFare", "Base fare"],
-                    ["perKmRate", "Per km"],
-                    ["minimumFare", "Minimum"],
-                  ] as const
-                ).map(([key, label]) => (
-                  <div key={key}>
-                    <Label htmlFor={`gas-del-${key}`}>
-                      {label} ({CURRENCY_SYMBOL})
-                    </Label>
-                    <Input
-                      id={`gas-del-${key}`}
-                      type="number"
-                      min={0}
-                      step={0.5}
-                      value={delivery[key]}
-                      onChange={(e) => setDelivery((d) => ({ ...d, [key]: e.target.value }))}
-                    />
-                  </div>
-                ))}
-              </div>
             </div>
 
             <div className="overflow-x-auto">

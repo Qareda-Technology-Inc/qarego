@@ -1,6 +1,7 @@
 import FoodOrder from "../models/FoodOrder.js";
 import Restaurant from "../models/Restaurant.js";
 import {
+  applyRestaurantAction,
   createCollectionRide,
   createCourierRideForOrder,
   emitFoodOrderUpdated,
@@ -68,10 +69,34 @@ export async function processDueCourierBroadcasts(io) {
   }
 }
 
+/**
+ * QareGO's own gas orders need nobody to accept them: accept any still waiting (a MoMo order
+ * once it's paid, or a cash one whose instant accept failed).
+ */
+export async function acceptQaregoGasOrders(io) {
+  const waiting = await FoodOrder.find({
+    gasByQarego: true,
+    status: "PLACED",
+    $or: [{ paymentMethod: "CASH" }, { paymentStatus: "PAID" }],
+  })
+    .select("_id")
+    .limit(20)
+    .lean();
+  for (const row of waiting) {
+    const result = await applyRestaurantAction(row._id, "accept", io);
+    if (result.error && result.error !== "invalid_transition") {
+      console.warn("[gas] auto-accept failed:", String(row._id), result.error);
+    }
+  }
+}
+
 export function startFoodCourierBroadcastScheduler(io) {
   if (pollTimer) return;
 
   const tick = () => {
+    acceptQaregoGasOrders(io).catch((err) => {
+      console.error("[gas] auto-accept error:", err?.message || err);
+    });
     processDueCourierBroadcasts(io).catch((err) => {
       console.error("[food] courier broadcast scheduler error:", err?.message || err);
     });

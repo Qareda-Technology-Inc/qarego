@@ -21,6 +21,7 @@ import {
   unpaidRideSummary,
 } from "../utils/ridePayments.js";
 import { settleFoodOrderOnDelivery } from "../utils/foodOrderSettlement.js";
+import { applyRestaurantAction } from "../utils/foodOrderFlow.js";
 import { assertServiceAvailableAt } from "../utils/serviceZones.js";
 import {
   canRiderReceiveOffer,
@@ -502,11 +503,27 @@ export const updateRideStatus = async (req, res) => {
       }
       if (status === "COMPLETED") {
         // It's at the store (empty cylinder or laundry bag); the store marks it ready for the return leg.
-        await FoodOrder.findByIdAndUpdate(ride.foodOrder, {
-          gasStage: "AT_STATION",
-          gasCourier: ride.rider?._id || ride.rider,
-          ride: null,
-        });
+        // QareGO's own refill has no store: the rider is at a filling place of their choice, so
+        // note where, and give them the return trip straight away.
+        const coords = ride.rider?.currentLocation?.coordinates;
+        const fillPoint =
+          Array.isArray(coords) && coords.length === 2 && (coords[0] || coords[1])
+            ? { latitude: coords[1], longitude: coords[0] }
+            : null;
+        const collected = await FoodOrder.findByIdAndUpdate(
+          ride.foodOrder,
+          {
+            gasStage: "AT_STATION",
+            gasCourier: ride.rider?._id || ride.rider,
+            ride: null,
+          },
+          { new: true }
+        );
+        if (collected?.gasByQarego && collected.gasMode === "REFILL") {
+          if (fillPoint) await FoodOrder.updateOne({ _id: collected._id }, { gasFillPoint: fillPoint });
+          const result = await applyRestaurantAction(collected._id, "ready", req.io);
+          if (result.error) console.warn("[gas] return trip not created:", String(collected._id), result.error);
+        }
       }
       // Live update for the store board and the customer's tracking (no push: the order's
       // status hasn't changed, only where their item is).
