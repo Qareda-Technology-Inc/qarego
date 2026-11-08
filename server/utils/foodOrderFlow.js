@@ -6,6 +6,8 @@ import Restaurant from "../models/Restaurant.js";
 import User from "../models/User.js";
 import { generateOTP } from "./mapUtils.js";
 import { getSettings } from "./tripSettlement.js";
+import { getGasConfig, nearestFillingStations } from "./gasOrders.js";
+import { calculateDistance } from "./mapUtils.js";
 import { resolveFoodCourierRidePricing } from "./deliveryFare.js";
 import { emitRideOfferToEligibleRiders } from "./rideOfferBroadcast.js";
 import {
@@ -162,14 +164,43 @@ export function courierItemSummary(foodOrder, restaurant) {
 const isQaregoRefill = (foodOrder) => !!foodOrder?.gasByQarego && foodOrder.gasMode === "REFILL";
 const FILLING_PLACE = "Nearest gas filling station";
 
-/** Return trip of QareGO's own refill: starts where the rider filled the cylinder. */
+/** Ride drop / pickup fields for a listed filling station. */
+export function fillingStationPlace(station) {
+  return {
+    address: station.address ? `${station.name} — ${station.address}` : station.name,
+    latitude: station.latitude,
+    longitude: station.longitude,
+  };
+}
+
+/** The station saved on the order, as stored (only the fields we keep). */
+export function orderFillStation(station) {
+  return {
+    id: station.id,
+    name: station.name,
+    address: station.address || null,
+    latitude: station.latitude,
+    longitude: station.longitude,
+  };
+}
+
+/**
+ * Return trip of QareGO's own refill: starts where the rider filled the cylinder. Named after the
+ * listed station when the rider was there (within 1 km), else wherever they were.
+ */
 function qaregoRefillReturnPickup(foodOrder) {
   const p = foodOrder.gasFillPoint || {};
-  const has = p.latitude != null && p.longitude != null;
+  const f = foodOrder.gasFillStation || {};
+  const hasPoint = p.latitude != null && p.longitude != null;
+  const hasStation = f.name && f.latitude != null && f.longitude != null;
+  const atStation =
+    hasStation && (!hasPoint || calculateDistance(p.latitude, p.longitude, f.latitude, f.longitude) <= 1);
+  if (atStation) return { ...fillingStationPlace(f), name: f.name };
   return {
     address: "Gas filling station (where you filled the cylinder)",
-    latitude: has ? p.latitude : foodOrder.delivery.latitude,
-    longitude: has ? p.longitude : foodOrder.delivery.longitude,
+    latitude: hasPoint ? p.latitude : foodOrder.delivery.latitude,
+    longitude: hasPoint ? p.longitude : foodOrder.delivery.longitude,
+    name: "Gas filling station",
   };
 }
 
@@ -244,7 +275,7 @@ export async function createCourierRideForOrder(foodOrder, restaurant, io, optio
     distance: distanceKm,
     fare: driverFee,
     pickup: isQaregoRefill(foodOrder)
-      ? qaregoRefillReturnPickup(foodOrder)
+      ? (({ name, ...place }) => place)(qaregoRefillReturnPickup(foodOrder))
       : {
           address: `${restaurant.name} — ${restaurant.address}`,
           latitude: restaurant.latitude,
@@ -259,7 +290,7 @@ export async function createCourierRideForOrder(foodOrder, restaurant, io, optio
     otp: deliveryCode,
     paymentMethod: foodOrder.paymentMethod,
     foodOrder: foodOrder._id,
-    restaurantName: isQaregoRefill(foodOrder) ? "Gas filling station" : restaurant.name,
+    restaurantName: isQaregoRefill(foodOrder) ? qaregoRefillReturnPickup(foodOrder).name : restaurant.name,
     storeVertical: restaurant.vertical || "FOOD",
     foodOrderSummary: itemSummary,
     cashCollection: buildCourierCashCollection(foodOrder),
@@ -300,6 +331,18 @@ export async function createCollectionRide(foodOrder, restaurant, io) {
   // QareGO's own refill: no store to drop at. The rider takes it to the nearest filling place
   // (their choice), so the drop is only a label; it points back at the customer's address.
   const qarego = isQaregoRefill(foodOrder);
+  // Send the rider to the nearest LPG filling station QareGO has listed (they can switch).
+  let station = null;
+  if (qarego) {
+    const config = getGasConfig(await getSettings());
+    [station = null] = nearestFillingStations(
+      config,
+      foodOrder.delivery.latitude,
+      foodOrder.delivery.longitude,
+      1
+    );
+    foodOrder.gasFillStation = station ? orderFillStation(station) : undefined;
+  }
   const ride = await Ride.create({
     serviceType: "FOOD",
     vehicle: "motorcycle",
@@ -310,7 +353,9 @@ export async function createCollectionRide(foodOrder, restaurant, io) {
       latitude: foodOrder.delivery.latitude,
       longitude: foodOrder.delivery.longitude,
     },
-    drop: qarego
+    drop: station
+      ? fillingStationPlace(station)
+      : qarego
       ? {
           address: `${FILLING_PLACE} (your choice)`,
           latitude: foodOrder.delivery.latitude,
@@ -325,7 +370,7 @@ export async function createCollectionRide(foodOrder, restaurant, io) {
     otp: generateOTP(),
     paymentMethod: foodOrder.paymentMethod,
     foodOrder: foodOrder._id,
-    restaurantName: qarego ? FILLING_PLACE : restaurant.name,
+    restaurantName: station ? station.name : qarego ? FILLING_PLACE : restaurant.name,
     storeVertical: restaurant.vertical || "GAS",
     foodOrderSummary: itemSummary,
     cashCollection: buildGasCollectCashCollection(foodOrder),

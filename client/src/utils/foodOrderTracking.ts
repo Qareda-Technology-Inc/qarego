@@ -58,6 +58,7 @@ type CancelInfo = {
   gasStage?: "TO_STATION" | "AT_STATION" | null;
   /** QareGO's own gas: the courier fills the cylinder at the nearest filling station. */
   gasByQarego?: boolean;
+  gasFillStation?: { name?: string | null } | null;
   subtotal?: number;
   laundry?: {
     priceStatus?: "estimate" | "awaiting_customer" | "approved" | "declined";
@@ -142,7 +143,7 @@ function buildGasRefillSteps(orderStatus: FoodOrderStatus, ride: GasRide, info: 
           label: searching ? "Finding a courier" : "Courier collecting your empty",
           subtitle: gasMoneyNote(info),
         },
-        { id: "to_station", label: "Taking it to be filled", subtitle: "Nearest gas filling station" },
+        { id: "to_station", label: "Taking it to be filled", subtitle: info.gasFillStation?.name || "Nearest gas filling station" },
         { id: "filling", label: "Filling your cylinder", subtitle: "At the filling station" },
         { id: "returning", label: "Bringing your gas back", subtitle: "Pay the delivery and share your code" },
         { id: "done", label: "Gas delivered", subtitle: "Enjoy your cooking" },
@@ -189,7 +190,12 @@ function gasRefillHero(orderStatus: FoodOrderStatus, ride: GasRide, info: Cancel
       };
     }
     if (ride?.gasLeg === "COLLECT" && ride.status === "IN_PROGRESS") {
-      return { title: "Taking it to be filled", subtitle: "The courier is going to the nearest filling station" };
+      return {
+        title: "Taking it to be filled",
+        subtitle: info.gasFillStation?.name
+          ? `The courier is going to ${info.gasFillStation.name}`
+          : "The courier is going to the nearest filling station",
+      };
     }
     if (orderStatus === "READY_FOR_PICKUP" && ride?.status !== "IN_PROGRESS") {
       return { title: "Filling your cylinder", subtitle: "The courier is at the filling station" };

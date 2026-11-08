@@ -45,6 +45,48 @@ function normalizeDelivery(raw) {
 
 const isObjectIdString = (v) => typeof v === "string" && /^[a-f\d]{24}$/i.test(v);
 
+// LPG filling stations QareGO knows (not partners: no login, no orders). A QareGO refill's
+// rider is sent to the nearest one; they can switch to another nearby.
+export const MAX_FILLING_STATIONS = 300;
+/** A filling station further than this from the customer isn't suggested. */
+export const FILLING_STATION_RADIUS_KM = 30;
+
+const newStationId = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+
+function readFillingStation(raw, { strict = false } = {}) {
+  const fail = (msg) => {
+    if (strict) throw new Error(msg);
+    return null;
+  };
+  if (!raw || typeof raw !== "object") return fail("Invalid filling station");
+  const name = String(raw.name || "").trim().slice(0, 80);
+  const latitude = Number(raw.latitude);
+  const longitude = Number(raw.longitude);
+  if (!name) return fail("Every filling station needs a name");
+  if (!(Math.abs(latitude) <= 90 && Math.abs(longitude) <= 180) || (latitude === 0 && longitude === 0)) {
+    return fail(`Put ${name} on the map`);
+  }
+  const id = /^[a-z0-9]{6,24}$/i.test(String(raw.id || "")) ? String(raw.id) : newStationId();
+  return {
+    id,
+    name,
+    address: String(raw.address || "").trim().slice(0, 200),
+    latitude,
+    longitude,
+    active: raw.active !== false,
+  };
+}
+
+/** Active filling stations nearest the point, closest first, each with its distanceKm. */
+export function nearestFillingStations(config, lat, lon, limit = 3, radiusKm = FILLING_STATION_RADIUS_KM) {
+  return (config?.fillingStations || [])
+    .filter((f) => f.active)
+    .map((f) => ({ ...f, distanceKm: Math.round(calculateDistance(f.latitude, f.longitude, lat, lon) * 100) / 100 }))
+    .filter((f) => Number.isFinite(f.distanceKm) && f.distanceKm <= radiusKm)
+    .sort((a, b) => a.distanceKm - b.distanceKm)
+    .slice(0, limit);
+}
+
 /** Normalised gas config from settings, with safe defaults. */
 export function getGasConfig(settings) {
   const raw = settings?.gas && typeof settings.gas === "object" ? settings.gas : {};
@@ -71,6 +113,9 @@ export function getGasConfig(settings) {
     amountRefill: normalizeAmountRefill(raw.amountRefill),
     // QareGO's own gas store: every order goes to it (no partner station needed).
     houseStoreId: isObjectIdString(String(raw.houseStoreId || "")) ? String(raw.houseStoreId) : null,
+    fillingStations: (Array.isArray(raw.fillingStations) ? raw.fillingStations : [])
+      .map((f) => readFillingStation(f))
+      .filter(Boolean),
     cylinders,
   };
 }
@@ -88,6 +133,14 @@ export function normalizeGasConfigInput(input) {
     cylinders: [],
   };
   if (out.houseStoreId && !isObjectIdString(out.houseStoreId)) throw new Error("Choose a valid gas store");
+  const stations = Array.isArray(input.fillingStations) ? input.fillingStations : [];
+  if (stations.length > MAX_FILLING_STATIONS) throw new Error(`At most ${MAX_FILLING_STATIONS} filling stations`);
+  out.fillingStations = stations.map((f) => readFillingStation(f, { strict: true }));
+  const ids = new Set();
+  for (const f of out.fillingStations) {
+    if (ids.has(f.id)) f.id = newStationId();
+    ids.add(f.id);
+  }
   const minAmount = input.amountRefill?.minAmount;
   if (minAmount !== undefined && !(Number(minAmount) >= 0)) {
     throw new Error("The smallest gas amount must be 0 or more");

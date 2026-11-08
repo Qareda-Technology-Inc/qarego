@@ -457,3 +457,25 @@ export const rateRide = async (rideId: string, rating: number, review: string) =
     return false;
   }
 };
+
+/** A listed LPG filling station (QareGO refills), nearest the rider first. */
+export type FillingStation = {
+  id: string;
+  name: string;
+  address?: string;
+  latitude: number;
+  longitude: number;
+  distanceKm: number;
+  current?: boolean;
+};
+
+export const fetchFillingStations = async (rideId: string): Promise<FillingStation[]> => {
+  const res = await appAxios.get(`/ride/${rideId}/filling-stations`);
+  return res.data?.stations ?? [];
+};
+
+/** Send this refill trip to another listed station; returns the updated trip. */
+export const chooseFillingStation = async (rideId: string, stationId: string): Promise<any> => {
+  const res = await appAxios.post(`/ride/${rideId}/filling-station`, { stationId });
+  return res.data?.ride ?? null;
+};

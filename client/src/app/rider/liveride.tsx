@@ -10,6 +10,7 @@ import { StatusBar } from "expo-status-bar";
 import { rideStyles } from "@/styles/rideStyles";
 import RiderLiveTracking from "@/components/rider/RiderLiveTracking";
 import RiderDeliveryBanner from "@/components/rider/RiderDeliveryBanner";
+import FillingStationPicker from "@/components/rider/FillingStationPicker";
 import { updateRideStatus, getRideById } from "@/service/rideService";
 import RiderActionButton from "@/components/rider/RiderActionButton";
 import OtpInputModal from "@/components/rider/OtpInputModal";
@@ -521,7 +522,13 @@ const LiveRide = () => {
         offline={!online}
         banner={
           rideData && (isFood || isParcel) ? (
-            <RiderDeliveryBanner ride={rideData} variant="inline" />
+            <>
+              <RiderDeliveryBanner ride={rideData} variant="inline" />
+              {/* QareGO refill: which LPG station to fill at, and switching to another. */}
+              {rideData.gasLeg === "COLLECT" && rideData.gasFillAnywhere && rideData.status !== "COMPLETED" ? (
+                <FillingStationPicker ride={rideData} onChanged={setRideData} />
+              ) : null}
+            </>
           ) : undefined
         }
         onAction={handlePrimaryAction}

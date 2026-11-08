@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { CURRENCY_SYMBOL } from "@/lib/currency";
 import { Flame, Loader2, Plus, Save, Trash2 } from "lucide-react";
 import { useFeatures } from "@/lib/features";
+import { FillingStationsEditor, type FillingStation } from "@/components/FillingStationsEditor";
 
 type Cylinder = {
   sizeKg: string;
@@ -25,6 +26,7 @@ type GasConfig = {
   delivery?: { flatFee: number };
   amountRefill?: { enabled: boolean; minAmount: number };
   houseStoreId?: string | null;
+  fillingStations?: FillingStation[];
   cylinders: { sizeKg: number; label: string; refillPrice: number; exchangePrice: number; active: boolean }[];
 };
 
@@ -41,6 +43,7 @@ export function GasPricesCard() {
   const [flatFee, setFlatFee] = useState("20");
   const [houseStoreId, setHouseStoreId] = useState("");
   const [gasStores, setGasStores] = useState<GasStore[]>([]);
+  const [fillingStations, setFillingStations] = useState<FillingStation[]>([]);
   const [amountEnabled, setAmountEnabled] = useState(true);
   const [minAmount, setMinAmount] = useState("20");
   const [loading, setLoading] = useState(true);
@@ -65,6 +68,9 @@ export function GasPricesCard() {
         }
         if (gas.delivery) setFlatFee(String(gas.delivery.flatFee));
         setHouseStoreId(gas.houseStoreId || "");
+        setFillingStations(
+          (gas.fillingStations || []).map((f) => ({ ...f, address: f.address || "", active: f.active !== false }))
+        );
         setRows(
           gas.cylinders.map((c) => ({
             sizeKg: String(c.sizeKg),
@@ -85,7 +91,7 @@ export function GasPricesCard() {
   const save = async () => {
     setSaving(true);
     try {
-      await fetcher("/admin/settings", {
+      const saved: { gas?: GasConfig } = await fetcher("/admin/settings", {
         method: "PATCH",
         body: JSON.stringify({
           gas: {
@@ -94,6 +100,7 @@ export function GasPricesCard() {
             stationCommissionRate: Number(commissionPct) / 100,
             delivery: { flatFee: Number(flatFee) },
             houseStoreId: houseStoreId || null,
+            fillingStations,
             amountRefill: { enabled: amountEnabled, minAmount: Number(minAmount) },
             cylinders: rows.map((r) => ({
               sizeKg: Number(r.sizeKg),
@@ -105,7 +112,11 @@ export function GasPricesCard() {
           },
         }),
       });
-      alert("Gas prices saved.");
+      // New stations get their ids on the server: keep them so the next save doesn't renumber.
+      if (saved?.gas?.fillingStations) {
+        setFillingStations(saved.gas.fillingStations.map((f) => ({ ...f, address: f.address || "" })));
+      }
+      alert("Gas settings saved.");
     } catch (e: unknown) {
       alert(e instanceof Error ? e.message : "Failed to save gas prices.");
     } finally {
@@ -181,6 +192,9 @@ export function GasPricesCard() {
                 )}
               </p>
             </div>
+            {houseStoreId ? (
+              <FillingStationsEditor stations={fillingStations} onChange={setFillingStations} />
+            ) : null}
             <div className="max-w-xs">
               <Label htmlFor="gas-commission">Partner station commission (%)</Label>
               <Input

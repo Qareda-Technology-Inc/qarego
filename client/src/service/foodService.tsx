@@ -101,6 +101,8 @@ export type FoodOrder = {
   gasStage?: "TO_STATION" | "AT_STATION" | null;
   /** QareGO's own gas: the courier fills the cylinder at the nearest filling station. */
   gasByQarego?: boolean;
+  /** QareGO refill: the LPG station the courier fills it at. */
+  gasFillStation?: { name?: string | null } | null;
   gasSizeKg?: number | null;
   /** Refill bought by amount: cedis of gas. Null = full cylinder. */
   gasAmount?: number | null;

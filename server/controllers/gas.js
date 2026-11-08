@@ -12,8 +12,14 @@ import { assertServiceAvailableAt } from "../utils/serviceZones.js";
 import { parseCoord } from "../utils/deliveryFare.js";
 import { notifyCustomerFoodOrderPush } from "../utils/pushNotifications.js";
 import { notifyRestaurantStaffNewOrder } from "../utils/vendorOrderNotifications.js";
-import { buildGasQuote, findGasStore, getGasConfig } from "../utils/gasOrders.js";
-import { applyRestaurantAction } from "../utils/foodOrderFlow.js";
+import { buildGasQuote, findGasStore, getGasConfig, nearestFillingStations } from "../utils/gasOrders.js";
+import {
+  applyRestaurantAction,
+  fillingStationPlace,
+  orderFillStation,
+} from "../utils/foodOrderFlow.js";
+import Ride from "../models/Ride.js";
+import { NotFoundError } from "../errors/index.js";
 
 import { isDuplicateKeyError, readClientRequestId } from "../utils/idempotency.js";
 const NO_STATION = "No gas station is open near you right now. Please try again later.";
@@ -193,3 +199,55 @@ export const createGasOrder = async (req, res) => {
   res.status(StatusCodes.CREATED).json({ order: populated });
 };
 
+
+/** The rider's own QareGO refill collection trip (the one heading to a filling station). */
+async function findMyFillTrip(req) {
+  const ride = await Ride.findById(req.params.rideId);
+  if (!ride || String(ride.rider) !== String(req.user.id)) throw new NotFoundError("Trip not found");
+  if (ride.gasLeg !== "COLLECT" || !ride.gasFillAnywhere) {
+    throw new BadRequestError("This trip doesn't go to a filling station");
+  }
+  return ride;
+}
+
+/** GET /ride/:rideId/filling-stations — listed LPG stations nearest the rider, closest first. */
+export const listRideFillingStations = async (req, res) => {
+  const ride = await findMyFillTrip(req);
+  const [rider, order, settings] = await Promise.all([
+    User.findById(req.user.id).select("currentLocation").lean(),
+    FoodOrder.findById(ride.foodOrder).select("gasFillStation").lean(),
+    getSettings(),
+  ]);
+  const coords = rider?.currentLocation?.coordinates;
+  const here =
+    Array.isArray(coords) && coords.length === 2 && (coords[0] || coords[1])
+      ? { lat: coords[1], lon: coords[0] }
+      : { lat: ride.pickup.latitude, lon: ride.pickup.longitude };
+  const stations = nearestFillingStations(getGasConfig(settings), here.lat, here.lon, 5);
+  const currentId = order?.gasFillStation?.id || null;
+  res.status(StatusCodes.OK).json({
+    stations: stations.map((s) => ({ ...s, current: s.id === currentId })),
+  });
+};
+
+/** POST /ride/:rideId/filling-station { stationId } — go to another listed station instead. */
+export const chooseRideFillingStation = async (req, res) => {
+  const ride = await findMyFillTrip(req);
+  if (!["START", "ARRIVED", "IN_PROGRESS"].includes(ride.status)) {
+    throw new BadRequestError("You can only change the station while the trip is on");
+  }
+  const config = getGasConfig(await getSettings());
+  const station = config.fillingStations.find((f) => f.active && f.id === String(req.body?.stationId || ""));
+  if (!station) throw new BadRequestError("That filling station isn't available");
+
+  ride.drop = fillingStationPlace(station);
+  ride.restaurantName = station.name;
+  await ride.save();
+  await FoodOrder.updateOne({ _id: ride.foodOrder }, { gasFillStation: orderFillStation(station) });
+
+  const populated = await Ride.findById(ride._id)
+    .populate("customer", "name phone averageRating totalRatings")
+    .populate("rider", "name phone averageRating totalRatings currentLocation");
+  req.io?.to(`ride_${ride._id}`).emit("rideUpdate", populated);
+  res.status(StatusCodes.OK).json({ ride: populated });
+};

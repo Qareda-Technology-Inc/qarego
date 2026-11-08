@@ -89,3 +89,23 @@ test("partner station and exchange orders keep the one-trip cash split", () => {
   assert.equal(buildGasCollectCashCollection(exchange), null);
   assert.equal(buildCourierCashCollection(exchange).payStore, exchange.restaurantNet);
 });
+
+test("filling stations: invalid ones are refused on save, nearest come first", async () => {
+  const { nearestFillingStations } = await import("../utils/gasOrders.js");
+  const base = { cylinders: [{ sizeKg: 6, refillPrice: 100, exchangePrice: 110 }] };
+  assert.throws(() => normalizeGasConfigInput({ ...base, fillingStations: [{ name: "", latitude: 5.6, longitude: -0.2 }] }), /name/);
+  assert.throws(() => normalizeGasConfigInput({ ...base, fillingStations: [{ name: "No pin" }] }), /on the map/);
+  const saved = normalizeGasConfigInput({
+    ...base,
+    fillingStations: [
+      { name: "Far", latitude: 5.8, longitude: -0.2 },
+      { name: "Near", latitude: 5.61, longitude: -0.2 },
+      { name: "Off", latitude: 5.605, longitude: -0.2, active: false },
+      { name: "Other city", latitude: 6.7, longitude: -1.6 },
+    ],
+  });
+  assert.ok(saved.fillingStations.every((f) => f.id));
+  const config = getGasConfig({ gas: saved });
+  const near = nearestFillingStations(config, 5.6, -0.2, 5);
+  assert.deepEqual(near.map((f) => f.name), ["Near", "Far"]); // inactive and >30 km left out
+});

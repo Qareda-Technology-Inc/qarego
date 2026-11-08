@@ -138,6 +138,14 @@ const foodOrderSchema = new Schema(
      * refill the rider fills the cylinder at any filling place near them.
      */
     gasByQarego: { type: Boolean, default: false },
+    /** REFILL by QareGO: the listed LPG filling station the rider is sent to (they can switch). */
+    gasFillStation: {
+      id: { type: String, default: null },
+      name: { type: String, default: null },
+      address: { type: String, default: null },
+      latitude: { type: Number, default: null },
+      longitude: { type: Number, default: null },
+    },
     /** REFILL by QareGO: where the rider was when they reached the filling place. */
     gasFillPoint: {
       latitude: { type: Number, default: null },

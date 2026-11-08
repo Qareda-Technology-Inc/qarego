@@ -17,6 +17,10 @@ type CourierRide = {
   restaurantName?: string;
 };
 
+/** QareGO refill: the listed station the rider is sent to, or null when it's their choice. */
+const fillStationName = (ride?: CourierRide | null) =>
+  ride?.restaurantName && !/^nearest gas filling station$/i.test(ride.restaurantName) ? ride.restaurantName : null;
+
 /** Collect-first trips: the customer's laundry bag, or their empty gas cylinder. */
 const isLaundryTrip = (ride?: CourierRide | null) => ride?.storeVertical === "LAUNDRY";
 
@@ -51,10 +55,10 @@ export function getRiderCourierUi(ride?: CourierRide | null): RiderCourierUi {
     const atCustomer = status === "START";
     return {
       meetLabel: atCustomer ? "Collect the empty and the gas money" : "Fill it at the nearest station",
-      contactName: atCustomer ? ride?.customer?.name || "Customer" : "Gas filling station",
+      contactName: atCustomer ? ride?.customer?.name || "Customer" : fillStationName(ride) || "Gas filling station",
       contactPhone: ride?.customer?.phone,
       pickupLabel: "Customer (empty cylinder)",
-      dropLabel: "Nearest filling station",
+      dropLabel: fillStationName(ride) || "Nearest filling station",
     };
   }
 
@@ -200,7 +204,7 @@ export function getRiderDeliveryPhase(ride?: CourierRide | null): RiderDeliveryP
         step === 1
           ? "Collect the customer's empty cylinder and the gas money (cash)"
           : step === 2
-            ? "Take it to the nearest gas filling station"
+            ? `Take it to ${fillStationName(ride) || "the nearest gas filling station"}`
             : "Swipe when you get there. Your return trip opens straight away",
       accentColor: "#c2410c",
       swipeColor: "#c2410c",
