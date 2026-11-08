@@ -5,12 +5,14 @@ import {
   ActivityIndicator,
   StyleSheet,
   RefreshControl,
+  ScrollView,
+  TextInput,
 } from "react-native";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
-import { Ionicons, MaterialIcons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import CustomText from "@/components/shared/CustomText";
 import RideCard from "@/components/shared/RideCard";
 import { fetchRideHistory, createRide } from "@/service/rideService";
@@ -22,21 +24,44 @@ import { DS } from "@/theme/designSystem";
 import EmptyStateCard from "@/components/shared/EmptyStateCard";
 import { isFoodCourierRide } from "@/utils/riderRideUtils";
 import { getCommerceOrderCopy, resolveOrderVertical } from "@/utils/commerceOrderCopy";
+import type { StoreVertical } from "@/utils/storeVertical";
 
 import { useRefetchOnReconnect } from "@/utils/useRefetchOnReconnect";
 import { useConnectivity } from "@/service/connectivity";
-type TabKey = "all" | "stores" | "rides";
+/** One chip per service, so each has its own history. */
+type FilterKey = "all" | "rides" | "parcels" | StoreVertical;
+
+const FILTERS: { key: FilterKey; label: string; empty: string }[] = [
+  { key: "all", label: "All", empty: "Your rides, parcels and store orders will show up here." },
+  { key: "rides", label: "Rides", empty: "Your rides will show up here." },
+  { key: "parcels", label: "Parcels", empty: "Parcels you send or receive will show up here." },
+  { key: "FOOD", label: "Food", empty: "Your food orders will show up here." },
+  { key: "GROCERY", label: "Grocery", empty: "Your grocery orders will show up here." },
+  { key: "PHARMACY", label: "Pharmacy", empty: "Your pharmacy orders will show up here." },
+  { key: "GAS", label: "Gas", empty: "Your gas refills and exchanges will show up here." },
+  { key: "LAUNDRY", label: "Laundry", empty: "Your laundry orders will show up here." },
+];
 
 const ACTIVE_FOOD_STATUSES = ["PLACED", "CONFIRMED", "PREPARING", "READY_FOR_PICKUP", "PICKED_UP"];
+const ACTIVE_RIDE_STATUSES = ["SEARCHING_FOR_RIDER", "START", "ARRIVED", "IN_PROGRESS"];
+
+type Entry =
+  | { kind: "store"; id: string; key: FilterKey; time: number; active: boolean; text: string; order: FoodOrder }
+  | { kind: "ride"; id: string; key: FilterKey; time: number; active: boolean; text: string; ride: any };
 
 function foodStatusLabel(status: string): string {
   return status.replace(/_/g, " ").toLowerCase().replace(/^\w/, (c) => c.toUpperCase());
 }
 
+const timeOf = (iso?: string) => (iso ? new Date(iso).getTime() || 0 : 0);
+const searchText = (parts: unknown[]) =>
+  parts.filter((p) => typeof p === "string" && p).join(" ").toLowerCase();
+
 const CustomerOrders = () => {
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
-  const [tab, setTab] = useState<TabKey>("all");
+  const [filter, setFilter] = useState<FilterKey>("all");
+  const [query, setQuery] = useState("");
   const [rides, setRides] = useState<any[]>([]);
   const [foodOrders, setFoodOrders] = useState<FoodOrder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -62,16 +87,70 @@ const CustomerOrders = () => {
     load();
   }, [load]);
 
-  const showFood = tab === "all" || tab === "stores";
-  const showRides = tab === "all" || tab === "rides";
+  // Rides, parcels and store orders in one list, newest first, each tagged with its service.
+  const entries = useMemo<Entry[]>(() => {
+    const store: Entry[] = foodOrders.map((order) => {
+      const vertical = resolveOrderVertical(order);
+      return {
+        kind: "store",
+        id: order._id,
+        key: vertical,
+        time: timeOf(order.createdAt),
+        active: ACTIVE_FOOD_STATUSES.includes(order.status),
+        text: searchText([
+          order.restaurantName,
+          ...(order.items || []).map((i) => i.name),
+          order.delivery?.address,
+          foodStatusLabel(order.status),
+          getCommerceOrderCopy(vertical).storeNameFallback,
+          FILTERS.find((f) => f.key === vertical)?.label,
+          String(order._id).slice(-8),
+        ]),
+        order,
+      };
+    });
+    const trips: Entry[] = rides
+      .filter((ride) => !isFoodCourierRide(ride))
+      .map((ride) => {
+        const parcel = ride.serviceType === "DELIVERY";
+        return {
+          kind: "ride",
+          id: ride._id,
+          key: parcel ? "parcels" : "rides",
+          time: timeOf(ride.createdAt),
+          active: ACTIVE_RIDE_STATUSES.includes(ride.status),
+          text: searchText([
+            ride.pickup?.address,
+            ride.drop?.address,
+            ride.recipientName,
+            ride.recipientPhone,
+            ride.parcelDescription,
+            ride.rider?.name,
+            ride.vehicle,
+            parcel ? "parcel delivery" : "ride",
+            String(ride.status || "").replace(/_/g, " "),
+            String(ride._id).slice(-8),
+          ]),
+          ride,
+        };
+      });
+    return [...store, ...trips].sort((a, b) => Number(b.active) - Number(a.active) || b.time - a.time);
+  }, [foodOrders, rides]);
 
-  const foodList = useMemo(() => (showFood ? foodOrders : []), [foodOrders, showFood]);
-  const rideList = useMemo(
-    () => (showRides ? rides.filter((ride) => !isFoodCourierRide(ride)) : []),
-    [rides, showRides]
+  const counts = useMemo(() => {
+    const c: Partial<Record<FilterKey, number>> = { all: entries.length };
+    for (const e of entries) c[e.key] = (c[e.key] ?? 0) + 1;
+    return c;
+  }, [entries]);
+
+  const q = query.trim().toLowerCase();
+  const visible = useMemo(
+    () =>
+      entries.filter(
+        (e) => (filter === "all" || e.key === filter) && (!q || q.split(/\s+/).every((w) => e.text.includes(w)))
+      ),
+    [entries, filter, q]
   );
-
-  const isEmpty = !loading && foodList.length === 0 && rideList.length === 0;
 
   const handleReBook = useCallback(async (ride: any) => {
     if (!ride.pickup?.latitude || !ride.drop?.latitude) return;
@@ -103,19 +182,13 @@ const CustomerOrders = () => {
     }
   }, []);
 
-  const tabs: { key: TabKey; label: string }[] = [
-    { key: "all", label: "All" },
-    { key: "stores", label: "Stores" },
-    { key: "rides", label: "Rides" },
-  ];
-
   const renderFoodOrder = (order: FoodOrder) => {
     const active = ACTIVE_FOOD_STATUSES.includes(order.status);
     const vertical = resolveOrderVertical(order);
     const copy = getCommerceOrderCopy(vertical);
+    const summary = (order.items || []).map((i) => `${i.quantity}× ${i.name}`).join(", ");
     return (
       <TouchableOpacity
-        key={order._id}
         style={styles.foodCard}
         activeOpacity={0.9}
         onPress={() => router.push(`/customer/stores/order/${order._id}` as const)}
@@ -128,12 +201,18 @@ const CustomerOrders = () => {
             <CustomText fontFamily="SemiBold" fontSize={15} numberOfLines={1}>
               {order.restaurantName}
             </CustomText>
+            {summary ? (
+              <CustomText fontSize={12} color={FOOD_THEME.textLight} numberOfLines={1} style={{ marginTop: 2 }}>
+                {summary}
+              </CustomText>
+            ) : null}
             <CustomText fontSize={12} color={FOOD_THEME.textLight} style={{ marginTop: 2 }}>
               {foodStatusLabel(order.status)}
               {order.createdAt
                 ? ` · ${new Date(order.createdAt).toLocaleDateString(undefined, {
                     month: "short",
                     day: "numeric",
+                    year: "numeric",
                   })}`
                 : ""}
             </CustomText>
@@ -153,6 +232,8 @@ const CustomerOrders = () => {
     );
   };
 
+  const filterInfo = FILTERS.find((f) => f.key === filter) ?? FILTERS[0];
+
   return (
     <View style={styles.container}>
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
@@ -160,52 +241,57 @@ const CustomerOrders = () => {
           Orders
         </CustomText>
         <CustomText fontSize={13} color="#888" style={{ marginTop: 4 }}>
-          Store orders and ride history
+          Rides, parcels and store orders
         </CustomText>
+        <View style={styles.searchBox}>
+          <Ionicons name="search" size={16} color="#999" />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search by store, item, address or name"
+            placeholderTextColor="#999"
+            value={query}
+            onChangeText={setQuery}
+            returnKeyType="search"
+            autoCorrect={false}
+          />
+          {query ? (
+            <TouchableOpacity onPress={() => setQuery("")} hitSlop={10} accessibilityLabel="Clear search">
+              <Ionicons name="close-circle" size={18} color="#bbb" />
+            </TouchableOpacity>
+          ) : null}
+        </View>
       </View>
 
-      <View style={styles.tabRow}>
-        {tabs.map((t) => (
-          <TouchableOpacity
-            key={t.key}
-            style={[styles.tabChip, tab === t.key && styles.tabChipActive]}
-            onPress={() => setTab(t.key)}
-          >
-            <CustomText
-              fontSize={13}
-              fontFamily="Medium"
-              style={{ color: tab === t.key ? "#fff" : Colors.text }}
-            >
-              {t.label}
-            </CustomText>
-          </TouchableOpacity>
-        ))}
+      <View style={styles.tabBar}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabRow}>
+          {FILTERS.map((t) => {
+            const selected = filter === t.key;
+            const n = counts[t.key] ?? 0;
+            return (
+              <TouchableOpacity
+                key={t.key}
+                style={[styles.tabChip, selected && styles.tabChipActive]}
+                onPress={() => setFilter(t.key)}
+              >
+                <CustomText fontSize={13} fontFamily="Medium" style={{ color: selected ? "#fff" : Colors.text }}>
+                  {t.label}
+                  {n > 0 ? ` · ${n}` : ""}
+                </CustomText>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
       </View>
 
       {loading ? (
         <View style={styles.center}>
           <ActivityIndicator size="large" color={FOOD_THEME.orange} />
         </View>
-      ) : isEmpty ? (
-        <View style={styles.center}>
-          <EmptyStateCard
-            icon={online ? "📋" : "📶"}
-            title={online ? "No orders yet" : "Can't load your orders"}
-            description={
-              !online
-                ? "You're offline. Your orders will appear here once you're back online."
-                : tab === "stores"
-                ? "Your food, grocery and pharmacy orders will show up here."
-                : tab === "rides"
-                ? "Your rides and parcel deliveries will appear here."
-                : "Place a store order or book a ride to see activity here."
-            }
-          />
-        </View>
       ) : (
         <FlatList
-          data={[{ type: "content" }]}
-          keyExtractor={() => "orders-content"}
+          data={visible}
+          keyExtractor={(e) => `${e.kind}-${e.id}`}
+          keyboardShouldPersistTaps="handled"
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -218,46 +304,32 @@ const CustomerOrders = () => {
           }
           contentContainerStyle={{
             paddingHorizontal: 16,
+            paddingTop: 12,
             paddingBottom: tabBarHeight + 16,
+            flexGrow: 1,
           }}
-          renderItem={() => (
-            <View>
-              {showFood && foodList.length > 0 ? (
-                <View style={styles.section}>
-                  {tab === "all" ? (
-                    <View style={styles.sectionHead}>
-                      <MaterialIcons name="storefront" size={18} color={FOOD_THEME.orange} />
-                      <CustomText fontFamily="SemiBold" fontSize={15} style={{ marginLeft: 6 }}>
-                        Store orders
-                      </CustomText>
-                    </View>
-                  ) : null}
-                  {foodList.map(renderFoodOrder)}
-                </View>
-              ) : null}
-
-              {showRides && rideList.length > 0 ? (
-                <View style={[styles.section, showFood && foodList.length > 0 && { marginTop: 8 }]}>
-                  {tab === "all" ? (
-                    <View style={styles.sectionHead}>
-                      <Ionicons name="car-outline" size={18} color={Colors.primary} />
-                      <CustomText fontFamily="SemiBold" fontSize={15} style={{ marginLeft: 6 }}>
-                        Rides & parcels
-                      </CustomText>
-                    </View>
-                  ) : null}
-                  {rideList.map((ride) => (
-                    <RideCard
-                      key={ride._id}
-                      item={ride}
-                      onReBook={() => handleReBook(ride)}
-                      role="customer"
-                    />
-                  ))}
-                </View>
-              ) : null}
+          ListEmptyComponent={
+            <View style={styles.center}>
+              <EmptyStateCard
+                icon={!online ? "📶" : q ? "🔍" : "📋"}
+                title={!online ? "Can't load your orders" : q ? "Nothing matches your search" : "No orders yet"}
+                description={
+                  !online
+                    ? "You're offline. Your orders will appear here once you're back online."
+                    : q
+                      ? `Nothing in ${filter === "all" ? "your history" : filterInfo.label} matches "${query.trim()}".`
+                      : filterInfo.empty
+                }
+              />
             </View>
-          )}
+          }
+          renderItem={({ item }) =>
+            item.kind === "store" ? (
+              renderFoodOrder(item.order)
+            ) : (
+              <RideCard item={item.ride} onReBook={() => handleReBook(item.ride)} role="customer" />
+            )
+          }
         />
       )}
     </View>
@@ -276,12 +348,31 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#f0f0f0",
   },
-  tabRow: {
+  searchBox: {
     flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 12,
+    paddingHorizontal: 12,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: "#f3f4f6",
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: Colors.text,
+    paddingVertical: 0,
+  },
+  tabBar: {
+    backgroundColor: "#fff",
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f0f0",
+  },
+  tabRow: {
     gap: 8,
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: "#fff",
   },
   tabChip: {
     paddingHorizontal: 16,
@@ -291,15 +382,6 @@ const styles = StyleSheet.create({
   },
   tabChipActive: {
     backgroundColor: FOOD_THEME.orange,
-  },
-  section: {
-    marginTop: 4,
-  },
-  sectionHead: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 12,
-    marginTop: 8,
   },
   foodCard: {
     backgroundColor: "#fff",

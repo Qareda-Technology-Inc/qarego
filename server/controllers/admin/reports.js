@@ -292,7 +292,7 @@ export const getReport = async (req, res) => {
         const s = orderServices.find((v) => v._id === key);
         return {
           key,
-          label: { FOOD: 'Food', GROCERY: 'Groceries', PHARMACY: 'Pharmacy', GAS: 'Cooking gas', LAUNDRY: 'Laundry' }[key],
+          label: { FOOD: 'Food', GROCERY: 'Groceries', PHARMACY: 'Pharmacy', GAS: 'Refill gas', LAUNDRY: 'Laundry' }[key],
           count: s?.count || 0,
           cancelled: s?.cancelled || 0,
           bookings: money(s?.gross),

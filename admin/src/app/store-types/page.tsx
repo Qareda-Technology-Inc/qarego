@@ -24,7 +24,7 @@ const VERTICALS: { key: Vertical; label: string; hint: string }[] = [
   { key: "FOOD", label: "Food & Restaurants", hint: "Cuisines & food tags — Ghanaian, Pizza, Shawarma, etc." },
   { key: "GROCERY", label: "Groceries & Supermarket", hint: "Store departments — Produce, Butchery, Pantry, etc." },
   { key: "PHARMACY", label: "Pharmacy", hint: "Medical categories — OTC, POM, Vitamins, First Aid, etc." },
-  { key: "GAS", label: "Cooking gas", hint: "Gas station services — LPG Refill, Cylinder Exchange, etc." },
+  { key: "GAS", label: "Refill gas", hint: "Gas station services — LPG Refill, Cylinder Exchange, etc." },
   { key: "LAUNDRY", label: "Laundry", hint: "Laundry services — Wash & Fold, Dry Cleaning, Ironing, etc." },
 ];
 
@@ -192,7 +192,7 @@ export default function StoreTypesPage() {
               <option value="FOOD">Food (includes Drinks, Bar)</option>
               <option value="GROCERY">Grocery</option>
               <option value="PHARMACY">Pharmacy</option>
-              <option value="GAS">Cooking gas</option>
+              <option value="GAS">Refill gas</option>
               <option value="LAUNDRY">Laundry</option>
             </select>
           </div>

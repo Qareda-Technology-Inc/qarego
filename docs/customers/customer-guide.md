@@ -7,7 +7,7 @@ How to use QareGO: signing up, booking, ordering, paying and staying safe.
 2. [Booking a ride](#2-booking-a-ride)
 3. [Sending or receiving a parcel](#3-sending-or-receiving-a-parcel)
 4. [Ordering from a store](#4-ordering-from-a-store)
-5. [Cooking gas](#5-cooking-gas)
+5. [Refill gas](#5-refill-gas)
 6. [Laundry](#6-laundry)
 7. [Paying](#7-paying)
 8. [Your code and your safety](#8-your-code-and-your-safety)
@@ -65,9 +65,9 @@ Don't send anything illegal or dangerous: weapons, drugs, explosives, flammable 
 
 **Cancelling:** you can cancel a store order until the store accepts it. After that, contact the store or QareGO support.
 
-## 5. Cooking gas
+## 5. Refill gas
 
-1. Choose **Gas**, then **Refill** (we collect your empty cylinder, fill it and bring it back) or **Exchange** (we bring a full cylinder and take your empty one).
+1. Choose **Refill gas**, then **Refill** (we collect your empty cylinder, fill it and bring it back) or **Exchange** (we bring a full cylinder and take your empty one).
 2. Choose the cylinder size. For a refill, choose **Full refill** (choose how many cylinders) or **Buy an amount** (type how much gas you want, e.g. GH₵50, for one cylinder). The smallest amount is GH₵20, and the most is the price of a full refill for that size.
 3. The price is shown before you confirm: the gas, one flat delivery fee and the service fee. QareGO accepts your request straight away and sends a courier.
 4. **Refill:** pay the courier the gas price in cash when they collect your empty cylinder. They fill it at the nearest gas filling station and bring it back; then pay the delivery and service fee and give them your code.

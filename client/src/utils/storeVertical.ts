@@ -89,7 +89,7 @@ export const STORE_VERTICAL_CONFIG: Record<StoreVertical, StoreVerticalConfig> =
   },
   // Gas stations aren't browsed like stores (see /customer/gas); this keeps lookups total.
   GAS: {
-    title: "Cooking gas",
+    title: "Refill gas",
     filterLabel: "Gas",
     allTitle: "Gas stations",
     searchPlaceholder: "Search",

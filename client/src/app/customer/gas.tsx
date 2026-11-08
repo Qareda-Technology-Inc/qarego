@@ -191,7 +191,7 @@ export default function GasRequestScreen() {
             <MaterialIcons name="arrow-back-ios" size={20} color={T.ink} />
           </TouchableOpacity>
           <CustomText fontFamily="SemiBold" fontSize={18} style={styles.headerTitle}>
-            Cooking gas
+            Refill gas
           </CustomText>
           <View style={styles.headerSpacer} />
         </View>

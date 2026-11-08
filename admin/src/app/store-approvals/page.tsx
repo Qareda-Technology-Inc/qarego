@@ -47,7 +47,7 @@ const VERTICAL_LABEL: Record<string, string> = {
   FOOD: "Food",
   GROCERY: "Groceries",
   PHARMACY: "Pharmacy",
-  GAS: "Cooking gas",
+  GAS: "Refill gas",
   LAUNDRY: "Laundry",
 };
 

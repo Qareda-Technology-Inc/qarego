@@ -60,7 +60,7 @@ export const VERTICAL_META: Record<
     namePlaceholder: "e.g. City Chemist — Kaneshie",
   },
   GAS: {
-    label: "Cooking gas station",
+    label: "Gas refill station",
     prepLabel: "Average fill time (minutes)",
     prepDefault: "15",
     namePlaceholder: "e.g. Tarkwa LPG Station",

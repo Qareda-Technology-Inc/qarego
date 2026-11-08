@@ -210,7 +210,7 @@ const COPY: Record<StoreVertical, CommerceOrderCopy> = {
     merchantStaffWorkload: "fill queue",
     merchantMapPickupTitle: "Gas station",
     customerOrderMore: "Order gas again",
-    customerBackToShop: "Back to cooking gas",
+    customerBackToShop: "Back to refill gas",
     customerEnjoyDelivered: "Your gas is here!",
     customerWaitingAccept: "Waiting for the gas station to accept…",
     customerRateStore: "Rate",

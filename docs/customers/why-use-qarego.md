@@ -1,6 +1,6 @@
 # Why use QareGO
 
-**One app for getting around and getting things delivered in Ghana.** Book a ride, send a parcel, or order food, groceries, medicine, cooking gas and laundry, all from QareGO.
+**One app for getting around and getting things delivered in Ghana.** Book a ride, send a parcel, or order food, groceries, medicine, gas refills and laundry, all from QareGO.
 
 ## Everything in one app
 
@@ -11,7 +11,7 @@
 | 🍔 **Food** | Order from restaurants and kitchens near you |
 | 🛒 **Groceries** | Shop from local stores and get it delivered |
 | 💊 **Pharmacy** | Order from licensed pharmacies, with your prescription uploaded in the app |
-| 🔥 **Cooking gas** | Get your cylinder refilled, or exchanged for a full one |
+| 🔥 **Refill gas** | Get your cylinder refilled, or exchanged for a full one |
 | 👕 **Laundry** | A rider collects your clothes and brings them back clean |
 
 ## Why people choose QareGO

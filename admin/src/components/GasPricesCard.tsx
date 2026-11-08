@@ -118,7 +118,7 @@ export function GasPricesCard() {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Flame className="h-5 w-5 text-orange-500" />
-          Cooking gas
+          Refill gas
         </CardTitle>
         <CardDescription>
           Cylinder sizes and prices for every gas order. Refill = the customer&apos;s own cylinder

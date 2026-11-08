@@ -30,7 +30,7 @@ const ALL_SERVICES: { key: ServiceType; label: string }[] = [
   { key: "FOOD", label: "Food" },
   { key: "GROCERY", label: "Grocery" },
   { key: "PHARMACY", label: "Pharmacy" },
-  { key: "GAS", label: "Cooking gas" },
+  { key: "GAS", label: "Refill gas" },
   { key: "LAUNDRY", label: "Laundry" },
 ];
 

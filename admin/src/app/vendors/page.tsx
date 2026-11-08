@@ -472,7 +472,7 @@ function VendorsContent() {
                             <div className="text-xs text-gray-400 flex items-center gap-1">
                               <MapPin className="h-3 w-3" /> {r.address} ·{" "}
                               {r.vertical === "GAS"
-                                ? "cylinder prices are set in Settings › Cooking gas"
+                                ? "cylinder prices are set in Settings › Refill gas"
                                 : `${r.menuItemCount ?? 0} items`}
                             </div>
                           </div>

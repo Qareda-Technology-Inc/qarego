@@ -73,7 +73,7 @@ const SERVICES: { key: keyof Omit<DayTotals, "bookings">; label: string; icon: L
   { key: "food", label: "Food", icon: UtensilsCrossed, tint: "bg-orange-50 text-orange-700" },
   { key: "grocery", label: "Groceries", icon: ShoppingBasket, tint: "bg-lime-50 text-lime-700" },
   { key: "pharmacy", label: "Pharmacy", icon: Pill, tint: "bg-rose-50 text-rose-700" },
-  { key: "gas", label: "Cooking gas", icon: Flame, tint: "bg-amber-50 text-amber-700" },
+  { key: "gas", label: "Refill gas", icon: Flame, tint: "bg-amber-50 text-amber-700" },
   { key: "laundry", label: "Laundry", icon: Shirt, tint: "bg-cyan-50 text-cyan-700" },
 ];
 

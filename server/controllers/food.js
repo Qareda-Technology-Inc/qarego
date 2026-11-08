@@ -554,9 +554,10 @@ export const cancelMyFoodOrder = async (req, res) => {
 
 /** GET /food/orders */
 export const listMyFoodOrders = async (req, res) => {
+  // Order history: enough for the app's per-service tabs and search.
   const orders = await FoodOrder.find({ customer: req.user.id })
     .sort({ createdAt: -1 })
-    .limit(50)
+    .limit(200)
     .populate("restaurant", "name imageEmoji cuisine vertical")
     .lean();
 

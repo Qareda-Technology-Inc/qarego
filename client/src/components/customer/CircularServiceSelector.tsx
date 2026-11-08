@@ -71,7 +71,7 @@ const SERVICES: Record<ServiceType, Service> = {
   },
   GAS: {
     type: "GAS",
-    label: "Cooking gas",
+    label: "Refill gas",
     description: "Refill or swap",
     ioniconName: "flame",
     themeColor: "#c2410c",
@@ -102,7 +102,7 @@ type Props = {
 
 /**
  * Service module picker — bento grid. Food leads as the large tile, Ride and Parcel
- * stack beside it, then Grocery and Pharmacy, then Cooking gas and Laundry as compact tiles.
+ * stack beside it, then Grocery and Pharmacy, then Refill gas and Laundry as compact tiles.
  * Services not allowed in the current zone are greyed out with a lock.
  */
 const CircularServiceSelector = ({ goToHomeOnSelect = false }: Props) => {
