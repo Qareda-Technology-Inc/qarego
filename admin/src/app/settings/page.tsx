@@ -9,13 +9,14 @@ import { Label } from '@/components/ui/Label';
 import { CURRENCY_SYMBOL } from '@/lib/currency';
 import { authFetch, fetcher, getApiBaseUrl } from '@/lib/api';
 import { notify } from '@/lib/notify';
-import { Save, Loader2, Volume2, Receipt, Percent, Radar, PauseCircle, Store, Bell, RotateCcw } from 'lucide-react';
+import { Save, Loader2, Volume2, Receipt, Percent, Radar, PauseCircle, Store, Bell, RotateCcw, Smartphone } from 'lucide-react';
 import { SettingsCheckboxOption } from '@/components/SettingsCheckboxOption';
 import { SettingsAudioUpload } from '@/components/SettingsAudioUpload';
 import { MenuCategoryLayoutsCard } from '@/components/MenuCategoryLayoutsCard';
 import { FoodPromoBannersCard } from '@/components/FoodPromoBannersCard';
 import { GasPricesCard } from '@/components/GasPricesCard';
 import { OrderAlertsCard } from '@/components/OrderAlertsCard';
+import { AppUpdatesCard } from '@/components/AppUpdatesCard';
 import { useFeatures } from "@/lib/features";
 
 /** Parse a number field; allow 0. Returns null when empty/invalid. */
@@ -94,6 +95,7 @@ const TABS = [
   { key: 'pause', label: 'Pause services', icon: PauseCircle, parts: ['pause'] },
   { key: 'stores', label: 'Store app', icon: Store, parts: [] },
   { key: 'sounds', label: 'Alert sounds', icon: Bell, parts: [] },
+  { key: 'appUpdates', label: 'App updates', icon: Smartphone, parts: [] },
 ] as const satisfies readonly { key: string; label: string; icon: unknown; parts: readonly (keyof Form)[] }[];
 type TabKey = (typeof TABS)[number]['key'];
 
@@ -840,6 +842,8 @@ function SettingsTabs() {
               <MenuCategoryLayoutsCard />
             </>
           ) : null}
+
+          {tab === 'appUpdates' ? <AppUpdatesCard /> : null}
 
           {tab === 'sounds' ? (
             <>

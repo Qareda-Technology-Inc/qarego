@@ -5,6 +5,7 @@ import { getSettings } from "../../utils/tripSettlement.js";
 import { normalizePushTemplateOverrides, invalidatePushTemplateCache } from "../../utils/pushNotificationTemplates.js";
 import { getGasConfig, normalizeGasConfigInput } from "../../utils/gasOrders.js";
 import { getOrderAlertConfig, normalizeOrderAlertsInput } from "../../utils/orderWaitAlerts.js";
+import { getAppVersionConfig, normalizeAppVersionsInput } from "../../utils/appVersions.js";
 import { isEmailConfigured, sendEmail } from "../../utils/emailService.js";
 import User from "../../models/User.js";
 import Restaurant from "../../models/Restaurant.js";
@@ -15,6 +16,7 @@ const withGas = (settings) => ({
   ...settings.toObject(),
   gas: getGasConfig(settings),
   orderAlerts: getOrderAlertConfig(settings),
+  appVersions: getAppVersionConfig(settings),
   emailConfigured: isEmailConfigured(),
 });
 
@@ -59,6 +61,7 @@ export const updateSettingsAdmin = async (req, res) => {
       foodPromoBanners,
       gas,
       orderAlerts,
+      appVersions,
     } = req.body;
     let settings = await Settings.findOne({ key: 'global' });
     if (!settings) {
@@ -227,6 +230,13 @@ export const updateSettingsAdmin = async (req, res) => {
         return res.status(StatusCodes.BAD_REQUEST).json({ message: "QareGO's gas store must be a gas store" });
       }
       settings.gas = next;
+    }
+    if (appVersions !== undefined) {
+      try {
+        settings.appVersions = normalizeAppVersionsInput(appVersions);
+      } catch (err) {
+        return res.status(StatusCodes.BAD_REQUEST).json({ message: err.message });
+      }
     }
     if (orderAlerts !== undefined) {
       try {

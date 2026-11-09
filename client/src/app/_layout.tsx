@@ -13,6 +13,7 @@ import { DevApiLogger } from "@/components/shared/DevApiLogger";
 import { DevToolsBar } from "@/components/shared/DevToolsBar";
 import { ApiBootstrap } from "@/components/shared/ApiBootstrap";
 import { OfflineBanner } from "@/components/shared/OfflineBanner";
+import { AppUpdatePrompt } from "@/components/shared/AppUpdatePrompt";
 
 installAlertOverride();
 
@@ -67,6 +68,7 @@ export default function RootLayout() {
               <Stack.Screen name="momo-coming-soon" options={{ presentation: "modal" }} />
             </Stack>
             <OfflineBanner />
+            <AppUpdatePrompt />
           </WSProvider>
         </ApiBootstrap>
       </MessageProvider>

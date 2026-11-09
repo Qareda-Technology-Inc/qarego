@@ -24,6 +24,7 @@ import commerceRouter from './routes/commerce.js';
 import webhooksRouter from './routes/webhooks.js';
 import mediaRouter from './routes/media.js';
 import notificationsRouter from './routes/notifications.js';
+import appVersionRouter from './routes/appVersion.js';
 import serviceZoneRouter from './routes/serviceZone.js';
 import { initCloudinary, isCloudinaryConfigured } from './utils/cloudinary.js';
 import { getFirebaseConfigSource, isFirebaseConfigured } from './utils/firebaseAdmin.js';
@@ -225,6 +226,7 @@ app.use("/commerce", authMiddleware, commerceRouter);
 app.use("/webhooks", webhooksRouter);
 app.use("/media", mediaRouter);
 app.use("/notifications", notificationsRouter);
+app.use("/app", appVersionRouter);
 app.use("/service-zones", authMiddleware, serviceZoneRouter);
 
 // Middleware

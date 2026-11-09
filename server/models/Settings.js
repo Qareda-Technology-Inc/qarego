@@ -165,6 +165,14 @@ const settingsSchema = new Schema(
       type: Schema.Types.Mixed,
       default: null,
     },
+    /**
+     * Update prompts in the app: { android|ios: { latestBuild, minBuild, storeUrl }, message }
+     * (see utils/appVersions.js).
+     */
+    appVersions: {
+      type: Schema.Types.Mixed,
+      default: null,
+    },
     foodPromoBanners: {
       type: Schema.Types.Mixed,
       default: () => [],
