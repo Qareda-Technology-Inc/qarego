@@ -20,10 +20,16 @@ type Props = {
   onChangePickup: (text: string) => void;
   onChangeDrop: (text: string) => void;
   onSwap?: () => void;
-  onMapPress: () => void;
+  /** Colour of the field being edited (ride orange, parcel purple). */
+  accent?: string;
 };
 
-/** Pickup → destination editor with connector line. */
+const PICKUP = "#16a34a";
+
+/**
+ * Pickup → destination in one card: a green dot and an accent square joined by a dashed line,
+ * with a round swap button on the card's edge.
+ */
 const RouteLocationCard: FC<Props> = ({
   showPickup,
   pickup,
@@ -38,25 +44,20 @@ const RouteLocationCard: FC<Props> = ({
   onChangePickup,
   onChangeDrop,
   onSwap,
-  onMapPress,
-}) => (
-  <View style={styles.card}>
-    <View style={styles.routeColumn}>
+  accent = Colors.theme,
+}) => {
+  const pickupOn = focusedInput === "pickup";
+  const dropOn = focusedInput === "drop";
+  return (
+    <View style={[styles.card, { borderColor: "rgba(15, 23, 42, 0.10)" }]}>
       {showPickup ? (
         <>
-          <View style={styles.routeRow}>
+          <View style={styles.row}>
             <View style={styles.markerCol}>
-              <View style={[styles.dot, styles.dotPickup]} />
-              <View style={styles.connector} />
+              <View style={[styles.dot, { backgroundColor: PICKUP }]} />
             </View>
-            <View
-              style={[
-                styles.inputCol,
-                focusedInput === "pickup" && styles.inputColFocused,
-                pickup.trim().length > 0 && focusedInput !== "pickup" && styles.inputColFilled,
-              ]}
-            >
-              <CustomText fontSize={11} fontFamily="Medium" style={styles.fieldLabel}>
+            <View style={styles.field}>
+              <CustomText fontSize={11} fontFamily="Medium" style={{ color: pickupOn ? accent : T.inkMuted }}>
                 {pickupLabel}
               </CustomText>
               <LocationInput
@@ -69,27 +70,21 @@ const RouteLocationCard: FC<Props> = ({
               />
             </View>
           </View>
-          {onSwap ? (
-            <TouchableOpacity style={styles.swapBtn} onPress={onSwap} activeOpacity={0.85}>
-              <Ionicons name="swap-vertical" size={18} color={T.ink} />
-            </TouchableOpacity>
-          ) : null}
+          <View style={styles.middle}>
+            <View style={styles.markerCol}>
+              <View style={styles.dash} />
+            </View>
+            <View style={styles.divider} />
+          </View>
         </>
       ) : null}
 
-      <View style={styles.routeRow}>
+      <View style={styles.row}>
         <View style={styles.markerCol}>
-          {!showPickup ? <View style={styles.dotSpacer} /> : null}
-          <View style={[styles.dot, styles.dotDrop]} />
+          <View style={[styles.square, { backgroundColor: accent }]} />
         </View>
-        <View
-          style={[
-            styles.inputCol,
-            focusedInput === "drop" && styles.inputColFocused,
-            drop.trim().length > 0 && focusedInput !== "drop" && styles.inputColFilled,
-          ]}
-        >
-          <CustomText fontSize={11} fontFamily="Medium" style={styles.fieldLabel}>
+        <View style={styles.field}>
+          <CustomText fontSize={11} fontFamily="Medium" style={{ color: dropOn ? accent : T.inkMuted }}>
             {dropLabel}
           </CustomText>
           <LocationInput
@@ -103,132 +98,59 @@ const RouteLocationCard: FC<Props> = ({
           />
         </View>
       </View>
-    </View>
 
-    <TouchableOpacity style={styles.mapBtn} onPress={onMapPress} activeOpacity={0.88}>
-      <View style={styles.mapBtnIcon}>
-        <Ionicons name="map" size={16} color={Colors.theme} />
-      </View>
-      <CustomText fontFamily="Medium" fontSize={13} style={styles.mapBtnText}>
-        Set location on map
-      </CustomText>
-      <Ionicons name="chevron-forward" size={16} color={T.inkSoft} />
-    </TouchableOpacity>
-  </View>
-);
+      {showPickup && onSwap ? (
+        <TouchableOpacity
+          style={styles.swapBtn}
+          onPress={onSwap}
+          activeOpacity={0.85}
+          accessibilityLabel="Swap pickup and destination"
+        >
+          <Ionicons name="swap-vertical" size={17} color={T.ink} />
+        </TouchableOpacity>
+      ) : null}
+    </View>
+  );
+};
 
 const styles = StyleSheet.create({
   card: {
     backgroundColor: "#fff",
-    marginTop: 10,
-    borderRadius: 20,
+    marginTop: 6,
+    marginRight: 14,
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: "rgba(15, 23, 42, 0.06)",
-    paddingHorizontal: 14,
-    paddingTop: 16,
-    paddingBottom: 14,
-    ...T.shadow.card,
+    paddingLeft: 12,
+    paddingRight: 22,
+    paddingVertical: 4,
   },
-  routeColumn: {
-    position: "relative",
+  row: { flexDirection: "row", alignItems: "center", paddingVertical: 6 },
+  markerCol: { width: 18, alignItems: "center" },
+  dot: { width: 11, height: 11, borderRadius: 6 },
+  square: { width: 11, height: 11, borderRadius: 2 },
+  field: { flex: 1, marginLeft: 10 },
+  middle: { flexDirection: "row", alignItems: "center", height: 10 },
+  dash: {
+    height: 26,
+    marginVertical: -8,
+    borderLeftWidth: 1.5,
+    borderStyle: "dashed",
+    borderColor: "#94a3b8",
   },
-  routeRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-  },
-  markerCol: {
-    width: 20,
-    alignItems: "center",
-    paddingTop: 28,
-  },
-  dot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    borderWidth: 2,
-    borderColor: "#fff",
-    ...T.shadow.card,
-  },
-  dotPickup: {
-    backgroundColor: T.success,
-  },
-  dotDrop: {
-    backgroundColor: T.danger,
-  },
-  dotSpacer: {
-    height: 4,
-  },
-  connector: {
-    width: 2,
-    flex: 1,
-    minHeight: 36,
-    backgroundColor: T.border,
-    marginVertical: 4,
-    borderRadius: 1,
-  },
-  inputCol: {
-    flex: 1,
-    marginLeft: 10,
-    marginBottom: 10,
-    borderRadius: 14,
-    paddingHorizontal: 12,
-    paddingBottom: 4,
-    backgroundColor: "#F8FAFC",
-    borderWidth: 1.5,
-    borderColor: T.border,
-  },
-  inputColFocused: {
-    backgroundColor: "#fff",
-    borderColor: Colors.theme,
-  },
-  inputColFilled: {
-    backgroundColor: "#fffef5",
-    borderColor: Colors.primary,
-  },
-  fieldLabel: {
-    color: T.inkSoft,
-    marginTop: 8,
-    marginBottom: 0,
-  },
+  divider: { flex: 1, marginLeft: 10, height: StyleSheet.hairlineWidth, backgroundColor: "rgba(15, 23, 42, 0.12)" },
   swapBtn: {
-    // Straddles the gap between the two fields, clear of the pickup field's clear (✕) button.
     position: "absolute",
-    right: 14,
-    top: 62,
-    width: 36,
-    height: 36,
-    borderRadius: 12,
+    right: -15,
+    top: "50%",
+    marginTop: -15,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     backgroundColor: "#fff",
     borderWidth: 1,
-    borderColor: T.border,
+    borderColor: "rgba(15, 23, 42, 0.15)",
     alignItems: "center",
     justifyContent: "center",
-    zIndex: 2,
-    ...T.shadow.card,
-  },
-  mapBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    marginTop: 4,
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    borderRadius: 14,
-    backgroundColor: "#F8FAFC",
-    borderWidth: 1,
-    borderColor: T.border,
-  },
-  mapBtnIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
-    backgroundColor: "#ffedd5",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  mapBtnText: {
-    flex: 1,
-    color: T.ink,
   },
 });
 

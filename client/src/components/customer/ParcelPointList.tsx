@@ -1,182 +1,264 @@
 import React, { useMemo, useState } from "react";
-import { View, TouchableOpacity, StyleSheet } from "react-native";
+import { View, TouchableOpacity, StyleSheet, ScrollView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import CustomText from "@/components/shared/CustomText";
 import { RideHomeTheme as T } from "@/styles/rideHomeTheme";
 import { ParcelTheme as P } from "@/styles/parcelTheme";
 import type { ParcelPoint, ParcelPointKind } from "@/service/parcelPointService";
 
-const KINDS: { key: ParcelPointKind; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
-  { key: "BUS_STATION", label: "Bus stations", icon: "bus-outline" },
-  { key: "MALL", label: "Malls", icon: "bag-handle-outline" },
-  { key: "SHOP", label: "Shops", icon: "storefront-outline" },
-  { key: "OFFICE", label: "Offices", icon: "business-outline" },
-  { key: "OTHER", label: "Other", icon: "location-outline" },
+const KINDS: { key: ParcelPointKind; label: string; plural: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+  { key: "BUS_STATION", label: "Bus station", plural: "Bus stations", icon: "bus-outline" },
+  { key: "MALL", label: "Mall", plural: "Malls", icon: "bag-handle-outline" },
+  { key: "SHOP", label: "Shop", plural: "Shops", icon: "storefront-outline" },
+  { key: "OFFICE", label: "Office", plural: "Offices", icon: "business-outline" },
+  { key: "OTHER", label: "Other", plural: "Other places", icon: "location-outline" },
 ];
-const iconFor = (k: ParcelPointKind) => KINDS.find((x) => x.key === k)?.icon ?? "location-outline";
+const kindOf = (k: ParcelPointKind) => KINDS.find((x) => x.key === k) ?? KINDS[KINDS.length - 1];
 
-const COLLAPSED = 6;
+const COLLAPSED = 5;
 
 const formatKm = (km: number | null) =>
   km == null ? null : km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(km < 10 ? 1 : 0)} km`;
 
+const KindIcon = ({ kind }: { kind: ParcelPointKind }) => (
+  <View style={styles.icon}>
+    <Ionicons name={kindOf(kind).icon} size={17} color={P.accent} />
+  </View>
+);
+
 /**
- * Admin-added parcel points the customer can tap instead of searching an address.
- * `query` is what they are typing: when set, only matching points show (no chips).
+ * Admin-added parcel points the customer can tap instead of searching an address:
+ * - while typing: matching points, tagged "Point", above the map results;
+ * - choosing where to drop a parcel: swipeable cards of the nearest points;
+ * - choosing where to collect one: type chips and a list, with the chosen point's meeting spot.
  */
 const ParcelPointList: React.FC<{
   points: ParcelPoint[];
   target: "pickup" | "drop";
   query: string;
   onPick: (point: ParcelPoint) => void;
-}> = ({ points, target, query, onPick }) => {
-  const [kind, setKind] = useState<ParcelPointKind | "ALL">("ALL");
+  /** The point already chosen for this field, if any. */
+  selectedId?: string | null;
+}> = ({ points, target, query, onPick, selectedId }) => {
+  const [kind, setKind] = useState<ParcelPointKind | null>(null);
   const [expanded, setExpanded] = useState(false);
 
   const usable = useMemo(
     () => points.filter((p) => (target === "pickup" ? p.canPickup : p.canDrop)),
     [points, target]
   );
-  const kindsPresent = useMemo(
-    () => KINDS.filter((k) => usable.some((p) => p.kind === k.key)),
-    [usable]
+  const kindsPresent = useMemo(() => KINDS.filter((k) => usable.some((p) => p.kind === k.key)), [usable]);
+  const q = query.trim().toLowerCase();
+  const matches = useMemo(
+    () =>
+      q
+        ? usable.filter((p) => `${p.name} ${p.address ?? ""} ${p.instructions ?? ""}`.toLowerCase().includes(q)).slice(0, 4)
+        : [],
+    [usable, q]
   );
 
-  const q = query.trim().toLowerCase();
-  const shown = useMemo(() => {
-    if (q) {
-      return usable
-        .filter((p) => `${p.name} ${p.address ?? ""} ${p.instructions ?? ""}`.toLowerCase().includes(q))
-        .slice(0, 5);
-    }
-    return usable.filter((p) => kind === "ALL" || p.kind === kind);
-  }, [usable, q, kind]);
+  if (!usable.length) return null;
 
-  if (usable.length === 0 || (q && shown.length === 0)) return null;
-
-  const visible = q || expanded ? shown : shown.slice(0, COLLAPSED);
-  const title = target === "pickup" ? "Pickup points" : "Drop-off points";
-
-  return (
-    <View style={styles.wrap}>
-      <View style={styles.headerRow}>
-        <CustomText fontFamily="SemiBold" fontSize={13} style={styles.sectionTitle}>
-          {q ? `Matching ${title.toLowerCase()}` : `${title} near you`}
+  // Typing: matching points first.
+  if (q) {
+    if (!matches.length) return null;
+    return (
+      <View>
+        <CustomText fontFamily="Medium" fontSize={12} style={styles.section}>
+          QareGO points
         </CustomText>
-      </View>
-
-      {!q && kindsPresent.length > 1 ? (
-        <View style={styles.chips}>
-          {[{ key: "ALL" as const, label: "All", icon: "apps-outline" as const }, ...kindsPresent].map(
-            (k) => {
-              const on = kind === k.key;
-              return (
-                <TouchableOpacity
-                  key={k.key}
-                  onPress={() => {
-                    setKind(k.key);
-                    setExpanded(false);
-                  }}
-                  style={[styles.chip, on && styles.chipOn]}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name={k.icon} size={14} color={on ? "#fff" : P.ink} />
-                  <CustomText fontSize={12} fontFamily="Medium" style={on ? styles.chipTextOn : styles.chipText}>
-                    {k.label}
-                  </CustomText>
-                </TouchableOpacity>
-              );
-            }
-          )}
-        </View>
-      ) : null}
-
-      {visible.map((p) => {
-        const km = formatKm(p.distanceKm);
-        const sub = p.instructions || p.address;
-        return (
-          <TouchableOpacity key={p._id} style={styles.card} onPress={() => onPick(p)} activeOpacity={0.8}>
-            <View style={styles.iconWrap}>
-              <Ionicons name={iconFor(p.kind)} size={20} color={P.accent} />
-            </View>
+        {matches.map((p) => (
+          <TouchableOpacity key={p._id} style={styles.row} onPress={() => onPick(p)} activeOpacity={0.75}>
+            <KindIcon kind={p.kind} />
             <View style={styles.textWrap}>
-              <CustomText fontFamily="SemiBold" fontSize={15} numberOfLines={1} style={styles.name}>
+              <CustomText fontFamily="Medium" fontSize={15} numberOfLines={1} style={{ color: T.ink }}>
                 {p.name}
               </CustomText>
-              {sub ? (
-                <CustomText fontSize={12} numberOfLines={1} style={styles.sub}>
-                  {sub}
-                </CustomText>
-              ) : null}
-              {p.hours ? (
-                <CustomText fontSize={12} numberOfLines={1} style={styles.hours}>
-                  {p.hours}
-                </CustomText>
-              ) : null}
-            </View>
-            {km ? (
-              <CustomText fontSize={12} fontFamily="Medium" style={styles.km}>
-                {km}
+              <CustomText fontSize={12} numberOfLines={1} style={styles.sub}>
+                {[p.instructions || p.address, formatKm(p.distanceKm)].filter(Boolean).join(" · ")}
               </CustomText>
-            ) : null}
+            </View>
+            <View style={styles.tag}>
+              <CustomText fontSize={11} fontFamily="Medium" style={{ color: P.ink }}>
+                Point
+              </CustomText>
+            </View>
+          </TouchableOpacity>
+        ))}
+      </View>
+    );
+  }
+
+  // Dropping a parcel off: the nearest points as cards.
+  if (target === "drop") {
+    return (
+      <View>
+        <CustomText fontFamily="Medium" fontSize={12} style={styles.section}>
+          Drop at a QareGO point
+        </CustomText>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10 }}>
+          {usable.slice(0, 10).map((p) => {
+            const on = p._id === selectedId;
+            return (
+              <TouchableOpacity
+                key={p._id}
+                style={[styles.pointCard, on && { borderColor: P.accent, backgroundColor: P.accentSoft }]}
+                onPress={() => onPick(p)}
+                activeOpacity={0.85}
+              >
+                <KindIcon kind={p.kind} />
+                <CustomText fontFamily="Medium" fontSize={14} numberOfLines={1} style={{ color: T.ink, marginTop: 8 }}>
+                  {p.name}
+                </CustomText>
+                <CustomText fontSize={11} numberOfLines={1} style={styles.sub}>
+                  {[formatKm(p.distanceKm), p.instructions].filter(Boolean).join(" · ") || kindOf(p.kind).label}
+                </CustomText>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      </View>
+    );
+  }
+
+  // Collecting a parcel: where is it waiting?
+  const activeKind = kind && kindsPresent.some((k) => k.key === kind) ? kind : null;
+  const filtered = usable.filter((p) => !activeKind || p.kind === activeKind);
+  const visible = expanded ? filtered : filtered.slice(0, COLLAPSED);
+  const selected = usable.find((p) => p._id === selectedId) ?? null;
+  const listTitle = activeKind ? `${kindOf(activeKind).plural} near you` : "Points near you";
+
+  return (
+    <View>
+      <View style={styles.askCard}>
+        <CustomText fontSize={12} style={{ color: T.inkMuted }}>
+          Where&apos;s the parcel waiting?
+        </CustomText>
+        <View style={styles.chips}>
+          {kindsPresent.map((k) => {
+            const on = activeKind === k.key;
+            return (
+              <TouchableOpacity
+                key={k.key}
+                onPress={() => {
+                  setKind(on ? null : k.key);
+                  setExpanded(false);
+                }}
+                style={[styles.chip, on && { backgroundColor: P.accent, borderColor: P.accent }]}
+                activeOpacity={0.8}
+              >
+                <CustomText fontSize={12} fontFamily="Medium" style={{ color: on ? "#fff" : T.ink }}>
+                  {k.label}
+                </CustomText>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
+
+      <CustomText fontFamily="Medium" fontSize={12} style={styles.section}>
+        {listTitle}
+      </CustomText>
+      {visible.map((p) => {
+        const on = p._id === selectedId;
+        return (
+          <TouchableOpacity key={p._id} style={styles.row} onPress={() => onPick(p)} activeOpacity={0.75}>
+            <KindIcon kind={p.kind} />
+            <View style={styles.textWrap}>
+              <CustomText fontFamily="Medium" fontSize={15} numberOfLines={1} style={{ color: T.ink }}>
+                {p.name}
+              </CustomText>
+              <CustomText fontSize={12} numberOfLines={1} style={styles.sub}>
+                {[formatKm(p.distanceKm), p.hours].filter(Boolean).join(" · ") || p.address || kindOf(p.kind).label}
+              </CustomText>
+            </View>
+            <Ionicons
+              name={on ? "checkmark-circle" : "ellipse-outline"}
+              size={22}
+              color={on ? P.accent : "#cbd5e1"}
+            />
           </TouchableOpacity>
         );
       })}
-
-      {!q && shown.length > COLLAPSED ? (
+      {filtered.length > COLLAPSED ? (
         <TouchableOpacity onPress={() => setExpanded((v) => !v)} style={styles.more} activeOpacity={0.7}>
-          <CustomText fontSize={13} fontFamily="SemiBold" style={styles.moreText}>
-            {expanded ? "Show fewer" : `Show all ${shown.length}`}
+          <CustomText fontSize={13} fontFamily="SemiBold" style={{ color: P.accent }}>
+            {expanded ? "Show fewer" : `Show all ${filtered.length}`}
           </CustomText>
         </TouchableOpacity>
+      ) : null}
+
+      {selected && (selected.instructions || selected.hours) ? (
+        <View style={styles.meet}>
+          <View style={{ flexDirection: "row", alignItems: "center" }}>
+            <Ionicons name="location" size={15} color={P.ink} />
+            <CustomText fontFamily="SemiBold" fontSize={13} style={{ color: P.ink, marginLeft: 6 }}>
+              The rider meets the driver at
+            </CustomText>
+          </View>
+          <CustomText fontSize={12} style={{ color: P.ink, marginTop: 3 }}>
+            {[selected.instructions || selected.name, selected.hours].filter(Boolean).join(" · ")}
+          </CustomText>
+        </View>
       ) : null}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  wrap: { paddingTop: 18 },
-  headerRow: { paddingBottom: 10 },
-  sectionTitle: { color: T.inkMuted, textTransform: "uppercase", letterSpacing: 0.6 },
-  chips: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 12 },
-  chip: {
+  section: { color: T.inkMuted, marginTop: 18, marginBottom: 8 },
+  row: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 999,
-    backgroundColor: P.accentSoft,
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(15, 23, 42, 0.10)",
   },
-  chipOn: { backgroundColor: P.accent },
-  chipText: { color: P.ink },
-  chipTextOn: { color: "#fff" },
-  card: {
-    flexDirection: "row",
+  icon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: P.accentSoft,
     alignItems: "center",
-    backgroundColor: T.sheetBg,
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: T.border,
-  },
-  iconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: P.accentSoft,
     justifyContent: "center",
-    alignItems: "center",
-    marginRight: 12,
   },
-  textWrap: { flex: 1, minWidth: 0 },
-  name: { color: T.ink },
-  sub: { marginTop: 2, color: T.inkMuted },
-  hours: { marginTop: 2, color: T.inkSoft },
-  km: { color: P.ink, marginLeft: 8 },
-  more: { alignItems: "center", paddingVertical: 10 },
-  moreText: { color: P.accent },
+  textWrap: { flex: 1, minWidth: 0, marginLeft: 10, marginRight: 8 },
+  sub: { color: T.inkMuted, marginTop: 2 },
+  tag: { backgroundColor: P.accentSoft, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 1 },
+  pointCard: {
+    width: 140,
+    backgroundColor: "#fff",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(15, 23, 42, 0.10)",
+    padding: 12,
+  },
+  askCard: {
+    marginTop: 14,
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "rgba(15, 23, 42, 0.10)",
+    padding: 12,
+  },
+  chips: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 8 },
+  chip: {
+    borderWidth: 1,
+    borderColor: "rgba(15, 23, 42, 0.18)",
+    borderRadius: 999,
+    paddingHorizontal: 11,
+    paddingVertical: 5,
+    backgroundColor: "#fff",
+  },
+  more: { paddingVertical: 10, alignItems: "center" },
+  meet: {
+    marginTop: 12,
+    backgroundColor: P.accentSoft,
+    borderColor: P.accentMuted,
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 10,
+  },
 });
 
 export default ParcelPointList;

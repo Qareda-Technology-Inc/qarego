@@ -34,6 +34,8 @@ import {
   parcelPointAddress,
   type ParcelPoint,
 } from "@/service/parcelPointService";
+import { ParcelTheme as P } from "@/styles/parcelTheme";
+import { useRecentPlacesStore, type RecentPlace } from "@/store/recentPlacesStore";
 
 const CURRENT_LOCATION_LABEL = "Current location";
 
@@ -70,6 +72,12 @@ const LocationSelection = () => {
   // When receiving a parcel the pickup is someone else's place, so it must not
   // replace the customer's own saved location (which is the drop-off).
   const pickupIsMyLocation = !(isParcel && parcelMode === "RECEIVE");
+  const accent = isParcel ? P.accent : Colors.theme;
+  // The parcel point chosen for each field (so the list can tick it and show where to meet).
+  const [pointIds, setPointIds] = useState<{ pickup: string | null; drop: string | null }>({ pickup: null, drop: null });
+  const recentPlaces = useRecentPlacesStore((st) => st.places);
+  const addRecent = useRecentPlacesStore((st) => st.add);
+  const [locating, setLocating] = useState(false);
 
   const headerTitle = isFoodDelivery
     ? "Delivery address"
@@ -111,6 +119,8 @@ const LocationSelection = () => {
           description: item.description,
         });
         if (data) {
+          addRecent(data);
+          setPointIds((ids) => ({ ...ids, [focusedInput]: null }));
           if (focusedInput === "drop") {
             setDrop(data?.address ?? "");
             setDropCoords(data);
@@ -138,7 +148,7 @@ const LocationSelection = () => {
         Alert.alert("Error", "Could not get location details.");
       }
     },
-    [focusedInput, setLocation, isFoodDelivery, pickupIsMyLocation]
+    [focusedInput, setLocation, isFoodDelivery, pickupIsMyLocation, addRecent]
   );
 
   const pickParcelPoint = useCallback(
@@ -148,6 +158,9 @@ const LocationSelection = () => {
         longitude: point.longitude,
         address: parcelPointAddress(point),
       };
+      // Stay on this screen so the customer sees the meeting spot; they tap Continue.
+      hasAutoNavigated.current = true;
+      setPointIds((ids) => ({ ...ids, [focusedInput]: point._id }));
       if (focusedInput === "drop") {
         setDropCoords(data);
         setDrop(data.address);
@@ -160,6 +173,49 @@ const LocationSelection = () => {
     },
     [focusedInput]
   );
+
+  /** Fill the field being edited with a saved place (a recent one, or where the phone is). */
+  const applySavedPlace = useCallback(
+    (place: { latitude: number; longitude: number; address: string }) => {
+      setPointIds((ids) => ({ ...ids, [focusedInput]: null }));
+      setLocations([]);
+      setTypedQuery("");
+      if (focusedInput === "drop") {
+        setDrop(place.address);
+        setDropCoords(place);
+        if (isFoodDelivery) {
+          setLocation(place);
+          if (router.canGoBack()) router.back();
+          else router.replace("/customer/stores/checkout");
+        }
+      } else {
+        if (pickupIsMyLocation) setLocation(place);
+        setPickupCoords(place);
+        setPickup(place.address);
+      }
+    },
+    [focusedInput, isFoodDelivery, pickupIsMyLocation, setLocation]
+  );
+
+  const fillMyLocation = useCallback(async () => {
+    setLocating(true);
+    try {
+      const result = await getCurrentLocationAsync();
+      if (!result.ok) {
+        Alert.alert("Location off", "Turn on location for QareGO, or search for the place instead.");
+        return;
+      }
+      let address = "";
+      try {
+        address = await reverseGeocode(result.latitude, result.longitude);
+      } catch {
+        /* generic label below */
+      }
+      applySavedPlace({ latitude: result.latitude, longitude: result.longitude, address: address || CURRENT_LOCATION_LABEL });
+    } finally {
+      setLocating(false);
+    }
+  }, [applySavedPlace]);
 
   const confirmFoodDeliveryAddress = useCallback((): boolean => {
     if (!dropCoords) {
@@ -357,10 +413,16 @@ const LocationSelection = () => {
 
   const renderItem = useCallback(
     ({ item }: { item: any }) => (
-      <LocationItem item={item} onPress={() => addLocation(item)} />
+      <LocationItem item={item} query={typedQuery} onPress={() => addLocation(item)} />
     ),
-    [addLocation]
+    [addLocation, typedQuery]
   );
+
+  // Recent places, minus what's already in the other field.
+  const recents: RecentPlace[] = useMemo(() => {
+    const other = focusedInput === "drop" ? pickup : drop;
+    return recentPlaces.filter((r) => r.address !== other).slice(0, 4);
+  }, [recentPlaces, focusedInput, pickup, drop]);
 
   const showPoints =
     isParcel &&
@@ -397,8 +459,27 @@ const LocationSelection = () => {
             fetchLocation(text);
           }}
           onSwap={!isFoodDelivery ? swapLocations : undefined}
-          onMapPress={openMapForFocused}
+          accent={accent}
         />
+
+        <View style={styles.quickRow}>
+          <TouchableOpacity style={styles.quickChip} onPress={fillMyLocation} disabled={locating} activeOpacity={0.8}>
+            {locating ? (
+              <ActivityIndicator size="small" color={accent} />
+            ) : (
+              <Ionicons name="navigate-outline" size={14} color={accent} />
+            )}
+            <CustomText fontSize={12} fontFamily="Medium" style={styles.quickText}>
+              Use my location
+            </CustomText>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.quickChip} onPress={openMapForFocused} activeOpacity={0.8}>
+            <Ionicons name="map-outline" size={14} color={accent} />
+            <CustomText fontSize={12} fontFamily="Medium" style={styles.quickText}>
+              Pick on map
+            </CustomText>
+          </TouchableOpacity>
+        </View>
 
         {showPoints ? (
           <ParcelPointList
@@ -406,6 +487,7 @@ const LocationSelection = () => {
             target={focusedInput}
             query={typedQuery}
             onPick={pickParcelPoint}
+            selectedId={pointIds[focusedInput]}
           />
         ) : null}
 
@@ -418,9 +500,25 @@ const LocationSelection = () => {
           </View>
         ) : locations.length > 0 ? (
           <View style={styles.sectionHeader}>
-            <CustomText fontFamily="SemiBold" fontSize={13} style={styles.sectionTitle}>
-              Suggestions
+            <CustomText fontFamily="Medium" fontSize={12} style={styles.sectionTitle}>
+              Places
             </CustomText>
+          </View>
+        ) : !typedQuery.trim() && recents.length > 0 ? (
+          <View>
+            <View style={styles.sectionHeader}>
+              <CustomText fontFamily="Medium" fontSize={12} style={styles.sectionTitle}>
+                Recent
+              </CustomText>
+            </View>
+            {recents.map((r) => (
+              <LocationItem
+                key={r.at}
+                item={{ title: r.address.split(",")[0], description: r.address.split(",").slice(1).join(",").trim() }}
+                icon="time-outline"
+                onPress={() => applySavedPlace(r)}
+              />
+            ))}
           </View>
         ) : showPoints && !typedQuery.trim() ? null : (
           <View style={styles.emptyWrap}>
@@ -431,7 +529,7 @@ const LocationSelection = () => {
               Find your place
             </CustomText>
             <CustomText fontSize={13} style={styles.emptyText}>
-              Start typing an address, or tap “Set location on map” to drop a pin.
+              Start typing an address, or tap “Pick on map” to drop a pin.
             </CustomText>
           </View>
         )}
@@ -454,6 +552,12 @@ const LocationSelection = () => {
       parcelPoints,
       typedQuery,
       pickParcelPoint,
+      accent,
+      fillMyLocation,
+      locating,
+      pointIds,
+      recents,
+      applySavedPlace,
     ]
   );
 
@@ -461,7 +565,7 @@ const LocationSelection = () => {
     if (!canContinue) return null;
     return (
       <TouchableOpacity
-        style={styles.continueBtn}
+        style={[styles.continueBtn, { backgroundColor: accent }]}
         onPress={() => checkDistanceAndNavigate()}
         activeOpacity={0.9}
       >
@@ -471,15 +575,11 @@ const LocationSelection = () => {
         <Ionicons name="arrow-forward" size={20} color="#fff" />
       </TouchableOpacity>
     );
-  }, [canContinue, checkDistanceAndNavigate, isFoodDelivery]);
+  }, [canContinue, checkDistanceAndNavigate, isFoodDelivery, accent]);
 
   return (
     <View style={styles.container}>
       <StatusBar style="dark" />
-      <View pointerEvents="none" style={styles.atmosphere}>
-        <View style={styles.orbTop} />
-        <View style={styles.orbSide} />
-      </View>
       <SafeAreaView edges={["top"]} style={styles.safeTop} />
 
       <KeyboardAvoidingView
@@ -534,6 +634,8 @@ const LocationSelection = () => {
           onClose={() => setMapModalVisible(false)}
           onSelectLocation={(data) => {
             if (data) {
+              addRecent(data);
+              setPointIds((ids) => ({ ...ids, [modalTitle]: null }));
               if (modalTitle === "drop") {
                 setDropCoords(data);
                 setDrop(data?.address ?? "");
@@ -563,32 +665,21 @@ const LocationSelection = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F4F7FB",
+    backgroundColor: "#fff",
   },
-  atmosphere: {
-    ...StyleSheet.absoluteFillObject,
-    overflow: "hidden",
+  quickRow: { flexDirection: "row", gap: 8, marginTop: 12, flexWrap: "wrap" },
+  quickChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderWidth: 1,
+    borderColor: "rgba(15, 23, 42, 0.15)",
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    backgroundColor: "#fff",
   },
-  orbTop: {
-    position: "absolute",
-    top: -70,
-    right: -40,
-    width: 200,
-    height: 200,
-    borderRadius: 100,
-    backgroundColor: Colors.primary,
-    opacity: 0.2,
-  },
-  orbSide: {
-    position: "absolute",
-    top: 220,
-    left: -90,
-    width: 180,
-    height: 180,
-    borderRadius: 90,
-    backgroundColor: Colors.tertiary,
-    opacity: 0.1,
-  },
+  quickText: { color: T.ink },
   safeTop: {
     backgroundColor: "transparent",
   },
@@ -636,13 +727,11 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
   },
   sectionHeader: {
-    paddingTop: 20,
-    paddingBottom: 10,
+    paddingTop: 18,
+    paddingBottom: 4,
   },
   sectionTitle: {
     color: T.inkMuted,
-    textTransform: "uppercase",
-    letterSpacing: 0.6,
   },
   loadingWrap: {
     paddingVertical: 28,

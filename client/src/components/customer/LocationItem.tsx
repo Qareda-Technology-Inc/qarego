@@ -4,58 +4,58 @@ import { Ionicons } from "@expo/vector-icons";
 import CustomText from "../shared/CustomText";
 import { RideHomeTheme as T } from "@/styles/rideHomeTheme";
 
+/** Bold the part of `text` that matches what the customer typed. */
+function Highlighted({ text, query }: { text: string; query?: string }) {
+  const q = query?.trim().toLowerCase();
+  const i = q ? text.toLowerCase().indexOf(q) : -1;
+  if (!q || i < 0) return <>{text}</>;
+  return (
+    <>
+      {text.slice(0, i)}
+      <CustomText fontFamily="Bold" fontSize={15} style={{ color: T.ink }}>
+        {text.slice(i, i + q.length)}
+      </CustomText>
+      {text.slice(i + q.length)}
+    </>
+  );
+}
+
 const LocationItem: FC<{
   item: any;
   onPress: () => void;
-}> = ({ item, onPress }) => {
+  /** What the customer typed, to highlight in the result. */
+  query?: string;
+  icon?: keyof typeof Ionicons.glyphMap;
+}> = ({ item, onPress, query, icon = "location-outline" }) => {
   return (
-    <TouchableOpacity onPress={onPress} style={styles.card} activeOpacity={0.75}>
-      <View style={styles.iconWrap}>
-        <Ionicons name="location-outline" size={20} color={T.ink} />
-      </View>
+    <TouchableOpacity onPress={onPress} style={styles.row} activeOpacity={0.7}>
+      <Ionicons name={icon} size={19} color={T.inkMuted} style={styles.icon} />
       <View style={styles.textWrap}>
-        <CustomText fontFamily="SemiBold" fontSize={15} numberOfLines={1} style={styles.title}>
-          {item?.title}
+        <CustomText fontFamily="Medium" fontSize={15} numberOfLines={1} style={styles.title}>
+          <Highlighted text={String(item?.title ?? "")} query={query} />
         </CustomText>
         {item?.description ? (
-          <CustomText
-            fontFamily="Regular"
-            numberOfLines={2}
-            fontSize={13}
-            style={styles.desc}
-          >
+          <CustomText numberOfLines={1} fontSize={12} style={styles.desc}>
             {item.description}
           </CustomText>
         ) : null}
       </View>
-      <Ionicons name="chevron-forward" size={18} color={T.inkSoft} />
     </TouchableOpacity>
   );
 };
 
 const styles = StyleSheet.create({
-  card: {
+  row: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: T.sheetBg,
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: T.border,
+    paddingVertical: 11,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(15, 23, 42, 0.10)",
   },
-  iconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: T.surfaceMuted,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 12,
-  },
+  icon: { width: 28 },
   textWrap: { flex: 1, minWidth: 0 },
   title: { color: T.ink },
-  desc: { marginTop: 3, color: T.inkMuted },
+  desc: { marginTop: 2, color: T.inkMuted },
 });
 
 export default LocationItem;
