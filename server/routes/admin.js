@@ -85,6 +85,7 @@ import {
 } from '../controllers/vendorApplication.js';
 import { adminListChatReports, adminUpdateChatReport } from '../controllers/chatReport.js';
 import { registerAdminServiceZoneRoutes } from './serviceZone.js';
+import { registerAdminParcelPointRoutes } from './parcelPoints.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -193,5 +194,6 @@ adminRouter.patch('/restaurants/:id/menu/:itemId', adminUpdateMenuItem);
 adminRouter.delete('/restaurants/:id/menu/:itemId', adminDeleteMenuItem);
 
 registerAdminServiceZoneRoutes(adminRouter);
+registerAdminParcelPointRoutes(adminRouter);
 
 export default adminRouter;

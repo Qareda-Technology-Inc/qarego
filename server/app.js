@@ -26,6 +26,7 @@ import mediaRouter from './routes/media.js';
 import notificationsRouter from './routes/notifications.js';
 import appVersionRouter from './routes/appVersion.js';
 import serviceZoneRouter from './routes/serviceZone.js';
+import parcelPointRouter from './routes/parcelPoints.js';
 import { initCloudinary, isCloudinaryConfigured } from './utils/cloudinary.js';
 import { getFirebaseConfigSource, isFirebaseConfigured } from './utils/firebaseAdmin.js';
 import { clearDemoFoodSeed } from './seedFood.js';
@@ -228,6 +229,7 @@ app.use("/media", mediaRouter);
 app.use("/notifications", notificationsRouter);
 app.use("/app", appVersionRouter);
 app.use("/service-zones", authMiddleware, serviceZoneRouter);
+app.use("/parcel-points", authMiddleware, parcelPointRouter);
 
 // Middleware
 app.use(notFoundMiddleware);

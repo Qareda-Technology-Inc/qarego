@@ -28,6 +28,12 @@ import MapPickerModal from "@/components/customer/MapPickerModal";
 import { RideHomeTheme as T } from "@/styles/rideHomeTheme";
 import { Colors } from "@/utils/Constants";
 import { parseParcelMode, parcelModeLabels, type ParcelMode } from "@/utils/parcelMode";
+import ParcelPointList from "@/components/customer/ParcelPointList";
+import {
+  fetchParcelPoints,
+  parcelPointAddress,
+  type ParcelPoint,
+} from "@/service/parcelPointService";
 
 const CURRENT_LOCATION_LABEL = "Current location";
 
@@ -58,6 +64,12 @@ const LocationSelection = () => {
   const [isMapModalVisible, setMapModalVisible] = useState(false);
   const [searching, setSearching] = useState(false);
   const hasAutoNavigated = useRef(false);
+  // Admin-added parcel points, and what the customer is typing (to filter them).
+  const [parcelPoints, setParcelPoints] = useState<ParcelPoint[]>([]);
+  const [typedQuery, setTypedQuery] = useState("");
+  // When receiving a parcel the pickup is someone else's place, so it must not
+  // replace the customer's own saved location (which is the drop-off).
+  const pickupIsMyLocation = !(isParcel && parcelMode === "RECEIVE");
 
   const headerTitle = isFoodDelivery
     ? "Delivery address"
@@ -115,17 +127,38 @@ const LocationSelection = () => {
               return;
             }
           } else {
-            setLocation(data);
+            if (pickupIsMyLocation) setLocation(data);
             setPickupCoords(data);
             setPickup(data?.address ?? "");
           }
           setLocations([]);
+          setTypedQuery("");
         }
       } catch {
         Alert.alert("Error", "Could not get location details.");
       }
     },
-    [focusedInput, setLocation, isFoodDelivery]
+    [focusedInput, setLocation, isFoodDelivery, pickupIsMyLocation]
+  );
+
+  const pickParcelPoint = useCallback(
+    (point: ParcelPoint) => {
+      const data = {
+        latitude: point.latitude,
+        longitude: point.longitude,
+        address: parcelPointAddress(point),
+      };
+      if (focusedInput === "drop") {
+        setDropCoords(data);
+        setDrop(data.address);
+      } else {
+        setPickupCoords(data);
+        setPickup(data.address);
+      }
+      setLocations([]);
+      setTypedQuery("");
+    },
+    [focusedInput]
   );
 
   const confirmFoodDeliveryAddress = useCallback((): boolean => {
@@ -287,6 +320,25 @@ const LocationSelection = () => {
     setPickup(location.address);
   }, [location, isFoodDelivery, isParcel, parcelMode]);
 
+  // Load parcel points once we know roughly where the customer is (nearest first).
+  const pointsLoadedFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!isParcel) return;
+    const key =
+      location?.latitude != null && location?.longitude != null
+        ? `${location.latitude.toFixed(2)},${location.longitude.toFixed(2)}`
+        : "none";
+    if (pointsLoadedFor.current === key) return;
+    pointsLoadedFor.current = key;
+    let cancelled = false;
+    fetchParcelPoints(location?.latitude, location?.longitude).then((pts) => {
+      if (!cancelled) setParcelPoints(pts);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [isParcel, location?.latitude, location?.longitude]);
+
   useEffect(() => {
     if (isFoodDelivery || hasAutoNavigated.current) return;
     if (!pickupCoords || !dropCoords) return;
@@ -310,6 +362,10 @@ const LocationSelection = () => {
     [addLocation]
   );
 
+  const showPoints =
+    isParcel &&
+    parcelPoints.some((p) => (focusedInput === "pickup" ? p.canPickup : p.canDrop));
+
   const listHeader = useMemo(
     () => (
       <View>
@@ -322,19 +378,36 @@ const LocationSelection = () => {
           pickupPlaceholder={isParcel ? parcelLabels.pickupPlaceholder : undefined}
           dropPlaceholder={dropPlaceholder}
           focusedInput={focusedInput}
-          onFocusPickup={() => setFocusedInput("pickup")}
-          onFocusDrop={() => setFocusedInput("drop")}
+          onFocusPickup={() => {
+            setFocusedInput("pickup");
+            setTypedQuery("");
+          }}
+          onFocusDrop={() => {
+            setFocusedInput("drop");
+            setTypedQuery("");
+          }}
           onChangePickup={(text) => {
             setPickup(text);
+            setTypedQuery(text);
             fetchLocation(text);
           }}
           onChangeDrop={(text) => {
             setDrop(text);
+            setTypedQuery(text);
             fetchLocation(text);
           }}
           onSwap={!isFoodDelivery ? swapLocations : undefined}
           onMapPress={openMapForFocused}
         />
+
+        {showPoints ? (
+          <ParcelPointList
+            points={parcelPoints}
+            target={focusedInput}
+            query={typedQuery}
+            onPick={pickParcelPoint}
+          />
+        ) : null}
 
         {searching ? (
           <View style={styles.loadingWrap}>
@@ -349,7 +422,7 @@ const LocationSelection = () => {
               Suggestions
             </CustomText>
           </View>
-        ) : (
+        ) : showPoints && !typedQuery.trim() ? null : (
           <View style={styles.emptyWrap}>
             <View style={styles.emptyIcon}>
               <Ionicons name="search-outline" size={28} color={T.inkSoft} />
@@ -377,6 +450,10 @@ const LocationSelection = () => {
       openMapForFocused,
       searching,
       locations.length,
+      showPoints,
+      parcelPoints,
+      typedQuery,
+      pickParcelPoint,
     ]
   );
 
@@ -471,7 +548,7 @@ const LocationSelection = () => {
                   else router.replace("/customer/stores/checkout");
                 }
               } else {
-                setLocation(data);
+                if (pickupIsMyLocation) setLocation(data);
                 setPickupCoords(data);
                 setPickup(data?.address ?? "");
               }

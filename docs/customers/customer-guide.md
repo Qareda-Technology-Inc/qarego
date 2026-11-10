@@ -39,7 +39,7 @@ You can cancel while we're finding a rider, or from the trip screen. Please canc
 ## 3. Sending or receiving a parcel
 
 1. Choose **Parcel**, then **Send** (a rider takes your parcel somewhere) or **Receive** (a rider collects something and brings it to you).
-2. Enter the pickup and drop-off, the other person's name and phone number, and what the parcel is. You can add a note and a photo.
+2. Enter the pickup and drop-off, the other person's name and phone number, and what the parcel is. You can add a note and a photo. Instead of typing an address, you can tap one of the **parcel points** listed under the address boxes (bus stations, malls and shops QareGO has added), nearest first.
 3. Confirm the price and how you'll pay.
 4. The person receiving the parcel gives the rider the **delivery code** to confirm it arrived.
 

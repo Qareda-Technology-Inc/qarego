@@ -11,6 +11,7 @@ import FoodOrder from "../models/FoodOrder.js";
 import FoodPayment from "../models/FoodPayment.js";
 import CommerceStoreType from "../models/CommerceStoreType.js";
 import ServiceZone from "../models/ServiceZone.js";
+import ParcelPoint from "../models/ParcelPoint.js";
 import VendorApplication from "../models/VendorApplication.js";
 import ChatReport from "../models/ChatReport.js";
 import { adminRoleOf } from "./adminAccess.js";
@@ -120,6 +121,12 @@ const RULES = [
   ["POST", "/admin/service-zones", "settings", "zone.add", "added service area {t}"],
   ["PATCH", "/admin/service-zones/:id", "settings", "zone.edit", "edited service area {t}"],
   ["DELETE", "/admin/service-zones/:id", "settings", "zone.delete", "deleted service area {t}"],
+  ["POST", "/admin/parcel-points", "settings", "parcel_point.add", "added parcel point {t}"],
+  ["PATCH", "/admin/parcel-points/:id", "settings", "parcel_point.edit", ({ body, t }) =>
+    Object.keys(body).length === 1 && body.isActive !== undefined
+      ? `${body.isActive ? "turned on" : "turned off"} parcel point ${t}`
+      : `edited parcel point ${t}`],
+  ["DELETE", "/admin/parcel-points/:id", "settings", "parcel_point.delete", "deleted parcel point {t}"],
   // Team and own account
   ["POST", "/admin/team", "team", "team.add", ({ body, t }) => `added ${t} to the team as ${ROLE_WORD[body.adminRole] || body.adminRole}`],
   ["PATCH", "/admin/team/:id", "team", "team.edit", ({ body, t }) => {
@@ -181,6 +188,10 @@ async function labelFor(type, id, action) {
       const t = await CommerceStoreType.findById(id).select("name").lean();
       return t?.name || null;
     }
+    if (action?.startsWith("parcel_point.")) {
+      const p = await ParcelPoint.findById(id).select("name").lean();
+      return p?.name || null;
+    }
     if (action?.startsWith("zone.")) {
       const z = await ServiceZone.findById(id).select("name").lean();
       return z?.name || null;
@@ -194,7 +205,7 @@ async function labelFor(type, id, action) {
 
 /** The new record's id and name from a create response (POST with no id in the path). */
 function createdFromResponse(body) {
-  const rec = body?.restaurant || body?.member || body?.driver || body?.vendor || body?.user || body?.customer || body?.storeType || body?.zone || body?.serviceZone || body?.item;
+  const rec = body?.restaurant || body?.member || body?.driver || body?.vendor || body?.user || body?.customer || body?.storeType || body?.zone || body?.serviceZone || body?.point || body?.item;
   if (!rec || typeof rec !== "object") return { id: null, label: null };
   return { id: rec._id ? String(rec._id) : null, label: rec.name || rec.username || rec.phone || null };
 }
@@ -238,6 +249,8 @@ export async function recordAdminActivity(req, res) {
       label = created.label;
     }
     if (!label) label = await labelFor(TARGET_TYPE[area], targetId, action);
+    // A deleted record can't be looked up any more; its handler may echo the name back.
+    if (!label && method === "DELETE") label = res.locals?.responseBody?.deleted?.name || null;
     if (!label && action === "rider.add") label = body.name || body.phone || null;
     if (!label && action === "team.add") label = body.name || body.username || null;
     if (!label && action === "vendor.invite") label = body.name || body.phone || null;

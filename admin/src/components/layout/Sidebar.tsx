@@ -23,6 +23,7 @@ import {
   KeyRound,
   History,
   Flag,
+  Package,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/context/AuthContext';
@@ -44,6 +45,7 @@ const navigation = [
   { name: 'Store types', href: '/store-types', icon: Tags },
   { name: 'Store orders', href: '/food-orders', icon: UtensilsCrossed },
   { name: 'Service areas', href: '/service-zones', icon: MapPinned },
+  { name: 'Parcel points', href: '/parcel-points', icon: Package },
   { name: 'Finance', href: '/finance', icon: FileText },
   // Mobile money checkouts; hidden while MoMo is paused.
   { name: 'Food payments', href: '/finance/food-payments', icon: Banknote, momoOnly: true },
