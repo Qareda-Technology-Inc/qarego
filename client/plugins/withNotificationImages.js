@@ -3,7 +3,8 @@ const path = require("path");
 const { withDangerousMod, withXcodeProject } = require("expo/config-plugins");
 
 // Adds an iOS notification service extension so promotions show their picture on iPhones
-// (Android shows it without this). Switched on with IOS_NOTIFICATION_IMAGES=1 in app.config.js.
+// (Android shows it without this). Switched on with IOS_NOTIFICATION_IMAGES=1 (set in eas.json
+// production env, so the EAS build server adds the target too, not only the local CLI).
 const EXT = "NotificationService";
 const SOURCE_DIR = path.join(__dirname, "notification-service");
 
@@ -84,6 +85,23 @@ function withExtensionTarget(config) {
     project.addBuildPhase([`${EXT}.swift`], "PBXSourcesBuildPhase", "Sources", target.uuid);
     project.addBuildPhase([], "PBXResourcesBuildPhase", "Resources", target.uuid);
     project.addBuildPhase([], "PBXFrameworksBuildPhase", "Frameworks", target.uuid);
+
+    // The xcode package writes literal "undefined" for some file fields and adds the Info.plist
+    // as a resource file that no build phase uses; tidy both so Xcode sees a clean target.
+    const fileRefs = objects.PBXFileReference || {};
+    for (const key of Object.keys(fileRefs)) {
+      const ref = fileRefs[key];
+      if (typeof ref !== "object") continue;
+      for (const field of Object.keys(ref)) if (ref[field] === "undefined" || ref[field] === undefined) delete ref[field];
+    }
+    const buildFiles = objects.PBXBuildFile || {};
+    for (const key of Object.keys(buildFiles)) {
+      const comment = buildFiles[`${key}_comment`];
+      if (typeof buildFiles[key] === "object" && comment === `${EXT}-Info.plist in Resources`) {
+        delete buildFiles[key];
+        delete buildFiles[`${key}_comment`];
+      }
+    }
 
     const configs = project.pbxXCBuildConfigurationSection();
     for (const key of Object.keys(configs)) {
