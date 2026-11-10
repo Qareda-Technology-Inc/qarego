@@ -80,6 +80,9 @@ Every new order also comes to the store's phone numbers by **SMS**, so you hear 
 
 **Pharmacies**
 - Customers attach **prescription photos** for prescription-only medicines. Check every prescription before you supply. You decide whether to supply each item.
+- **Prescription requests.** A customer can also send just a prescription photo (or a written list) without a cart. It shows on your board as **Prescription · to price**. Tap **Price it**, read the photo, and add each medicine with its quantity and price (start typing to pick from your product list). List anything you don't have under **Not in stock**, and add a note if you want (for example a generic swap). Then tap **Send price to customer**.
+- The customer approves or declines. **Don't pack anything until they approve.** You can change the price until they answer. Once they approve, the order moves to **Preparing** on its own: straight away for cash, or after the MoMo payment lands. If they decline, the order is cancelled. If you have none of it, **Decline** the order instead of pricing it.
+- The price you write is the medicine price. Your commission and payout work the same as any other order.
 - Riders are not shown the names of medicines, only how many items there are.
 
 **Gas stations**

@@ -185,6 +185,32 @@ const foodOrderSchema = new Schema(
       ),
       default: null,
     },
+    /**
+     * Prescription requests (vertical PHARMACY): the customer sent a photo or a list instead of a
+     * basket. The pharmacist prices it (items, subtotal and fees are filled in then), the customer
+     * approves, and only then does the order start. Null for every other order.
+     */
+    pharmacyQuote: {
+      type: new Schema(
+        {
+          /** awaiting_pharmacy → awaiting_customer → approved | declined (declined = cancelled). */
+          priceStatus: {
+            type: String,
+            enum: ["awaiting_pharmacy", "awaiting_customer", "approved", "declined"],
+            default: "awaiting_pharmacy",
+          },
+          /** What the customer wrote with the photo. */
+          request: { type: String, default: null },
+          quotedAt: { type: Date, default: null },
+          /** Medicines on the prescription the pharmacy doesn't have. */
+          unavailable: { type: [String], default: [] },
+          pharmacistNote: { type: String, default: null },
+          decidedAt: { type: Date, default: null },
+        },
+        { _id: false }
+      ),
+      default: null,
+    },
     cancelledBy: {
       type: String,
       // SYSTEM: cancelled automatically (a mobile money order never paid; utils/unpaidOrders.js).

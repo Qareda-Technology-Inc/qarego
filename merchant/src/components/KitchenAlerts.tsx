@@ -9,12 +9,21 @@ import { fetcher } from "@/lib/api";
 import { playNewOrderRing, stopNewOrderRing } from "@/lib/sound";
 import { showBrowserOrderNotification } from "@/lib/browserNotifications";
 
-type OrderRef = { _id: string; status?: string; customer?: { name?: string } };
+type OrderRef = {
+  _id: string;
+  status?: string;
+  customer?: { name?: string };
+  pharmacyQuote?: { priceStatus?: string } | null;
+};
+
+/** Waiting on the store. A priced prescription waits on the customer, so it doesn't ring. */
+const needsStore = (o: OrderRef) =>
+  o.status === "PLACED" && (!o.pharmacyQuote || o.pharmacyQuote.priceStatus === "awaiting_pharmacy");
 
 async function hasPendingPlacedOrders(): Promise<boolean> {
   try {
     const data = await fetcher("/merchant/orders");
-    return (data.orders || []).some((o: OrderRef) => o.status === "PLACED");
+    return (data.orders || []).some(needsStore);
   } catch {
     return false;
   }
@@ -106,7 +115,7 @@ export function KitchenAlerts() {
           if (o._id) knownIdsRef.current.add(o._id);
         });
         seededRef.current = true;
-        if (orders.some((o) => o.status === "PLACED")) {
+        if (orders.some(needsStore)) {
           startRing();
           setToast("New order waiting — accept or decline");
         }
@@ -120,9 +129,7 @@ export function KitchenAlerts() {
       if (!seededRef.current) return;
       try {
         const data = await fetcher("/merchant/orders");
-        const placed = (data.orders || []).filter(
-          (o: OrderRef) => o.status === "PLACED"
-        );
+        const placed = (data.orders || []).filter(needsStore);
         let foundNew = false;
         for (const o of placed) {
           if (o._id && !knownIdsRef.current.has(o._id)) {

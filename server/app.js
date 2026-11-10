@@ -54,6 +54,7 @@ import { isMomoEnabled } from "./utils/momoAvailability.js";
 import { adminOrigins, merchantOrigins } from "./utils/portalOrigins.js";
 import { ensureGasInExistingZones, ensureLaundryInExistingZones } from "./utils/serviceZones.js";
 import { fixStoreVerticalsFromTags } from "./utils/commerceStoreTypes.js";
+import { setSocketServer } from "./utils/socketServer.js";
 
 dotenv.config();
 
@@ -161,6 +162,7 @@ const io = new socketIo(server, { cors: { origin: "*" } });
 
 // Store io instance on app for route access
 app.set('io', io);
+setSocketServer(io);
 
 // Attach the WebSocket instance to the request object
 app.use((req, res, next) => {

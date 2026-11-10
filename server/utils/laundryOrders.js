@@ -20,7 +20,7 @@ export function laundryCourierSummary(order) {
 }
 
 /** Recalculate fees, total and the frozen cash split after the items changed. */
-function refreshTotals(order, settings, { waiveServiceFee = false } = {}) {
+export function refreshOrderTotals(order, settings, { waiveServiceFee = false } = {}) {
   order.subtotal = round2(order.items.reduce((s, i) => s + i.price * i.quantity, 0));
   order.serviceFee = waiveServiceFee || order.subtotal <= 0 ? 0 : computeFoodServiceFee(order.subtotal, settings);
   order.total = round2(order.subtotal + order.serviceFee + (order.deliveryFee || 0));
@@ -63,7 +63,7 @@ export async function applyLaundryCount(order, lines, settings) {
     quantity: quantities.get(String(m._id)),
     modifiers: [],
   }));
-  refreshTotals(order, settings);
+  refreshOrderTotals(order, settings);
 
   const priceRaised = order.subtotal > round2(order.laundry.estimatedSubtotal) + 0.004;
   order.laundry.countedAt = new Date();
@@ -87,7 +87,7 @@ export function applyLaundryDecision(order, decision, settings) {
   } else {
     order.laundry.priceStatus = "declined";
     order.items = order.items.map((i) => ({ ...(i.toObject?.() ?? i), price: 0 }));
-    refreshTotals(order, settings, { waiveServiceFee: true });
+    refreshOrderTotals(order, settings, { waiveServiceFee: true });
   }
   order.markModified("laundry");
 }

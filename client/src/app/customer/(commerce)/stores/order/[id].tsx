@@ -49,6 +49,7 @@ import {
 } from "@/utils/foodOrderTracking";
 import DeliveryCodeCard from "@/components/customer/food/DeliveryCodeCard";
 import LaundryPriceCard from "@/components/customer/food/LaundryPriceCard";
+import PharmacyPriceCard from "@/components/customer/food/PharmacyPriceCard";
 import FoodOrderCourierCard from "@/components/customer/food/FoodOrderCourierCard";
 import RestaurantRatingModal from "@/components/customer/food/RestaurantRatingModal";
 import { isFoodOrderRateable, withDeliveredFoodOrderStatus } from "@/utils/ratingFlow";
@@ -329,6 +330,7 @@ const FoodOrderTracking = () => {
   useEffect(() => {
     if (pay !== "1" || autoPayTriggeredRef.current) return;
     if (!order || order.paymentMethod !== "MOBILE_MONEY") return;
+    if (order.pharmacyQuote && order.pharmacyQuote.priceStatus !== "approved") return;
     const state = paymentInfo?.orderPaymentStatus || order.paymentStatus;
     if (state && ["PAID", "NOT_REQUIRED", "REFUNDED"].includes(state)) return;
     autoPayTriggeredRef.current = true;
@@ -513,8 +515,11 @@ const FoodOrderTracking = () => {
   const paymentLabel =
     order?.paymentMethod === "MOBILE_MONEY" ? "Mobile money" : order?.fulfillmentType === "PICKUP" ? "Cash at pickup" : "Cash on delivery";
   const orderPaymentState = paymentInfo?.orderPaymentStatus || order?.paymentStatus || "NOT_REQUIRED";
+  // A prescription is paid only once its price is approved.
+  const rxPricePending = !!order?.pharmacyQuote && order.pharmacyQuote.priceStatus !== "approved";
   const paymentNeedsAttention =
     order?.paymentMethod === "MOBILE_MONEY" &&
+    !rxPricePending &&
     ["UNPAID", "PENDING", "FAILED"].includes(orderPaymentState);
   const paymentStateText =
     order?.refundStatus === "DUE"
@@ -526,7 +531,9 @@ const FoodOrderTracking = () => {
       : orderPaymentState === "FAILED"
       ? "Payment failed"
       : orderPaymentState === "UNPAID"
-      ? "Payment not completed"
+      ? rxPricePending
+        ? "After you approve the price"
+        : "Payment not completed"
       : orderPaymentState === "REFUNDED" || order?.refundStatus === "REFUNDED"
       ? "Refunded"
       : // NOT_REQUIRED (cash) and any unknown codes: nothing to show
@@ -658,7 +665,7 @@ const FoodOrderTracking = () => {
                 {order.restaurantName}
               </CustomText>
             </View>
-            {order.status === "PLACED" ? (
+            {order.status === "PLACED" && !order.pharmacyQuote ? (
               <View style={styles.waitingRow}>
                 <ActivityIndicator size="small" color={FOOD_THEME.orange} />
                 <CustomText fontSize={12} color={FOOD_THEME.orangeDark} style={{ marginLeft: 8 }}>
@@ -759,6 +766,13 @@ const FoodOrderTracking = () => {
                 statusLabel={hero?.subtitle}
               />
             ) : null}
+
+            <PharmacyPriceCard
+              order={order}
+              onAnswered={(updated) => setOrder((prev) => (prev ? { ...prev, ...updated } : updated))}
+              onApprovedPayNow={handleResumePayment}
+              onError={(message) => showToast({ title: "Couldn't send", message, type: "error" })}
+            />
 
             <LaundryPriceCard
               order={order}

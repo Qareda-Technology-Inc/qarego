@@ -1,5 +1,6 @@
 import { startRefundIfDue } from "./orderRefunds.js";
 import { laundryPickupDispatchAt } from "./laundryPickup.js";
+import { pharmacyQuotePending } from "./pharmacyQuote.js";
 import Ride from "../models/Ride.js";
 import FoodOrder from "../models/FoodOrder.js";
 import Restaurant from "../models/Restaurant.js";
@@ -400,6 +401,8 @@ export async function applyRestaurantAction(orderId, action, io, options = {}) {
   switch (action) {
     case "accept":
       if (foodOrder.status !== "PLACED") return { error: "invalid_transition" };
+      // A prescription request starts only once the customer approves the pharmacist's price.
+      if (pharmacyQuotePending(foodOrder)) return { error: "pharmacy_quote_pending" };
       if (
         foodOrder.paymentMethod === "MOBILE_MONEY" &&
         foodOrder.paymentStatus !== "PAID"

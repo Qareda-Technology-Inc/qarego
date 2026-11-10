@@ -19,6 +19,7 @@ import { OrderPayoutNote } from "@/components/OrderPayoutNote";
 import { VerticalIcon } from "@/components/VerticalIcon";
 import { formatPickupWindow } from "@/lib/laundryPickup";
 import { LaundryCountModal } from "@/components/LaundryCountModal";
+import { PharmacyQuoteModal } from "@/components/PharmacyQuoteModal";
 import {
   Bell,
   CheckCircle,
@@ -38,6 +39,7 @@ import {
   ClipboardCheck,
   Shirt,
   CalendarClock,
+  Pill,
 } from "lucide-react";
 
 type RestaurantLoc = {
@@ -133,6 +135,7 @@ export default function OrdersPage() {
   const [mobileColumn, setMobileColumn] = useState<ColumnKey>("new");
   const [assignTarget, setAssignTarget] = useState<{ orderId: string; label: string } | null>(null);
   const [countOrder, setCountOrder] = useState<FoodOrderRow | null>(null);
+  const [quoteOrder, setQuoteOrder] = useState<FoodOrderRow | null>(null);
 
   const loadStats = useCallback(async () => {
     try {
@@ -417,6 +420,10 @@ export default function OrdersPage() {
                           setAssignTarget({ orderId: order._id, label: order.customer?.name || "this order" })
                         }
                         onCount={() => setCountOrder(order)}
+                        onQuote={() => {
+                          stopNewOrderRing();
+                          setQuoteOrder(order);
+                        }}
                       />
                     ))}
                   </div>
@@ -432,6 +439,16 @@ export default function OrdersPage() {
         onClose={() => setCountOrder(null)}
         onCounted={() => {
           setCountOrder(null);
+          load();
+          loadStats();
+        }}
+      />
+
+      <PharmacyQuoteModal
+        order={quoteOrder}
+        onClose={() => setQuoteOrder(null)}
+        onQuoted={() => {
+          setQuoteOrder(null);
           load();
           loadStats();
         }}
@@ -462,6 +479,7 @@ function OrderCard({
   onAct,
   onAssign,
   onCount,
+  onQuote,
 }: {
   order: FoodOrderRow;
   column: ColumnKey;
@@ -474,6 +492,7 @@ function OrderCard({
   onAct: (action: Action) => void;
   onAssign: () => void;
   onCount: () => void;
+  onQuote: () => void;
 }) {
   const mins = minutesSince(columnSince(order), now);
   const [warn, late] = LATE_AFTER[column];
@@ -486,6 +505,11 @@ function OrderCard({
   const isNew = order.status === "PLACED";
   const isPickup = order.fulfillmentType === "PICKUP";
   const laundry = order.laundry ?? null;
+  // Prescription request: priced here, approved by the customer, then it starts on its own.
+  const rx = order.pharmacyQuote ?? null;
+  const rxToPrice = !!rx && isNew && rx.priceStatus === "awaiting_pharmacy";
+  const rxWaitingCustomer = !!rx && isNew && rx.priceStatus === "awaiting_customer";
+  const rxWaitingPayment = !!rx && isNew && rx.priceStatus === "approved";
   // Gas refills and laundry are collected from the customer before the store can start.
   const collectFirst = order.gasMode === "REFILL" || !!laundry;
   const refillWaiting = order.status === "PREPARING" && collectFirst && order.gasStage !== "AT_STATION";
@@ -552,6 +576,12 @@ function OrderCard({
             Pickup {formatPickupWindow(laundry!.pickupAt!)}
           </span>
         ) : null}
+        {rx ? (
+          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800">
+            <Pill className="h-3 w-3" />
+            Prescription{rxToPrice ? " · to price" : rxWaitingCustomer ? " · priced" : ""}
+          </span>
+        ) : null}
         {laundry?.priceStatus === "declined" ? (
           <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800">
             Return unwashed
@@ -583,11 +613,17 @@ function OrderCard({
       {order.notes ? (
         <p className="mt-2 rounded-lg bg-amber-50 px-2 py-1 text-sm text-amber-900">Note: {order.notes}</p>
       ) : null}
+      {rx?.request ? (
+        <p className="mt-2 rounded-lg bg-emerald-50 px-2 py-1 text-sm text-emerald-900">Customer wrote: {rx.request}</p>
+      ) : null}
+      {rx?.unavailable?.length ? (
+        <p className="mt-1 text-xs text-muted">Not in stock: {rx.unavailable.join(", ")}</p>
+      ) : null}
       <PrescriptionAttachments urls={order.prescriptionUrls} />
 
       <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
         <span className="text-sm text-muted">{laundry && !laundry.countedAt ? "Customer's estimate" : "Order total"}</span>
-        <span className="font-bold text-foreground">{formatCurrency(order.subtotal)}</span>
+        <span className="font-bold text-foreground">{rxToPrice ? "Not priced yet" : formatCurrency(order.subtotal)}</span>
       </div>
       <OrderPayoutNote order={order} />
 
@@ -639,11 +675,37 @@ function OrderCard({
       ) : null}
 
       <div className="mt-4 flex flex-col gap-2">
+        {rxWaitingCustomer ? (
+          <div className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            <p className="flex items-center gap-1 font-medium">
+              <Clock className="h-4 w-4" /> Waiting for the customer to approve {formatCurrency(order.subtotal)}
+            </p>
+            <p className="mt-0.5 text-xs">Don&apos;t pack it yet. It moves to Preparing once they approve.</p>
+            <button onClick={onQuote} className="mt-1 text-xs font-medium text-brand hover:underline">
+              Change price
+            </button>
+          </div>
+        ) : null}
+        {rxWaitingPayment ? (
+          <p className="flex items-center gap-1 rounded-lg bg-blue-50 px-3 py-2 text-sm text-blue-900">
+            <Smartphone className="h-4 w-4 shrink-0" /> Approved. Waiting for the customer&apos;s MoMo payment.
+          </p>
+        ) : null}
         {isNew ? (
           <div className="grid grid-cols-2 gap-2">
+            {rx ? (
+              <Button
+                disabled={busy || !rxToPrice}
+                onClick={onQuote}
+                className={`h-11 ${rxToPrice ? "" : "invisible"}`}
+              >
+                <Pill className="mr-1 inline h-4 w-4" /> Price it
+              </Button>
+            ) : (
             <Button disabled={busy} onClick={() => onAct("accept")} className="h-11 bg-green-600 hover:bg-green-700">
               <CheckCircle className="mr-1 inline h-4 w-4" /> Accept
             </Button>
+            )}
             <Button
               disabled={busy}
               onClick={() => onAct("reject")}

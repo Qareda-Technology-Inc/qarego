@@ -4,6 +4,7 @@ import FoodOrder from "../../models/FoodOrder.js";
 import { StatusCodes } from "http-status-codes";
 import { BadRequestError, NotFoundError } from "../../errors/index.js";
 import { applyLaundryCountAction, applyRestaurantAction } from "../../utils/foodOrderFlow.js";
+import { applyPharmacyQuoteAction } from "../../utils/pharmacyRequests.js";
 
 const KITCHEN_STATUSES = ["PLACED", "PREPARING", "READY_FOR_PICKUP", "PICKED_UP"];
 const ACTIVE_KITCHEN_STATUSES = ["PREPARING", "READY_FOR_PICKUP", "PICKED_UP"];
@@ -177,6 +178,17 @@ export const countMyLaundryOrder = async (req, res) => {
   res.status(StatusCodes.OK).json({ order: result.order, priceRaised: result.priceRaised });
 };
 
+/**
+ * POST /merchant/orders/:id/pharmacy-quote { items: [{ name, quantity, price }], unavailable, note }
+ * — the pharmacist prices a prescription request. The customer approves before anything starts.
+ */
+export const quoteMyPharmacyOrder = async (req, res) => {
+  const result = await applyPharmacyQuoteAction(req.params.id, req.restaurantId, req.body, req.app.get("io"));
+  if (result.error === "not_found") throw new NotFoundError("Order not found");
+  if (result.error) throw new BadRequestError(result.message || "This order can't be priced now");
+  res.status(StatusCodes.OK).json({ order: result.order });
+};
+
 export const myOrderAction = async (req, res) => {
   const { action, cancelReason, driverId } = req.body;
   if (!["accept", "reject", "ready", "assign_rider", "empty_returned", "collected"].includes(action)) {
@@ -217,6 +229,9 @@ export const myOrderAction = async (req, res) => {
   }
   if (result.error === "laundry_not_counted") {
     throw new BadRequestError("Count the items and confirm the price first");
+  }
+  if (result.error === "pharmacy_quote_pending") {
+    throw new BadRequestError("Send the price first. The order starts once the customer approves it.");
   }
   if (result.error === "laundry_awaiting_customer") {
     throw new BadRequestError("Waiting for the customer to approve the new price");

@@ -16,6 +16,9 @@ import { getSettings } from '../utils/tripSettlement.js';
 import { settleFoodOrderOnDelivery, settlementStatusFor, syncRiderDeliveryPay } from '../utils/foodOrderSettlement.js';
 import { applyRefundOutcome, startRefundIfDue } from '../utils/orderRefunds.js';
 import { reconcilePaystackRidePayment } from '../utils/ridePayments.js';
+import { pharmacyQuotePending } from '../utils/pharmacyQuote.js';
+import { startPaidPharmacyOrder } from '../utils/pharmacyRequests.js';
+import { getSocketServer } from '../utils/socketServer.js';
 import { reconcileStorePayment } from '../utils/storePayments.js';
 import StorePayment from '../models/StorePayment.js';
 import { payOutRiderBalance } from '../utils/riderPayout.js';
@@ -67,6 +70,15 @@ async function processFoodPaymentSuccess(payment) {
       } catch (err) {
         console.warn('[refund] start failed:', String(order._id), err.message);
       }
+    }
+  }
+
+  // An approved prescription order waits for this payment before the pharmacy starts it.
+  if (order.pharmacyQuote && order.status === 'PLACED') {
+    try {
+      await startPaidPharmacyOrder(order._id, getSocketServer());
+    } catch (err) {
+      console.error('[pharmacy] could not start paid order', String(order._id), err.message);
     }
   }
 
@@ -385,6 +397,9 @@ export const initiateFoodOrderPayment = async (req, res) => {
   }
   if (order.paymentMethod !== 'MOBILE_MONEY') {
     throw new BadRequestError('This order is not configured for mobile money payment');
+  }
+  if (pharmacyQuotePending(order)) {
+    throw new BadRequestError("You'll pay once you approve the pharmacist's price");
   }
   if (order.paymentStatus === 'PAID') {
     const payment = await FoodPayment.findOne({ order: order._id }).lean();

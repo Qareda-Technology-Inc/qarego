@@ -50,6 +50,15 @@ type OrderDetail = {
     decidedAt?: string | null;
     pickupAt?: string | null;
   } | null;
+  /** Prescription request: priced by the pharmacist, approved by the customer. */
+  pharmacyQuote?: {
+    priceStatus: "awaiting_pharmacy" | "awaiting_customer" | "approved" | "declined";
+    request?: string | null;
+    quotedAt?: string | null;
+    unavailable?: string[];
+    pharmacistNote?: string | null;
+    decidedAt?: string | null;
+  } | null;
   tripShare?: { type: "TRIP_SHARE_CREDIT" | "TRIP_SHARE_DEBIT"; amount: number; driver?: Person | null }[];
   items: { name: string; quantity: number; price: number; modifiers?: { optionName: string }[] }[];
   notes?: string;
@@ -141,6 +150,13 @@ const LAUNDRY_PRICE: Record<string, { label: string; tone: string }> = {
   awaiting_customer: { label: "Waiting for customer to approve", tone: "bg-amber-100 text-amber-800" },
   approved: { label: "Price agreed", tone: "bg-green-100 text-green-800" },
   declined: { label: "Declined · returning unwashed", tone: "bg-red-100 text-red-800" },
+};
+
+const PHARMACY_PRICE: Record<string, { label: string; tone: string }> = {
+  awaiting_pharmacy: { label: "Waiting for the pharmacist's price", tone: "bg-gray-100 text-gray-700" },
+  awaiting_customer: { label: "Waiting for customer to approve", tone: "bg-amber-100 text-amber-800" },
+  approved: { label: "Price approved", tone: "bg-green-100 text-green-800" },
+  declined: { label: "Customer declined the price", tone: "bg-red-100 text-red-800" },
 };
 
 const PAYOUT_LEG: Record<string, { label: string; tone: string }> = {
@@ -392,6 +408,36 @@ export default function StoreOrderDetailPage() {
               ) : null}
             </CardContent>
           </Card>
+
+          {order.pharmacyQuote ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Prescription request</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                <span
+                  className={`inline-block rounded-full px-2 py-1 text-xs font-medium ${PHARMACY_PRICE[order.pharmacyQuote.priceStatus]?.tone}`}
+                >
+                  {PHARMACY_PRICE[order.pharmacyQuote.priceStatus]?.label ?? order.pharmacyQuote.priceStatus}
+                </span>
+                {order.pharmacyQuote.request ? (
+                  <p className="text-gray-700">Customer wrote: {order.pharmacyQuote.request}</p>
+                ) : null}
+                {order.pharmacyQuote.unavailable?.length ? (
+                  <p className="text-gray-700">Not in stock: {order.pharmacyQuote.unavailable.join(", ")}</p>
+                ) : null}
+                {order.pharmacyQuote.pharmacistNote ? (
+                  <p className="text-gray-700">Pharmacist: {order.pharmacyQuote.pharmacistNote}</p>
+                ) : null}
+                {order.pharmacyQuote.quotedAt ? (
+                  <p className="text-xs text-gray-500">Priced {new Date(order.pharmacyQuote.quotedAt).toLocaleString()}</p>
+                ) : null}
+                {order.pharmacyQuote.decidedAt ? (
+                  <p className="text-xs text-gray-500">Answered {new Date(order.pharmacyQuote.decidedAt).toLocaleString()}</p>
+                ) : null}
+              </CardContent>
+            </Card>
+          ) : null}
 
           {laundry ? (
             <Card>

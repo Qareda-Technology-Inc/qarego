@@ -21,7 +21,15 @@ export async function cancelStaleUnpaidOrders(io, now = new Date()) {
     status: "PLACED",
     paymentMethod: "MOBILE_MONEY",
     paymentStatus: { $in: ["UNPAID", "PENDING", "FAILED"] },
-    createdAt: { $lt: new Date(now - UNPAID_ORDER_MINUTES * MINUTE) },
+    // A prescription request is paid only after the customer approves the price, so its clock
+    // starts then; one still being priced or answered isn't unpaid yet.
+    $or: [
+      { pharmacyQuote: null, createdAt: { $lt: new Date(now - UNPAID_ORDER_MINUTES * MINUTE) } },
+      {
+        "pharmacyQuote.priceStatus": "approved",
+        "pharmacyQuote.decidedAt": { $lt: new Date(now - UNPAID_ORDER_MINUTES * MINUTE) },
+      },
+    ],
   })
     .select("_id")
     .limit(20)

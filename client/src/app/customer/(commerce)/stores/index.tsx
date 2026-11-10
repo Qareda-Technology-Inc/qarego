@@ -27,6 +27,7 @@ import RestaurantCard from "@/components/customer/food/RestaurantCard";
 import { STORE_TYPE_FILTERS } from "@/components/customer/food/StoreTypeFilterRow";
 import DeliverToBar from "@/components/customer/food/DeliverToBar";
 import CuisineCarousel from "@/components/customer/food/CuisineCarousel";
+import PrescriptionPromptCard from "@/components/customer/food/PrescriptionPromptCard";
 import { COMMERCE_SEARCH_HINT, FOOD_THEME, GRID_CARD_WIDTH, GRID_H_PAD } from "@/styles/foodStyles";
 import CommerceModuleLinks from "@/components/customer/food/CommerceModuleLinks";
 import CommerceTopBar from "@/components/customer/food/CommerceTopBar";
@@ -194,6 +195,8 @@ const AllStoresBrowse = () => {
         <Ionicons name="chevron-forward" size={18} color="#cbd5e1" />
       </TouchableOpacity>
 
+      {typeFilter === "PHARMACY" ? <PrescriptionPromptCard style={styles.rxPrompt} /> : null}
+
       <CuisineCarousel
         cuisines={categories}
         selected={categoryFilter}
@@ -325,6 +328,7 @@ const styles = StyleSheet.create({
     color: FOOD_THEME.searchHint,
     fontWeight: "400",
   },
+  rxPrompt: { marginHorizontal: 16, marginTop: 6, marginBottom: 6 },
   loadingWrap: { flex: 1, alignItems: "center", justifyContent: "center" },
   gridRow: { justifyContent: "space-between", marginBottom: 14 },
   gridCell: { width: GRID_CARD_WIDTH },

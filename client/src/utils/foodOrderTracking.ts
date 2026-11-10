@@ -457,6 +457,7 @@ export function getHeroStatusLabel(
         restaurantName?: string;
         vertical?: string;
         storeVertical?: string;
+        pharmacyQuote?: { priceStatus?: string } | null;
       } & CancelInfo)
     | null
 ): { title: string; subtitle: string } {
@@ -465,6 +466,21 @@ export function getHeroStatusLabel(
 
   if (orderStatus === "CANCELLED") {
     return { title: "Order cancelled", subtitle: cancelledMoneyNote(order) };
+  }
+  // Prescription request: priced by the pharmacist, approved by the customer, then it starts.
+  if (order?.pharmacyQuote && orderStatus === "PLACED") {
+    const store = order.restaurantName || "The pharmacy";
+    const status = order.pharmacyQuote.priceStatus;
+    if (status === "awaiting_customer") {
+      return { title: "Approve your price", subtitle: `${store} priced your prescription. Check it below.` };
+    }
+    if (status === "approved") {
+      return { title: "Pay to confirm", subtitle: `Pay by MoMo and ${store} starts packing your order.` };
+    }
+    return {
+      title: "A pharmacist is checking it",
+      subtitle: `${store} is reading your prescription and will send you the price. You pay nothing until you approve.`,
+    };
   }
   // A finished collection trip (gas refill, laundry) isn't the delivery.
   const collectFirst = order?.gasMode === "REFILL" || !!order?.laundry;

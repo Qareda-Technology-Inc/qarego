@@ -12,6 +12,7 @@ import {
   rateFoodOrder,
   cancelMyFoodOrder,
   answerLaundryPrice,
+  answerPharmacyPrice,
   getFoodCheckoutSettings,
   getFoodDeliveryQuote,
   adminListFoodOrders,
@@ -43,6 +44,7 @@ router.get("/orders/:id", getFoodOrder);
 router.post("/orders/:id/rate", rateFoodOrder);
 router.post("/orders/:id/cancel", cancelMyFoodOrder);
 router.post("/orders/:id/laundry-price", answerLaundryPrice);
+router.post("/orders/:id/pharmacy-price", answerPharmacyPrice);
 
 /** Restaurant console (admin token). requireAdmin applies the admin's role (staff can't). */
 router.use("/admin", requireAdmin);

@@ -19,6 +19,7 @@ function formatCustomerName(order) {
 }
 
 function formatItemSummary(order) {
+  if (order?.pharmacyQuote?.priceStatus === "awaiting_pharmacy") return "Prescription to price";
   const items = Array.isArray(order?.items) ? order.items : [];
   if (!items.length) return "New order";
   const summary = items

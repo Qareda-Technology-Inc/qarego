@@ -37,6 +37,8 @@ import { isDuplicateKeyError, readClientRequestId } from "../utils/idempotency.j
 import { listAssignableRiders } from "./merchant/orders.js";
 import { availableNowFilter } from "../utils/menuAvailability.js";
 import { countItems } from "../utils/laundryOrders.js";
+import { readPrescriptionRequestText } from "../utils/pharmacyQuote.js";
+import { applyPharmacyCustomerDecision } from "../utils/pharmacyRequests.js";
 import {
   PICKUP_WINDOW_MIN,
   laundryAsapAvailable,
@@ -139,7 +141,11 @@ export const createFoodOrder = async (req, res) => {
     promoCode,
     prescriptionUrls: prescriptionUrlsRaw,
     laundryPickupAt: laundryPickupRaw,
+    prescriptionRequest: prescriptionRequestRaw,
+    prescriptionNote,
   } = req.body;
+  // Prescription request: a photo or list for the pharmacist to price, no basket (utils/pharmacyQuote.js).
+  const wantsPrescriptionRequest = prescriptionRequestRaw === true;
 
   if (paymentMethod === "MOBILE_MONEY") assertMomoEnabled();
   await assertNoUnpaidRide(req.user.id, req.io);
@@ -147,7 +153,7 @@ export const createFoodOrder = async (req, res) => {
     ? fulfillmentRaw
     : "DELIVERY";
 
-  if (!restaurantId || !Array.isArray(items) || items.length === 0) {
+  if (!restaurantId || (!wantsPrescriptionRequest && (!Array.isArray(items) || items.length === 0))) {
     throw new BadRequestError("Restaurant and items are required");
   }
 
@@ -166,6 +172,13 @@ export const createFoodOrder = async (req, res) => {
   }
   // Laundry is collected from the customer and brought back (see utils/laundryOrders.js).
   const isLaundry = restaurant.vertical === "LAUNDRY";
+  const isPrescriptionRequest = wantsPrescriptionRequest && restaurant.vertical === "PHARMACY";
+  if (wantsPrescriptionRequest && !isPrescriptionRequest) {
+    throw new BadRequestError("Only pharmacies take prescriptions");
+  }
+  if (isPrescriptionRequest && fulfillmentType === "SCHEDULED") {
+    throw new BadRequestError("Choose delivery or pickup for a prescription");
+  }
   // The price can change when the shop counts, so laundry is paid in cash when it comes back.
   if (isLaundry && paymentMethod === "MOBILE_MONEY") {
     throw new BadRequestError("Laundry is paid in cash when it's brought back. Please choose cash.");
@@ -227,7 +240,7 @@ export const createFoodOrder = async (req, res) => {
     throw new BadRequestError(suffix);
   }
 
-  const menuIds = items.map((i) => i.menuItemId).filter(Boolean);
+  const menuIds = isPrescriptionRequest ? [] : items.map((i) => i.menuItemId).filter(Boolean);
   const menuDocs = await MenuItem.find({
     _id: { $in: menuIds },
     restaurant: restaurant._id,
@@ -239,7 +252,7 @@ export const createFoodOrder = async (req, res) => {
   const orderItems = [];
   let subtotal = 0;
 
-  for (const line of items) {
+  for (const line of isPrescriptionRequest ? [] : items) {
     const qty = Math.max(1, parseInt(line.quantity, 10) || 1);
     const menu = menuMap.get(String(line.menuItemId));
     if (!menu) {
@@ -265,7 +278,8 @@ export const createFoodOrder = async (req, res) => {
     });
   }
 
-  if (subtotal < restaurant.minOrderAmount) {
+  // A prescription has no price until the pharmacist writes one.
+  if (!isPrescriptionRequest && subtotal < restaurant.minOrderAmount) {
     throw new BadRequestError(
       `Minimum order for ${restaurant.name} is GH₵${restaurant.minOrderAmount.toFixed(2)}`
     );
@@ -301,7 +315,7 @@ export const createFoodOrder = async (req, res) => {
     deliveryFee = driverFee;
     deliveryDistanceKm = quote.distanceKm;
   }
-  const serviceFee = computeFoodServiceFee(subtotal, settings);
+  const serviceFee = isPrescriptionRequest ? 0 : computeFoodServiceFee(subtotal, settings);
   // Round once so stored totals never carry float noise (e.g. 26.990000000000002).
   const total = Math.round((subtotal + serviceFee + deliveryFee) * 100) / 100;
   const split = computeFoodOrderSplit(
@@ -318,6 +332,10 @@ export const createFoodOrder = async (req, res) => {
   const prescriptionUrls = restaurant.vertical === "PHARMACY"
     ? normalizePrescriptionUrls(prescriptionUrlsRaw)
     : [];
+  const prescriptionRequestText = isPrescriptionRequest ? readPrescriptionRequestText(prescriptionNote) : "";
+  if (isPrescriptionRequest && prescriptionUrls.length === 0 && prescriptionRequestText.length < 3) {
+    throw new BadRequestError("Add a photo of your prescription, or write what you need");
+  }
   if (orderRequiresPrescription(restaurant.vertical, menuDocs) && prescriptionUrls.length === 0) {
     throw new BadRequestError(
       "This order includes prescription-only items. Please upload a photo of your prescription."
@@ -359,6 +377,9 @@ export const createFoodOrder = async (req, res) => {
     laundry: isLaundry
       ? { estimatedSubtotal: subtotal, estimatedItemCount: countItems(orderItems), pickupAt: laundryPickupAt }
       : null,
+    pharmacyQuote: isPrescriptionRequest
+      ? { priceStatus: "awaiting_pharmacy", request: prescriptionRequestText || null }
+      : null,
   });
   } catch (err) {
     // Two copies of the same checkout arrived together: answer with the first.
@@ -391,7 +412,7 @@ export const createFoodOrder = async (req, res) => {
   notifyRestaurantStaffNewOrder(restaurant._id, populated);
 
   res.status(StatusCodes.CREATED).json({
-    message: "Food order placed — waiting for restaurant",
+    message: isPrescriptionRequest ? "Sent to the pharmacist" : "Food order placed — waiting for restaurant",
     order: populated,
   });
 };
@@ -748,6 +769,9 @@ export const adminRestaurantOrderAction = async (req, res) => {
   if (result.error === "laundry_not_counted") {
     throw new BadRequestError("The shop hasn't counted the items and confirmed the price yet");
   }
+  if (result.error === "pharmacy_quote_pending") {
+    throw new BadRequestError("The pharmacy hasn't priced this yet, or the customer hasn't approved the price");
+  }
   if (result.error === "laundry_awaiting_customer") {
     throw new BadRequestError("Waiting for the customer to approve the new price");
   }
@@ -780,5 +804,14 @@ export const answerLaundryPrice = async (req, res) => {
   if (result.error === "not_found") throw new NotFoundError("Order not found");
   if (result.error === "bad_decision") throw new BadRequestError("decision must be approve or decline");
   if (result.error) throw new BadRequestError(result.message || "This order isn't waiting for your answer");
+  res.status(StatusCodes.OK).json({ order: result.order });
+};
+
+/** POST /food/orders/:id/pharmacy-price { decision: approve | decline } — answer the pharmacist's price. */
+export const answerPharmacyPrice = async (req, res) => {
+  const result = await applyPharmacyCustomerDecision(req.params.id, req.user.id, req.body?.decision, req.app.get("io"));
+  if (result.error === "not_found") throw new NotFoundError("Order not found");
+  if (result.error === "bad_decision") throw new BadRequestError("decision must be approve or decline");
+  if (result.error) throw new BadRequestError(result.message || "This price can't be answered now");
   res.status(StatusCodes.OK).json({ order: result.order });
 };

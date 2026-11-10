@@ -21,6 +21,7 @@ import {
   submitMyStoreForReview,
   changeMyPassword,
   countMyLaundryOrder,
+  quoteMyPharmacyOrder,
   setAcceptingOrders,
   getMyStats,
   listMyMenuCategories,
@@ -102,6 +103,7 @@ router.get("/orders", loadMerchantContext, listMyOrders);
 router.get("/riders", loadMerchantContext, listAssignableRiders);
 router.patch("/orders/:id", loadMerchantContext, myOrderAction);
 router.post("/orders/:id/laundry-count", loadMerchantContext, countMyLaundryOrder);
+router.post("/orders/:id/pharmacy-quote", loadMerchantContext, quoteMyPharmacyOrder);
 
 // Cooks (staff) — owner only
 router.get("/cooks", loadMerchantContext, requireOwner, listMyCooks);

@@ -117,6 +117,15 @@ export type FoodOrder = {
     /** Start of the booked 2-hour collection window; null = as soon as the shop accepts. */
     pickupAt?: string | null;
   } | null;
+  /** Prescription request: the pharmacist prices the photo, then the customer approves. */
+  pharmacyQuote?: {
+    priceStatus: "awaiting_pharmacy" | "awaiting_customer" | "approved" | "declined";
+    request?: string | null;
+    quotedAt?: string | null;
+    unavailable?: string[];
+    pharmacistNote?: string | null;
+    decidedAt?: string | null;
+  } | null;
   deliveryCode?: string | null;
   fulfillmentType?: "DELIVERY" | "PICKUP" | "SCHEDULED";
   /** SCHEDULED: requested delivery time; kitchenStartAt is when the store starts cooking. */
@@ -177,6 +186,10 @@ export const createFoodOrder = async (payload: {
   prescriptionUrls?: string[];
   /** Laundry: start of the chosen collection window (omit for as soon as possible). */
   laundryPickupAt?: string;
+  /** Pharmacy: send the prescription to be priced (items empty). */
+  prescriptionRequest?: boolean;
+  /** Prescription request: what the customer needs, in their words. */
+  prescriptionNote?: string;
   /** Same id on a retry → the server returns the first order instead of a duplicate. */
   clientRequestId?: string;
 }) => {
@@ -274,6 +287,15 @@ export const answerLaundryPrice = async (
   decision: "approve" | "decline"
 ): Promise<FoodOrder | null> => {
   const res = await appAxios.post(`/food/orders/${orderId}/laundry-price`, { decision });
+  return res.data?.order ?? null;
+};
+
+/** Prescription request: approve the pharmacist's price (then pay, for MoMo), or decline it. */
+export const answerPharmacyPrice = async (
+  orderId: string,
+  decision: "approve" | "decline"
+): Promise<FoodOrder | null> => {
+  const res = await appAxios.post(`/food/orders/${orderId}/pharmacy-price`, { decision });
   return res.data?.order ?? null;
 };
 

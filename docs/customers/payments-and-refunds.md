@@ -36,7 +36,7 @@ Mobile money and card payments are processed by **Paystack**. QareGO never sees 
 
 A store may also cancel an order it can't fulfil, for example when an item has run out.
 
-A store order you chose to pay by mobile money or card is cancelled automatically if the payment isn't finished within about 15 minutes. You aren't charged; if a payment does go through after that, it's refunded automatically.
+A store order you chose to pay by mobile money or card is cancelled automatically if the payment isn't finished within about 15 minutes. You aren't charged; if a payment does go through after that, it's refunded automatically. For a prescription you send to a pharmacy, you pay only after you approve the pharmacist's price, and the 15 minutes start from when you approve.
 
 **Cancelling after the rider has arrived** is free for you, but it costs the rider their time, so QareGO pays them. These late cancels are counted: after too many in a short time, ride and parcel bookings are paused for a few days (store orders still work). The app tells you after each one how close you are to the limit.
 

@@ -29,6 +29,7 @@ import { useMessage } from "@/context/MessageContext";
 import { DS } from "@/theme/designSystem";
 import { resolveMediaUrl } from "@/utils/mediaUrl";
 import MenuCategoryTabs from "@/components/customer/food/MenuCategoryTabs";
+import PrescriptionPromptCard from "@/components/customer/food/PrescriptionPromptCard";
 import MenuItemCard from "@/components/customer/food/MenuItemCard";
 import MenuItemsHorizontalRow from "@/components/customer/food/MenuItemsHorizontalRow";
 import MenuItemCustomizeModal from "@/components/customer/food/MenuItemCustomizeModal";
@@ -642,6 +643,10 @@ const RestaurantMenu = () => {
                 </CustomText>
               </View>
             </View>
+          ) : null}
+
+          {selectedVertical === "PHARMACY" && !isClosed ? (
+            <PrescriptionPromptCard restaurantId={restaurant._id} style={{ marginBottom: 16 }} />
           ) : null}
 
           {renderMenuSections()}

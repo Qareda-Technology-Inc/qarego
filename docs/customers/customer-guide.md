@@ -62,7 +62,11 @@ Don't send anything illegal or dangerous: weapons, drugs, explosives, flammable 
 
 **Mobile money orders** are paid when you place them. The store starts once your payment is confirmed. If the payment isn't finished within about 15 minutes, the order is cancelled automatically and you aren't charged.
 
-**Pharmacy:** for prescription-only medicines, upload a photo of your prescription when you order. The pharmacy checks it and decides what it can supply. Your rider doesn't see the names of your medicines.
+**Pharmacy:** there are two ways to order.
+- **Send a prescription.** Tap **Have a prescription?**, take a photo of it (up to 3 pages), or just write what you need. Choose a pharmacy (the nearest open one is picked for you), delivery or pickup, and cash or MoMo. Sending is free. The pharmacist replies with a price: each medicine, anything they don't have, and the total with fees. **Approve** it and the pharmacy starts packing. For MoMo you pay right after approving. **Decline** and the order is cancelled; you've paid nothing.
+- **Shop the shelves.** Add products to your cart as usual. For prescription-only medicines, attach a photo of your prescription at checkout. The pharmacy checks it and decides what it can supply.
+
+Either way, your rider doesn't see the names of your medicines.
 
 **Cancelling:** you can cancel a store order until the store accepts it. After that, contact the store or QareGO support.
 

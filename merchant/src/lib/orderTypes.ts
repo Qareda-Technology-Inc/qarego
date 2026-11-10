@@ -23,6 +23,16 @@ export type FoodOrderRow = {
     /** Booked collection window start; null = collect as soon as accepted. */
     pickupAt?: string | null;
   } | null;
+  /** Prescription requests: the pharmacist prices the photo, the customer approves. */
+  pharmacyQuote?: {
+    priceStatus: "awaiting_pharmacy" | "awaiting_customer" | "approved" | "declined";
+    request?: string | null;
+    quotedAt?: string | null;
+    unavailable?: string[];
+    pharmacistNote?: string | null;
+    decidedAt?: string | null;
+  } | null;
+  paymentStatus?: string;
   items: {
     menuItem?: string;
     name: string;

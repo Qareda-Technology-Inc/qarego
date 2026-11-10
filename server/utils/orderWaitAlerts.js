@@ -65,7 +65,13 @@ export function normalizeOrderAlertsInput(input) {
 function waitingFilter(olderThan, sinceFloor, sentField) {
   return {
     status: "PLACED",
-    $or: [{ paymentMethod: "CASH" }, { paymentStatus: "PAID" }],
+    // A prescription still to be priced needs the pharmacy (whatever the payment); one waiting
+    // for the customer's answer doesn't.
+    $or: [
+      { paymentMethod: "CASH", "pharmacyQuote.priceStatus": { $ne: "awaiting_customer" } },
+      { paymentStatus: "PAID" },
+      { "pharmacyQuote.priceStatus": "awaiting_pharmacy" },
+    ],
     createdAt: { $lt: olderThan, $gte: sinceFloor },
     [sentField]: null,
   };
@@ -76,6 +82,7 @@ function minutesWaiting(order, now) {
 }
 
 function itemSummary(order) {
+  if (order?.pharmacyQuote?.priceStatus === "awaiting_pharmacy") return "a prescription to price";
   const items = Array.isArray(order?.items) ? order.items : [];
   const text = items
     .slice(0, 2)

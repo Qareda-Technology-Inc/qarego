@@ -190,7 +190,13 @@ const CustomerOrders = () => {
     const active = ACTIVE_FOOD_STATUSES.includes(order.status);
     const vertical = resolveOrderVertical(order);
     const copy = getCommerceOrderCopy(vertical);
-    const summary = (order.items || []).map((i) => `${i.quantity}× ${i.name}`).join(", ");
+    const rx = order.pharmacyQuote?.priceStatus;
+    const summary =
+      rx === "awaiting_pharmacy"
+        ? "Prescription · waiting for the price"
+        : rx === "awaiting_customer" && order.status === "PLACED"
+        ? "Prescription · price ready to approve"
+        : (order.items || []).map((i) => `${i.quantity}× ${i.name}`).join(", ") || (rx ? "Prescription" : "");
     return (
       <TouchableOpacity
         style={styles.foodCard}
