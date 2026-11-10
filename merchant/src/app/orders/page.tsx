@@ -20,6 +20,7 @@ import { VerticalIcon } from "@/components/VerticalIcon";
 import { formatPickupWindow } from "@/lib/laundryPickup";
 import { LaundryCountModal } from "@/components/LaundryCountModal";
 import { PharmacyQuoteModal } from "@/components/PharmacyQuoteModal";
+import { laundryServiceLabel } from "@/lib/laundryOptions";
 import {
   Bell,
   CheckCircle,
@@ -570,6 +571,23 @@ function OrderCard({
             {laundry.countedAt ? " · counted" : " · estimate"}
           </span>
         ) : null}
+        {laundry?.express ? (
+          <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-900">
+            <Clock className="h-3 w-3" /> Express
+          </span>
+        ) : null}
+        {laundry?.returnBy ? (
+          <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
+            Back by {new Date(laundry.returnBy).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" })}
+          </span>
+        ) : null}
+        {laundry?.services?.length
+          ? laundry.services.map((sv) => (
+              <span key={sv} className="inline-flex items-center rounded-full bg-cyan-50 px-2 py-0.5 text-xs font-medium text-cyan-800">
+                {laundryServiceLabel(sv) ?? sv}
+              </span>
+            ))
+          : null}
         {pickupBooked ? (
           <span className="inline-flex items-center gap-1 rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-800">
             <CalendarClock className="h-3 w-3" />

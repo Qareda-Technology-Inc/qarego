@@ -11,6 +11,15 @@ export const isLaundryOrder = (order) => !!order?.laundry;
 /** Orders a courier collects from the customer first: gas refills and laundry. */
 export const isCollectFirstOrder = (order) => order?.gasMode === "REFILL" || isLaundryOrder(order);
 
+/** A laundry's Express fee: part of the shop's subtotal, dropped if the wash is declined. */
+export function laundryExtraFee(order) {
+  const l = order?.laundry;
+  if (!l?.express || l.priceStatus === "declined") return 0;
+  return round2(l.expressFee);
+}
+
+export const MAX_COUNT_PHOTOS = 4;
+
 export const countItems = (items) => (items || []).reduce((n, i) => n + (Number(i.quantity) || 0), 0);
 
 /** Courier note for the bag: count only (what's inside is the customer's business). */
@@ -21,7 +30,7 @@ export function laundryCourierSummary(order) {
 
 /** Recalculate fees, total and the frozen cash split after the items changed. */
 export function refreshOrderTotals(order, settings, { waiveServiceFee = false } = {}) {
-  order.subtotal = round2(order.items.reduce((s, i) => s + i.price * i.quantity, 0));
+  order.subtotal = round2(order.items.reduce((s, i) => s + i.price * i.quantity, 0) + laundryExtraFee(order));
   order.serviceFee = waiveServiceFee || order.subtotal <= 0 ? 0 : computeFoodServiceFee(order.subtotal, settings);
   order.total = round2(order.subtotal + order.serviceFee + (order.deliveryFee || 0));
   Object.assign(
@@ -40,7 +49,7 @@ export function refreshOrderTotals(order, settings, { waiveServiceFee = false } 
  * Returns { priceRaised }: when the count costs more than the estimate the customer must
  * approve before washing; otherwise it's approved straight away.
  */
-export async function applyLaundryCount(order, lines, settings) {
+export async function applyLaundryCount(order, lines, settings, { photos = [], note = null } = {}) {
   if (!Array.isArray(lines) || !lines.length) throw new Error("Add the items you counted");
   const quantities = new Map();
   for (const l of lines) {
@@ -67,6 +76,8 @@ export async function applyLaundryCount(order, lines, settings) {
 
   const priceRaised = order.subtotal > round2(order.laundry.estimatedSubtotal) + 0.004;
   order.laundry.countedAt = new Date();
+  order.laundry.countPhotos = photos.slice(0, MAX_COUNT_PHOTOS);
+  order.laundry.countNote = typeof note === "string" && note.trim() ? note.trim().slice(0, 300) : null;
   order.laundry.countedItemCount = countItems(order.items);
   order.laundry.previousSubtotal = round2(previous) !== order.subtotal ? round2(previous) : null;
   order.laundry.priceStatus = priceRaised ? "awaiting_customer" : "approved";

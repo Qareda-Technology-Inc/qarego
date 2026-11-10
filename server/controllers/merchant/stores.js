@@ -1,3 +1,4 @@
+import { readLaundryOptions } from "../../utils/laundryOptions.js";
 import User from "../../models/User.js";
 import Restaurant from "../../models/Restaurant.js";
 import MenuItem from "../../models/MenuItem.js";
@@ -191,6 +192,14 @@ export const updateMyRestaurant = async (req, res) => {
       continue;
     }
     restaurant[key] = req.body[key];
+  }
+
+  if (req.body.laundryOptions !== undefined && restaurant.vertical === "LAUNDRY") {
+    try {
+      restaurant.laundryOptions = readLaundryOptions(req.body.laundryOptions, restaurant.laundryOptions);
+    } catch (err) {
+      throw new BadRequestError(err.message);
+    }
   }
 
   if (req.body.openingHours !== undefined) {

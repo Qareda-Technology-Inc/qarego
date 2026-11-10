@@ -1,5 +1,7 @@
 "use client";
 
+import { LAUNDRY_SERVICES, laundryServiceLabel } from "@/lib/laundryOptions";
+
 import { useEffect, useMemo, useState } from "react";
 import { fetcher } from "@/lib/api";
 import { formatCurrency } from "@/lib/currency";
@@ -36,6 +38,8 @@ interface MenuItem {
   discountPercent?: number | null;
   originalPrice?: number | null;
   modifierGroups?: ModifierGroup[];
+  /** Laundry: which service this price is for; null = every service. */
+  laundryService?: string | null;
 }
 
 function computeSalePrice(original: number, percent: number) {
@@ -66,6 +70,7 @@ const EMPTY_ITEM = {
   badge: "" as "" | "discount",
   originalPrice: "",
   discountPercent: "",
+  laundryService: "",
 };
 
 function isSoldOutToday(item: MenuItem) {
@@ -147,6 +152,7 @@ export default function MenuPage() {
         item.badge === "discount" ? String(item.originalPrice ?? item.price) : "",
       discountPercent:
         item.discountPercent != null ? String(item.discountPercent) : "",
+      laundryService: item.laundryService || "",
     });
     setModalOpen(true);
   };
@@ -192,6 +198,7 @@ export default function MenuPage() {
         isAvailable: form.isAvailable,
         imageUrl: form.imageUrl || null,
         tags: form.tags,
+        ...(photosRequired ? {} : { laundryService: form.laundryService || null }),
         ...(form.badge === "discount"
           ? {
               badge: "discount",
@@ -414,6 +421,11 @@ export default function MenuPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-medium text-foreground">{item.name}</span>
+                        {!photosRequired && laundryServiceLabel(item.laundryService) ? (
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-cyan-100 text-cyan-800">
+                            {laundryServiceLabel(item.laundryService)}
+                          </span>
+                        ) : null}
                         {!item.isAvailable ? (
                           <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700">
                             Turned off
@@ -569,6 +581,28 @@ export default function MenuPage() {
               onChange={(e) => setForm({ ...form, description: e.target.value })}
             />
           </div>
+          {!photosRequired ? (
+            <div>
+              <Label htmlFor="laundryService">Service</Label>
+              <select
+                id="laundryService"
+                value={form.laundryService}
+                onChange={(e) => setForm({ ...form, laundryService: e.target.value })}
+                className="h-10 w-full rounded-lg border border-border bg-white px-3 text-sm"
+              >
+                <option value="">Any service (same price)</option>
+                {LAUNDRY_SERVICES.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-muted">
+                Customers pick a service first, then see the prices for it. Add the same item once per service if
+                the price differs (e.g. Shirt for wash and iron, Shirt for dry clean).
+              </p>
+            </div>
+          ) : null}
           <ImageUploadField
             label="Photo"
             hint={

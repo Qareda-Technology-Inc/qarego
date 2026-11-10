@@ -38,13 +38,18 @@ export function isOwnUploadUrl(url) {
 }
 
 export function normalizePrescriptionUrls(raw) {
+  return normalizeOwnUploadUrls(raw, MAX_PRESCRIPTION_PHOTOS);
+}
+
+/** Photos our own upload endpoint stored (deduped, at most `max`); anything else is dropped. */
+export function normalizeOwnUploadUrls(raw, max) {
   const list = Array.isArray(raw) ? raw : raw ? [raw] : [];
   const urls = [];
   for (const value of list) {
     const candidate = sanitizeMediaUrl(value);
     const sanitized = candidate && isOwnUploadUrl(candidate) ? candidate : null;
     if (sanitized && !urls.includes(sanitized)) urls.push(sanitized);
-    if (urls.length >= MAX_PRESCRIPTION_PHOTOS) break;
+    if (urls.length >= max) break;
   }
   return urls;
 }

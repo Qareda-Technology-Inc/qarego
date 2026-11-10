@@ -50,6 +50,7 @@ import {
 import DeliveryCodeCard from "@/components/customer/food/DeliveryCodeCard";
 import LaundryPriceCard from "@/components/customer/food/LaundryPriceCard";
 import PharmacyPriceCard from "@/components/customer/food/PharmacyPriceCard";
+import LaundryOrderInfo from "@/components/customer/laundry/LaundryOrderInfo";
 import FoodOrderCourierCard from "@/components/customer/food/FoodOrderCourierCard";
 import RestaurantRatingModal from "@/components/customer/food/RestaurantRatingModal";
 import { isFoodOrderRateable, withDeliveredFoodOrderStatus } from "@/utils/ratingFlow";
@@ -779,6 +780,8 @@ const FoodOrderTracking = () => {
               onAnswered={(updated) => setOrder((prev) => (prev ? { ...prev, ...updated } : updated))}
               onError={(message) => showToast({ title: "Couldn't send", message, type: "error" })}
             />
+
+            <LaundryOrderInfo order={order} />
 
             {showDeliveryCode ? (
               <DeliveryCodeCard

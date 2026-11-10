@@ -92,7 +92,9 @@ Every new order also comes to the store's phone numbers by **SMS**, so you hear 
 
 **Laundries**
 - A rider **collects** the customer's bag first and brings it to you.
-- You **count the items** and enter them from your price list in the portal. If the count costs more than the customer's estimate, the customer must approve the new price before you wash. If they decline, the bag goes back unwashed.
+- Set a **service** on each price-list item in Menu (wash and fold, wash and iron, dry clean or iron only). Customers pick a service first and see its prices. If a price differs by service, add the item once per service. Items with no service show under every service.
+- In **Settings → Turnaround and Express**, set how long a normal wash takes (customers see a "back by" time). You can also offer **Express**: a faster turnaround for a fee per order that you set. The Express fee is part of your order total, and commission applies to it the same as the rest. If the customer declines your count, the Express fee is dropped too.
+- You **count the items** and enter them from your price list in the portal. You can add up to 4 **photos** and a note (stains, damage, missing buttons); the customer sees them with the price, which helps if there's a complaint later. If the count costs more than the customer's estimate, the customer must approve the new price before you wash. If they decline, the bag goes back unwashed.
 - When it's done, mark it ready and a rider returns it to the customer.
 - Laundry orders are **cash only**.
 

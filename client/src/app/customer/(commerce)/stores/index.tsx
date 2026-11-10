@@ -28,6 +28,7 @@ import { STORE_TYPE_FILTERS } from "@/components/customer/food/StoreTypeFilterRo
 import DeliverToBar from "@/components/customer/food/DeliverToBar";
 import CuisineCarousel from "@/components/customer/food/CuisineCarousel";
 import PrescriptionPromptCard from "@/components/customer/food/PrescriptionPromptCard";
+import LaundryHome from "@/components/customer/laundry/LaundryHome";
 import { COMMERCE_SEARCH_HINT, FOOD_THEME, GRID_CARD_WIDTH, GRID_H_PAD } from "@/styles/foodStyles";
 import CommerceModuleLinks from "@/components/customer/food/CommerceModuleLinks";
 import CommerceTopBar from "@/components/customer/food/CommerceTopBar";
@@ -210,6 +211,9 @@ const AllStoresBrowse = () => {
 
     </View>
   );
+
+  // Laundry is a booking (pick a time, a rider collects), not a shop: it has its own home.
+  if (typeFilter === "LAUNDRY") return <LaundryHome />;
 
   return (
     <View style={styles.container}>

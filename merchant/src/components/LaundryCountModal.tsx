@@ -1,14 +1,18 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Loader2, Minus, Plus } from "lucide-react";
+import { AlertTriangle, Loader2, Minus, Plus, X } from "lucide-react";
+import ImageUploadField from "@/components/ImageUploadField";
+import { resolveImageUrl } from "@/lib/resolveImageUrl";
+import { laundryServiceLabel } from "@/lib/laundryOptions";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { fetcher } from "@/lib/api";
 import { formatCurrency } from "@/lib/currency";
 import type { FoodOrderRow } from "@/lib/orderTypes";
 
-type PriceItem = { _id: string; name: string; price: number; category?: string };
+type PriceItem = { _id: string; name: string; price: number; category?: string; laundryService?: string | null };
+const MAX_PHOTOS = 4;
 
 /**
  * Count a laundry bag when it reaches the shop. Starts from what the customer chose; the shop
@@ -27,6 +31,9 @@ export function LaundryCountModal({
   const [priceList, setPriceList] = useState<PriceItem[] | null>(null);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [busy, setBusy] = useState(false);
+  const [photos, setPhotos] = useState<string[]>([]);
+  const [note, setNote] = useState("");
+  const [uploadKey, setUploadKey] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -37,6 +44,8 @@ export function LaundryCountModal({
     const t = setTimeout(() => {
       setCounts(start);
       setError(null);
+      setPhotos(order.laundry?.countPhotos ?? []);
+      setNote(order.laundry?.countNote ?? "");
       fetcher("/merchant/menu")
         .then((d) => alive && setPriceList((d.menuItems ?? []) as PriceItem[]))
         .catch((e) => alive && setError(e instanceof Error ? e.message : "Couldn't load your price list"));
@@ -69,6 +78,8 @@ export function LaundryCountModal({
           items: Object.entries(counts)
             .filter(([, q]) => q > 0)
             .map(([menuItemId, quantity]) => ({ menuItemId, quantity })),
+          photos,
+          note: note.trim() || undefined,
         }),
       });
       onCounted();
@@ -101,7 +112,10 @@ export function LaundryCountModal({
                 <li key={p._id} className={`flex items-center gap-3 px-3 py-2.5 ${q ? "bg-brand/5" : ""}`}>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-medium text-foreground">{p.name}</span>
-                    <span className="block text-xs text-muted">{formatCurrency(p.price)} each</span>
+                    <span className="block text-xs text-muted">
+                      {formatCurrency(p.price)} each
+                      {laundryServiceLabel(p.laundryService) ? ` · ${laundryServiceLabel(p.laundryService)}` : ""}
+                    </span>
                   </span>
                   <span className="flex items-center gap-1">
                     <button
@@ -140,6 +154,51 @@ export function LaundryCountModal({
             {itemCount} item{itemCount === 1 ? "" : "s"}
           </span>
           <span className="text-lg font-bold text-foreground">{formatCurrency(total)}</span>
+        </div>
+
+        <div>
+          <p className="text-sm font-medium text-foreground">Photos (optional)</p>
+          <p className="text-xs text-muted">
+            Snap stains, damage or anything worth noting. The customer sees them with the price.
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {photos.map((url) => (
+              <div key={url} className="relative h-20 w-20 overflow-hidden rounded-xl border border-border">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={resolveImageUrl(url) ?? url} alt="Count photo" className="h-full w-full object-cover" />
+                <button
+                  type="button"
+                  aria-label="Remove photo"
+                  onClick={() => setPhotos((list) => list.filter((u) => u !== url))}
+                  className="absolute right-1 top-1 rounded-full bg-white/90 p-0.5"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+          {photos.length < MAX_PHOTOS ? (
+            <div className="mt-2">
+              <ImageUploadField
+                key={uploadKey}
+                label="Add a photo"
+                folder="laundry"
+                aspect="document"
+                value=""
+                onChange={(url) => {
+                  if (url) setPhotos((list) => [...list, url].slice(0, MAX_PHOTOS));
+                  setUploadKey((k) => k + 1);
+                }}
+              />
+            </div>
+          ) : null}
+          <textarea
+            value={note}
+            onChange={(e) => setNote(e.target.value.slice(0, 300))}
+            rows={2}
+            placeholder="Stain on the white shirt, one button missing"
+            className="mt-2 w-full rounded-lg border border-border px-3 py-2 text-sm"
+          />
         </div>
 
         {dearer ? (

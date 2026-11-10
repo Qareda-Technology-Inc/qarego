@@ -180,6 +180,16 @@ const foodOrderSchema = new Schema(
           decidedAt: { type: Date, default: null },
           /** Start of the booked 2-hour collection window; null = collect as soon as accepted. */
           pickupAt: { type: Date, default: null },
+          /** Services in the bag (WASH_FOLD, WASH_IRON, DRY_CLEAN, IRON_ONLY). */
+          services: { type: [String], default: [] },
+          /** Express: faster turnaround for the shop's fee (part of the subtotal, so the shop's). */
+          express: { type: Boolean, default: false },
+          expressFee: { type: Number, default: 0 },
+          /** When the clean laundry is promised back. */
+          returnBy: { type: Date, default: null },
+          /** Shop's photos when counting (stains, damage, the bag) and its note. */
+          countPhotos: { type: [String], default: [] },
+          countNote: { type: String, default: null },
         },
         { _id: false }
       ),

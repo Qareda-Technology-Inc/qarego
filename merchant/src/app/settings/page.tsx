@@ -17,6 +17,8 @@ import { Settings, Loader2, Save, Power, MapPin, Clock, Wallet, BadgeCheck, KeyR
 import { useFeatures } from "@/lib/features";
 import { GoLiveChecklist, type Readiness, type ReviewStatus } from "@/components/GoLiveChecklist";
 import { ChangePasswordForm } from "@/components/ChangePasswordForm";
+import { LaundryOptionsCard } from "@/components/LaundryOptionsCard";
+import type { LaundryOptions } from "@/lib/laundryOptions";
 
 type DayHours = { closed: boolean; open: string; close: string };
 
@@ -38,6 +40,7 @@ interface Restaurant {
   latitude?: number;
   longitude?: number;
   openingHours?: DayHours[];
+  laundryOptions?: Partial<LaundryOptions> | null;
   licence?: { url?: string | null; number?: string | null };
   review?: { note?: string | null };
   payoutConfig?: {
@@ -474,6 +477,10 @@ export default function SettingsPage() {
           </Button>
         </div>
       </div>
+
+      {restaurant.vertical === "LAUNDRY" ? (
+        <LaundryOptionsCard key={restaurant._id} initial={restaurant.laundryOptions} onSaved={load} />
+      ) : null}
 
       {/* Instant payouts go out by mobile money, which is paused until the new provider is live. */}
       {restaurant.vertical === "PHARMACY" || restaurant.vertical === "GAS" ? (

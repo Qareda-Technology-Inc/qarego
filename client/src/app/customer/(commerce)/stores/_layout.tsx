@@ -8,6 +8,7 @@ const FoodLayout = () => (
     <Stack.Screen name="cart" options={{ title: "Cart" }} />
     <Stack.Screen name="checkout" options={{ title: "Checkout" }} />
     <Stack.Screen name="prescription" options={{ title: "Send a prescription" }} />
+    <Stack.Screen name="laundry-book" options={{ title: "Book a pickup" }} />
     <Stack.Screen name="order" options={{ headerShown: false }} />
   </Stack>
 );

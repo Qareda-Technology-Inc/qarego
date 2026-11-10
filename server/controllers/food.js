@@ -38,6 +38,7 @@ import { listAssignableRiders } from "./merchant/orders.js";
 import { availableNowFilter } from "../utils/menuAvailability.js";
 import { countItems } from "../utils/laundryOrders.js";
 import { readPrescriptionRequestText } from "../utils/pharmacyQuote.js";
+import { laundryOptionsFor, laundryReturnBy, normalizeLaundryService } from "../utils/laundryOptions.js";
 import { applyPharmacyCustomerDecision } from "../utils/pharmacyRequests.js";
 import {
   PICKUP_WINDOW_MIN,
@@ -143,6 +144,7 @@ export const createFoodOrder = async (req, res) => {
     laundryPickupAt: laundryPickupRaw,
     prescriptionRequest: prescriptionRequestRaw,
     prescriptionNote,
+    laundryExpress,
   } = req.body;
   // Prescription request: a photo or list for the pharmacist to price, no basket (utils/pharmacyQuote.js).
   const wantsPrescriptionRequest = prescriptionRequestRaw === true;
@@ -285,6 +287,25 @@ export const createFoodOrder = async (req, res) => {
     );
   }
 
+  // Laundry: which services are in the bag, Express if the shop offers it, and when it's due back.
+  let laundryExtras = null;
+  if (isLaundry) {
+    const options = laundryOptionsFor(restaurant);
+    const express = laundryExpress === true;
+    if (express && !options.expressEnabled) {
+      throw new BadRequestError(`${restaurant.name} doesn't offer Express right now`);
+    }
+    const expressFee = express ? options.expressFee : 0;
+    subtotal = Math.round((subtotal + expressFee) * 100) / 100;
+    const services = [...new Set(menuDocs.map((m) => normalizeLaundryService(m.laundryService)).filter(Boolean))];
+    laundryExtras = {
+      services,
+      express,
+      expressFee,
+      returnBy: laundryReturnBy(laundryPickupAt, express ? options.expressHours : options.standardHours),
+    };
+  }
+
   const customer = req.user;
   const customerUser = await User.findById(customer.id).select("isSuspended");
   if (customerUser?.isSuspended) {
@@ -375,7 +396,12 @@ export const createFoodOrder = async (req, res) => {
     scheduledFor: scheduledForDate,
     status: "PLACED",
     laundry: isLaundry
-      ? { estimatedSubtotal: subtotal, estimatedItemCount: countItems(orderItems), pickupAt: laundryPickupAt }
+      ? {
+          estimatedSubtotal: subtotal,
+          estimatedItemCount: countItems(orderItems),
+          pickupAt: laundryPickupAt,
+          ...laundryExtras,
+        }
       : null,
     pharmacyQuote: isPrescriptionRequest
       ? { priceStatus: "awaiting_pharmacy", request: prescriptionRequestText || null }

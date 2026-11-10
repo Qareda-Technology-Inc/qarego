@@ -4,6 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import CustomText from "@/components/shared/CustomText";
 import { formatCurrency } from "@/utils/Constants";
 import { answerLaundryPrice, type FoodOrder } from "@/service/foodService";
+import LaundryCountEvidence from "@/components/customer/laundry/LaundryCountEvidence";
 
 const ACCENT = "#0e7490";
 
@@ -89,6 +90,17 @@ export default function LaundryPriceCard({ order, onAnswered, onError }: Props) 
           </CustomText>
         </View>
       ))}
+      {laundry.express && laundry.expressFee ? (
+        <View style={styles.line}>
+          <CustomText fontSize={13} color="#334155">
+            Express
+          </CustomText>
+          <CustomText fontSize={13} color="#334155">
+            {formatCurrency(laundry.expressFee)}
+          </CustomText>
+        </View>
+      ) : null}
+      <LaundryCountEvidence order={order} />
       <View style={[styles.line, styles.totalLine]}>
         <CustomText fontFamily="SemiBold" fontSize={13}>
           New total with fees

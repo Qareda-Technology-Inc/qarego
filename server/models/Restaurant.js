@@ -59,6 +59,13 @@ const restaurantSchema = new Schema(
     },
     /** Customer can collect orders in-store (no delivery fee) */
     allowsPickup: { type: Boolean, default: false },
+    /** Laundry shops: turnaround and the optional Express service (utils/laundryOptions.js). */
+    laundryOptions: {
+      standardHours: { type: Number, default: 48 },
+      expressEnabled: { type: Boolean, default: false },
+      expressFee: { type: Number, default: 0, min: 0 },
+      expressHours: { type: Number, default: 24 },
+    },
     /**
      * Weekly opening hours, indexed by JS getDay() (0 = Sun … 6 = Sat).
      * Undefined/empty means "always within hours" (only the pause flag gates it).

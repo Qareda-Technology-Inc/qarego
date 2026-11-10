@@ -1,3 +1,4 @@
+import { normalizeLaundryService } from "../../utils/laundryOptions.js";
 import MenuItem from "../../models/MenuItem.js";
 import MenuCategory from "../../models/MenuCategory.js";
 import Restaurant from "../../models/Restaurant.js";
@@ -161,6 +162,7 @@ export const createMyMenuItem = async (req, res) => {
     discountLabel,
     discountPercent,
     originalPrice,
+    laundryService,
   } = req.body;
   if (!name || (price == null && originalPrice == null)) {
     throw new BadRequestError("Menu item name and price are required");
@@ -199,6 +201,7 @@ export const createMyMenuItem = async (req, res) => {
     discountLabel: pricing.discountLabel,
     discountPercent: pricing.discountPercent,
     originalPrice: pricing.originalPrice,
+    laundryService: req.restaurant?.vertical === "LAUNDRY" ? normalizeLaundryService(laundryService) : null,
   });
 
   res.status(StatusCodes.CREATED).json({ message: "Menu item added", item });
@@ -253,6 +256,9 @@ export const updateMyMenuItem = async (req, res) => {
     }
     if (imageUrl !== undefined) item.imageUrl = sanitizeImageUrl(imageUrl);
     if (tags !== undefined) item.tags = normalizeMenuTags(tags);
+    if (req.body.laundryService !== undefined && req.restaurant?.vertical === "LAUNDRY") {
+      item.laundryService = normalizeLaundryService(req.body.laundryService);
+    }
 
     const pricingTouched =
       badge !== undefined ||

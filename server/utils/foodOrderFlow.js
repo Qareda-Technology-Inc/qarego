@@ -616,7 +616,7 @@ export async function applyRestaurantAction(orderId, action, io, options = {}) {
 }
 
 /** Shop counts a laundry bag once it arrives (see applyLaundryCount for the rules). */
-export async function applyLaundryCountAction(orderId, lines, io) {
+export async function applyLaundryCountAction(orderId, lines, io, extras = {}) {
   const foodOrder = await FoodOrder.findById(orderId);
   if (!foodOrder || !isLaundryOrder(foodOrder)) return { error: "not_found" };
   if (foodOrder.status !== "PREPARING" || foodOrder.gasStage !== "AT_STATION") {
@@ -627,7 +627,7 @@ export async function applyLaundryCountAction(orderId, lines, io) {
   }
   let result;
   try {
-    result = await applyLaundryCount(foodOrder, lines, await getSettings());
+    result = await applyLaundryCount(foodOrder, lines, await getSettings(), extras);
   } catch (err) {
     return { error: "bad_count", message: err.message };
   }

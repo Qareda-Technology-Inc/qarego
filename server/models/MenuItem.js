@@ -50,6 +50,8 @@ const menuItemSchema = new Schema(
     originalPrice: { type: Number, default: null, min: 0 },
     /** Per-dish customization groups (add-ons, preparation choices) */
     modifierGroups: { type: [modifierGroupSchema], default: [] },
+    /** Laundry price list: WASH_FOLD | WASH_IRON | DRY_CLEAN | IRON_ONLY; null = every service. */
+    laundryService: { type: String, default: null },
   },
   { timestamps: true }
 );

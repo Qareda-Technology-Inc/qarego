@@ -49,6 +49,10 @@ type OrderDetail = {
     previousSubtotal?: number | null;
     decidedAt?: string | null;
     pickupAt?: string | null;
+    express?: boolean;
+    expressFee?: number;
+    returnBy?: string | null;
+    countNote?: string | null;
   } | null;
   /** Prescription request: priced by the pharmacist, approved by the customer. */
   pharmacyQuote?: {
@@ -488,6 +492,24 @@ export default function StoreOrderDetailPage() {
                         {laundry.priceStatus === "declined" ? "Declined" : "Approved"} ·{" "}
                         {new Date(laundry.decidedAt).toLocaleString()}
                       </dd>
+                    </>
+                  ) : null}
+                  {laundry.express ? (
+                    <>
+                      <dt className="text-gray-500">Express</dt>
+                      <dd className="text-right text-gray-700">{formatCurrency(laundry.expressFee ?? 0)}</dd>
+                    </>
+                  ) : null}
+                  {laundry.returnBy ? (
+                    <>
+                      <dt className="text-gray-500">Back by</dt>
+                      <dd className="text-right text-gray-700">{new Date(laundry.returnBy).toLocaleString()}</dd>
+                    </>
+                  ) : null}
+                  {laundry.countNote ? (
+                    <>
+                      <dt className="text-gray-500">Shop noted</dt>
+                      <dd className="text-right text-gray-700">{laundry.countNote}</dd>
                     </>
                   ) : null}
                 </dl>

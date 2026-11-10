@@ -81,10 +81,11 @@ Either way, your rider doesn't see the names of your medicines.
 
 ## 6. Laundry
 
-1. Choose **Laundry** and a laundry near you. Add the items you're sending, to get an **estimate**.
-2. **Book a pickup time.** A rider collects your bag at that time.
-3. The laundry **counts your items**. If the count costs more than the estimate, the app asks you to **approve the new price** before they wash. If you decline, your bag comes back unwashed.
-4. When it's clean, a rider brings it back.
+1. Choose **Laundry**, then **Book a pickup** (or tap a service: wash and fold, wash and iron, dry clean, iron only). The nearest laundry is picked for you; tap **Change** to choose another.
+2. Add a rough count of what's in the bag to get an **estimate**. A guess is fine.
+3. **Pick a collection time.** If the laundry offers **Express**, you can pay its extra fee to get your clothes back sooner. The app shows when it'll be back.
+4. A rider collects your bag. The laundry **counts your items** and may add photos and a note (for example a stain they found). If the count costs more than the estimate, you **approve the new price** before they wash. If you decline, your bag comes back unwashed and you pay the delivery only.
+5. When it's clean, a rider brings it back. Your order shows each step and the **Back by** time. **Book again** on the Laundry screen repeats your last booking.
 
 Laundry is paid in **cash** for now.
 

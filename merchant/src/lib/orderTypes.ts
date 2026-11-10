@@ -22,6 +22,12 @@ export type FoodOrderRow = {
     previousSubtotal?: number | null;
     /** Booked collection window start; null = collect as soon as accepted. */
     pickupAt?: string | null;
+    services?: string[];
+    express?: boolean;
+    expressFee?: number;
+    returnBy?: string | null;
+    countPhotos?: string[];
+    countNote?: string | null;
   } | null;
   /** Prescription requests: the pharmacist prices the photo, the customer approves. */
   pharmacyQuote?: {

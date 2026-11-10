@@ -5,6 +5,8 @@ import { StatusCodes } from "http-status-codes";
 import { BadRequestError, NotFoundError } from "../../errors/index.js";
 import { applyLaundryCountAction, applyRestaurantAction } from "../../utils/foodOrderFlow.js";
 import { applyPharmacyQuoteAction } from "../../utils/pharmacyRequests.js";
+import { normalizeOwnUploadUrls } from "../../utils/prescription.js";
+import { MAX_COUNT_PHOTOS } from "../../utils/laundryOrders.js";
 
 const KITCHEN_STATUSES = ["PLACED", "PREPARING", "READY_FOR_PICKUP", "PICKED_UP"];
 const ACTIVE_KITCHEN_STATUSES = ["PREPARING", "READY_FOR_PICKUP", "PICKED_UP"];
@@ -170,7 +172,10 @@ export const listAssignableRiders = async (req, res) => {
 export const countMyLaundryOrder = async (req, res) => {
   const order = await FoodOrder.findOne({ _id: req.params.id, restaurant: req.restaurantId }).select("_id");
   if (!order) throw new NotFoundError("Order not found");
-  const result = await applyLaundryCountAction(req.params.id, req.body?.items, req.app.get("io"));
+  const result = await applyLaundryCountAction(req.params.id, req.body?.items, req.app.get("io"), {
+    photos: normalizeOwnUploadUrls(req.body?.photos, MAX_COUNT_PHOTOS),
+    note: req.body?.note,
+  });
   if (result.error === "not_found") throw new NotFoundError("Order not found");
   if (result.error === "laundry_not_at_shop") throw new BadRequestError("The laundry hasn't reached your shop yet");
   if (result.error === "bad_count") throw new BadRequestError(result.message);

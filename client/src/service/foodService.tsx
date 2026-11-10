@@ -29,6 +29,13 @@ export type Restaurant = {
   latitude?: number;
   longitude?: number;
   allowsPickup?: boolean;
+  /** Laundry: turnaround and Express (utils/laundryOptions.ts). */
+  laundryOptions?: {
+    standardHours?: number;
+    expressEnabled?: boolean;
+    expressFee?: number;
+    expressHours?: number;
+  } | null;
   createdAt?: string;
 };
 
@@ -74,6 +81,8 @@ export type MenuItem = {
   originalPrice?: number | null;
   displayLayout?: "row" | "column";
   modifierGroups?: MenuModifierGroup[];
+  /** Laundry: WASH_FOLD | WASH_IRON | DRY_CLEAN | IRON_ONLY; null = every service. */
+  laundryService?: string | null;
 };
 
 export type FoodOrder = {
@@ -116,6 +125,14 @@ export type FoodOrder = {
     previousSubtotal?: number | null;
     /** Start of the booked 2-hour collection window; null = as soon as the shop accepts. */
     pickupAt?: string | null;
+    services?: string[];
+    express?: boolean;
+    expressFee?: number;
+    /** When the clean laundry is promised back. */
+    returnBy?: string | null;
+    /** The shop's photos and note from counting. */
+    countPhotos?: string[];
+    countNote?: string | null;
   } | null;
   /** Prescription request: the pharmacist prices the photo, then the customer approves. */
   pharmacyQuote?: {
@@ -186,6 +203,8 @@ export const createFoodOrder = async (payload: {
   prescriptionUrls?: string[];
   /** Laundry: start of the chosen collection window (omit for as soon as possible). */
   laundryPickupAt?: string;
+  /** Laundry: faster turnaround for the shop's Express fee. */
+  laundryExpress?: boolean;
   /** Pharmacy: send the prescription to be priced (items empty). */
   prescriptionRequest?: boolean;
   /** Prescription request: what the customer needs, in their words. */
