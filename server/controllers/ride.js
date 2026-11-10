@@ -1,3 +1,4 @@
+import { readParcelDetails, notifyParcelRecipient } from "../utils/parcelDetails.js";
 import { assertMomoEnabled } from "../utils/momoAvailability.js";
 import mongoose from "mongoose";
 import Ride, { RIDE_CODE_FIELDS } from "../models/Ride.js";
@@ -171,6 +172,8 @@ export const createRide = async (req, res) => {
   if (serviceType === "DELIVERY" && parcelMode && !["SEND", "RECEIVE"].includes(parcelMode)) {
     throw new BadRequestError("parcelMode must be SEND or RECEIVE");
   }
+  const parcelDetails = serviceType === "DELIVERY" ? readParcelDetails(req.body, vehicle) : null;
+  if (parcelDetails?.error) throw new BadRequestError(parcelDetails.error);
 
   if (paymentMethod === "MOBILE_MONEY") assertMomoEnabled();
   const customer = req.user;
@@ -216,6 +219,9 @@ export const createRide = async (req, res) => {
       if (parcelPhotoUrl && typeof parcelPhotoUrl === "string") {
         ridePayload.parcelPhotoUrl = parcelPhotoUrl.trim();
       }
+      Object.assign(ridePayload, parcelDetails.value);
+      // The customer is the receiver when receiving, so there is nobody else to text.
+      if (ridePayload.parcelMode === "RECEIVE") ridePayload.notifyRecipient = false;
     }
 
     const ride = new Ride({ ...ridePayload, clientRequestId });
@@ -399,6 +405,8 @@ export const acceptRide = async (req, res) => {
 
     req.io.to(`ride_${rideId}`).emit("rideUpdate", ride);
     req.io.to(`ride_${rideId}`).emit("rideAccepted");
+
+    if (ride.serviceType === "DELIVERY") void notifyParcelRecipient(Ride, ride._id);
 
     if (ride.serviceType === "FOOD" && ride.foodOrder) {
       const foodOrder = await FoodOrder.findById(ride.foodOrder)

@@ -9,7 +9,7 @@ import {
   TextInput,
 } from "react-native";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { Ionicons } from "@expo/vector-icons";
@@ -60,7 +60,11 @@ const searchText = (parts: unknown[]) =>
 const CustomerOrders = () => {
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
-  const [filter, setFilter] = useState<FilterKey>("all");
+  // Other screens can open this list on one service, e.g. ?filter=parcels from Parcel home.
+  const { filter: filterParam } = useLocalSearchParams<{ filter?: string }>();
+  const [filter, setFilter] = useState<FilterKey>(() =>
+    FILTERS.some((f) => f.key === filterParam) ? (filterParam as FilterKey) : "all"
+  );
   const [query, setQuery] = useState("");
   const [rides, setRides] = useState<any[]>([]);
   const [foodOrders, setFoodOrders] = useState<FoodOrder[]>([]);

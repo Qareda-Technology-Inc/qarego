@@ -41,6 +41,14 @@ const rideSchema = new Schema(
     deliveryNote: { type: String, default: null },
     parcelDescription: { type: String, default: null },
     parcelPhotoUrl: { type: String, default: null },
+    /** Parcel size the customer picked: DOCUMENT | SMALL | MEDIUM | LARGE (tricycle). */
+    parcelSize: { type: String, default: null },
+    /** What's inside: CLOTHES | ELECTRONICS | FOOD | DOCUMENTS | OTHER. */
+    parcelCategory: { type: String, default: null },
+    fragile: { type: Boolean, default: false },
+    /** Sender asked us to text the receiver the delivery code once a rider accepts. */
+    notifyRecipient: { type: Boolean, default: false },
+    recipientSmsSentAt: { type: Date, default: null },
     /** App-generated id for this booking attempt; makes retries duplicate-safe. */
     clientRequestId: { type: String, default: null },
     /** Parcel only: recipient handoff code (pickup uses `otp`). Secret: see RIDE_CODE_FIELDS. */

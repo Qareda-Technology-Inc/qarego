@@ -8,6 +8,7 @@ import { getCommerceOrderCopy } from "@/utils/commerceOrderCopy";
 import { isFoodDelivery } from "@/utils/riderRideUtils";
 import { parseRideParcelMode, parcelModeLabels } from "@/utils/parcelMode";
 import { resolveMediaUrl } from "@/service/mediaUpload";
+import { parcelSummary } from "@/utils/parcelDetails";
 import CashCollectionNote, { type RideCashCollection } from "./CashCollectionNote";
 
 type Props = {
@@ -24,6 +25,9 @@ type Props = {
     recipientName?: string;
     recipientPhone?: string;
     parcelDescription?: string;
+    parcelSize?: string | null;
+    parcelCategory?: string | null;
+    fragile?: boolean;
     parcelPhotoUrl?: string;
   };
   variant?: "overlay" | "inline";
@@ -65,7 +69,8 @@ const RiderDeliveryBanner: FC<Props> = ({ ride, variant = "overlay" }) => {
     );
   }
 
-  if (isParcel && (ride.recipientName || photoUri || ride.parcelDescription)) {
+  const parcelInfo = isParcel ? parcelSummary(ride) : "";
+  if (isParcel && (ride.recipientName || photoUri || ride.parcelDescription || parcelInfo)) {
     return (
       <View style={[styles.card, styles.parcelCard, variant === "inline" && styles.inlineCard]}>
         <View style={styles.row}>
@@ -80,6 +85,11 @@ const RiderDeliveryBanner: FC<Props> = ({ ride, variant = "overlay" }) => {
               <CustomText fontSize={12} color={DS.color.textMuted}>
                 {parcelMode === "RECEIVE" ? "Customer" : "To"}: {ride.recipientName}
                 {ride.recipientPhone ? ` · ${ride.recipientPhone}` : ""}
+              </CustomText>
+            ) : null}
+            {parcelInfo ? (
+              <CustomText fontSize={12} fontFamily="SemiBold" color={ride.fragile ? "#b91c1c" : DS.color.text} style={{ marginTop: 4 }}>
+                {ride.fragile ? "⚠ " : ""}{parcelInfo}
               </CustomText>
             ) : null}
             {ride.parcelDescription ? (

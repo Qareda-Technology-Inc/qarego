@@ -38,10 +38,11 @@ You can cancel while we're finding a rider, or from the trip screen. Please canc
 
 ## 3. Sending or receiving a parcel
 
-1. Choose **Parcel**, then **Send** (a rider takes your parcel somewhere) or **Receive** (a rider collects something and brings it to you).
+1. Choose **Parcel**, then **Send** (a rider takes your parcel somewhere) or **Receive** (a rider collects something and brings it to you). The Parcel screen also shows any parcel on its way and lets you **send again** to someone you've sent to before.
 2. Enter the pickup and drop-off, the other person's name and phone number, and what the parcel is. You can add a note and a photo. Instead of typing an address, you can tap one of the **parcel points** listed under the address boxes (bus stations, malls and shops QareGO has added), nearest first.
-3. Confirm the price and how you'll pay.
-4. The person receiving the parcel gives the rider the **delivery code** to confirm it arrived.
+3. Pick the **size** (document, small, medium or large). Large parcels go by tricycle, the rest by motorbike, and each size shows its price. You can also say what's inside and mark it **fragile**.
+4. Confirm how you'll pay. When sending, you can let QareGO **text the receiver** the delivery code and the rider's name once a rider takes the parcel, or share the code yourself from the tracking screen.
+5. The person receiving the parcel gives the rider the **delivery code** to confirm it arrived.
 
 Don't send anything illegal or dangerous: weapons, drugs, explosives, flammable items, stolen goods, live animals, or cash and valuables. Riders may refuse a parcel that breaks these rules.
 

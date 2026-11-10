@@ -103,6 +103,10 @@ export const createRide = async (payload: {
   deliveryNote?: string;
   parcelDescription?: string;
   parcelPhotoUrl?: string;
+  parcelSize?: "DOCUMENT" | "SMALL" | "MEDIUM" | "LARGE";
+  parcelCategory?: string;
+  fragile?: boolean;
+  notifyRecipient?: boolean;
   /** Same id on a retry → the server returns the first ride instead of a duplicate. */
   clientRequestId?: string;
 }) => {

@@ -23,6 +23,7 @@ import CashCollectionNote, { type RideCashCollection } from "./CashCollectionNot
 import { resolveMediaUrl } from "@/service/mediaUpload";
 
 import { useConnectivity } from "@/service/connectivity";
+import { parcelSummary } from "@/utils/parcelDetails";
 interface RideItem {
   _id: string;
   vehicle?: string;
@@ -45,6 +46,9 @@ interface RideItem {
   recipientName?: string;
   recipientPhone?: string;
   parcelDescription?: string;
+  parcelSize?: string | null;
+  parcelCategory?: string | null;
+  fragile?: boolean;
   parcelPhotoUrl?: string;
   deliveryNote?: string;
   dispatchMeta?: {
@@ -267,7 +271,7 @@ const RiderRidesItem: FC<{ item: RideItem; removeIt: () => void; isBestOffer?: b
       </View>
 
       {item.serviceType === "DELIVERY" &&
-        (item.recipientName || item.recipientPhone || item.parcelDescription || item.parcelPhotoUrl) && (
+        (item.recipientName || item.recipientPhone || item.parcelDescription || item.parcelPhotoUrl || parcelSummary(item)) && (
         <View style={orderStyles.infoPanel}>
           <CustomText fontSize={9} fontFamily="SemiBold" style={orderStyles.label}>
             {item.parcelMode === "RECEIVE" ? "Customer" : "Recipient"}
@@ -276,6 +280,11 @@ const RiderRidesItem: FC<{ item: RideItem; removeIt: () => void; isBestOffer?: b
             {/* Offers carry no phone numbers; the rider gets them after accepting. */}
             {[item.recipientName, item.recipientPhone].filter(Boolean).join(" · ") || "—"}
           </CustomText>
+          {parcelSummary(item) ? (
+            <CustomText fontSize={10} fontFamily="SemiBold" style={item.fragile ? { color: "#b91c1c" } : undefined} numberOfLines={1}>
+              {parcelSummary(item)}
+            </CustomText>
+          ) : null}
           {item.parcelDescription ? (
             <CustomText fontSize={9.5} fontFamily="Medium" style={orderStyles.label} numberOfLines={2}>
               {item.parcelDescription}

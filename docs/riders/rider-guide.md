@@ -46,7 +46,7 @@ You must be at least 18, hold a valid licence for your vehicle, and keep your ve
    - **Mobile money:** the customer pays in the app after the trip. You'll see "Waiting for the customer to pay". You don't need to wait for it.
 
 ### Parcels
-1. Go to the pickup point and collect the parcel.
+1. Go to the pickup point and collect the parcel. The job shows its size and what's inside; parcels marked **Fragile** must be handled with care.
 2. Take it to the drop-off.
 3. Ask the person receiving it for the **4-digit delivery code** and enter it to complete the delivery.
 4. Collect cash if the app says so. Mobile money works as for rides.

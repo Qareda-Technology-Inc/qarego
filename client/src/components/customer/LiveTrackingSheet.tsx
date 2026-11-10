@@ -4,6 +4,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   Linking,
+  Share,
 } from "react-native";
 import { TouchableOpacity as BottomSheetTouchable } from "@gorhom/bottom-sheet";
 import React, { FC, useCallback, useMemo, useRef, useState } from "react";
@@ -27,6 +28,7 @@ import {
 import { getCommerceOrderCopy, resolveOrderVertical } from "@/utils/commerceOrderCopy";
 import { openMapsRoute, openMapsToPoint, type MapPoint } from "@/utils/openMapsNavigation";
 import { shouldShowFoodDeliveryCodeOnLiveRide } from "@/utils/foodOrderTracking";
+import { parcelSummary } from "@/utils/parcelDetails";
 
 import { canActNowOrExplain } from "@/service/connectivity";
 import SpotlightTour, { type TourStep } from "@/components/customer/onboarding/SpotlightTour";
@@ -50,6 +52,11 @@ interface RideItem {
   parcelDescription?: string;
   parcelPhotoUrl?: string;
   deliveryOtp?: string;
+  parcelSize?: string | null;
+  parcelCategory?: string | null;
+  fragile?: boolean;
+  notifyRecipient?: boolean;
+  recipientSmsSentAt?: string | null;
   rider: any;
   status: string;
 }
@@ -125,7 +132,20 @@ const LiveTrackingSheet: FC<{
   // The pickup code is used when the rider arrives (START -> ARRIVED), so hide it after that.
   const showRideOtp = isRide && item?.otp && item.status === "START";
   const showFoodDeliveryCode = isFood && shouldShowFoodDeliveryCodeOnLiveRide(item?.status, item?.otp);
-  const showParcelDeliveryCode = isParcel && item?.status === "IN_PROGRESS" && item?.deliveryOtp;
+  // A sender may pass the code on as soon as a rider has the job; a receiver needs it at handoff.
+  const showParcelDeliveryCode =
+    isParcel &&
+    !!item?.deliveryOtp &&
+    (item?.status === "IN_PROGRESS" ||
+      (parcelMode === "SEND" && (item?.status === "START" || item?.status === "ARRIVED")));
+  const shareParcelCode = useCallback(() => {
+    if (!item?.deliveryOtp) return;
+    const to = item.recipientName ? `Hi ${item.recipientName.split(" ")[0]}, ` : "";
+    Share.share({
+      message: `${to}I'm sending you a parcel with QareGO. Your delivery code is ${item.deliveryOtp}. Give it to the rider only when you have the parcel.`,
+    }).catch(() => {});
+  }, [item?.deliveryOtp, item?.recipientName]);
+  const parcelInfo = isParcel ? parcelSummary(item ?? {}) : "";
   const riderName = item?.rider?.name ?? (isParcel ? "Your courier" : "Your rider");
 
   // One-time tip on the pickup code the first time a customer's rider is on the way.
@@ -252,10 +272,18 @@ const LiveTrackingSheet: FC<{
             title="Delivery code"
             hint={parcelLabels.deliveryCodeHint}
           />
+          {parcelMode === "SEND" ? (
+            <BottomSheetTouchable onPress={shareParcelCode} style={styles.shareCodeBtn} activeOpacity={0.8}>
+              <Ionicons name="share-social-outline" size={16} color="#6d28d9" />
+              <CustomText fontSize={13} fontFamily="SemiBold" style={{ color: "#6d28d9" }}>
+                Share code with {item?.recipientName?.split(" ")[0] || "the receiver"}
+              </CustomText>
+            </BottomSheetTouchable>
+          ) : null}
         </View>
       ) : null}
 
-      {isParcel && (item?.recipientName || item?.recipientPhone || item?.parcelDescription) ? (
+      {isParcel && (item?.recipientName || item?.recipientPhone || item?.parcelDescription || parcelInfo) ? (
         <View style={styles.recipientBanner}>
           {item.recipientName ? (
             <CustomText fontSize={12} fontFamily="Medium">
@@ -267,9 +295,21 @@ const LiveTrackingSheet: FC<{
               {maskPhone(item.recipientPhone)}
             </CustomText>
           ) : null}
+          {parcelInfo ? (
+            <CustomText fontSize={11} fontFamily="Medium" style={{ color: "#6d28d9", marginTop: 4 }}>
+              {parcelInfo}
+            </CustomText>
+          ) : null}
           {item.parcelDescription ? (
             <CustomText fontSize={11} style={{ color: "#64748b", marginTop: 4 }}>
               {item.parcelDescription}
+            </CustomText>
+          ) : null}
+          {parcelMode === "SEND" && item.notifyRecipient ? (
+            <CustomText fontSize={11} style={{ color: "#64748b", marginTop: 4 }}>
+              {item.recipientSmsSentAt
+                ? `We texted ${item.recipientName?.split(" ")[0] || "the receiver"} the delivery code`
+                : `We'll text ${item.recipientName?.split(" ")[0] || "the receiver"} the code when a rider takes it`}
             </CustomText>
           ) : null}
         </View>
@@ -514,6 +554,18 @@ const styles = StyleSheet.create({
   },
   codeWrap: {
     marginBottom: 14,
+  },
+  shareCodeBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    marginTop: 8,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#ddd6fe",
+    backgroundColor: "#faf5ff",
   },
   recipientBanner: {
     backgroundColor: "#f5f3ff",

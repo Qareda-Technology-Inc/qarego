@@ -25,6 +25,8 @@ import CustomButton from "@/components/shared/CustomButton";
 import { createRide } from "@/service/rideService";
 import { formatCurrency, Colors } from "@/utils/Constants";
 import ParcelRecipientForm from "@/components/customer/ParcelRecipientForm";
+import ParcelDetailsPicker from "@/components/customer/ParcelDetailsPicker";
+import { PARCEL_SIZES, type ParcelCategory, type ParcelSize } from "@/utils/parcelDetails";
 import { RideHomeTheme as T } from "@/styles/rideHomeTheme";
 import { ParcelTheme as P } from "@/styles/parcelTheme";
 import { pickParcelImage } from "@/utils/pickParcelImage";
@@ -54,6 +56,9 @@ const RideBooking = () => {
     drop_address?: string;
     parcelMode?: string;
     busyVehicles?: string | string[];
+    /** "Send again" prefills the last receiver. */
+    recipientName?: string;
+    recipientPhone?: string;
   }>();
   // Params can come from route.state (navigate params) or URL (useLocalSearchParams)
   const item = useMemo(() => {
@@ -75,6 +80,8 @@ const RideBooking = () => {
       drop_address: str(merged.drop_address) ?? merged.drop_address,
       parcelMode: str(merged.parcelMode) ?? merged.parcelMode,
       busyVehicles: merged.busyVehicles,
+      recipientName: str(merged.recipientName),
+      recipientPhone: str(merged.recipientPhone),
     };
   }, [route?.params, localParams]);
   const { location: storeLocation, user } = useUserStore() as any;
@@ -111,8 +118,15 @@ const RideBooking = () => {
   const [selectedOption, setSelectedOption] = useState<"Motorcycle" | "Pragya" | "Comfort" | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<"CASH" | "MOBILE_MONEY">("CASH");
   const [loading, setLoading] = useState(false);
-  const [recipientName, setRecipientName] = useState("");
-  const [recipientPhone, setRecipientPhone] = useState("");
+  const [recipientName, setRecipientName] = useState(item?.recipientName ?? "");
+  const [recipientPhone, setRecipientPhone] = useState(item?.recipientPhone ?? "");
+  const [parcelSize, setParcelSize] = useState<ParcelSize>(
+    item?.vehicle === "pragya" ? "LARGE" : "SMALL"
+  );
+  const [parcelCategory, setParcelCategory] = useState<ParcelCategory | null>(null);
+  const [fragile, setFragile] = useState(false);
+  // Text the receiver the delivery code once a rider accepts (sending only).
+  const [notifyRecipient, setNotifyRecipient] = useState(true);
   const [parcelDescription, setParcelDescription] = useState("");
   const [deliveryNote, setDeliveryNote] = useState("");
   const [parcelPhotoUri, setParcelPhotoUri] = useState<string | null>(null);
@@ -198,13 +212,13 @@ const RideBooking = () => {
   // - Delivery: keep default vehicle selection
   useEffect(() => {
     if (serviceType === "DELIVERY") {
-      const next = item?.vehicle === "pragya" ? "Pragya" : "Motorcycle";
-      setSelectedOption(next);
+      // The parcel size picks the vehicle: large goes by tricycle, the rest by motorbike.
+      const vehicle = PARCEL_SIZES.find((s) => s.key === parcelSize)?.vehicle;
+      setSelectedOption(vehicle === "pragya" ? "Pragya" : "Motorcycle");
     } else {
       setSelectedOption(null);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [serviceType]);
+  }, [serviceType, parcelSize]);
 
   const rideOptions = useMemo(
     () => [
@@ -363,6 +377,10 @@ const RideBooking = () => {
       parcelDescription.trim(),
       deliveryNote.trim(),
       parcelPhotoUrl,
+      parcelSize,
+      parcelCategory,
+      fragile,
+      notifyRecipient,
     ])
   );
 
@@ -404,6 +422,10 @@ const RideBooking = () => {
       if (parcelDescription.trim()) payload.parcelDescription = parcelDescription.trim();
       if (deliveryNote.trim()) payload.deliveryNote = deliveryNote.trim();
       if (parcelPhotoUrl) payload.parcelPhotoUrl = parcelPhotoUrl;
+      payload.parcelSize = parcelSize;
+      if (parcelCategory) payload.parcelCategory = parcelCategory;
+      payload.fragile = fragile;
+      payload.notifyRecipient = parcelMode === "SEND" && notifyRecipient;
     }
     payload.clientRequestId = clientRequestId;
     await createRide(payload);
@@ -604,6 +626,19 @@ const RideBooking = () => {
             )}
 
             {serviceType === "DELIVERY" ? (
+              <ParcelDetailsPicker
+                size={parcelSize}
+                category={parcelCategory}
+                fragile={fragile}
+                prices={{ motorcycle: farePrices?.motorcycle, pragya: farePrices?.pragya }}
+                busyVehicles={busyVehicleSet}
+                onChangeSize={setParcelSize}
+                onChangeCategory={setParcelCategory}
+                onChangeFragile={setFragile}
+              />
+            ) : null}
+
+            {serviceType === "DELIVERY" ? (
               <ParcelRecipientForm
                 mode={parcelMode}
                 recipientName={recipientName}
@@ -622,13 +657,33 @@ const RideBooking = () => {
               />
             ) : null}
 
+            {serviceType === "DELIVERY" && parcelMode === "SEND" ? (
+              <TouchableOpacity
+                style={styles.notifyRow}
+                onPress={() => setNotifyRecipient((v) => !v)}
+                activeOpacity={0.8}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: notifyRecipient }}
+              >
+                <Ionicons
+                  name={notifyRecipient ? "checkbox" : "square-outline"}
+                  size={22}
+                  color={notifyRecipient ? P.accent : T.inkSoft}
+                />
+                <View style={{ flex: 1 }}>
+                  <CustomText fontFamily="SemiBold" fontSize={13} style={{ color: T.ink }}>
+                    Text the receiver the delivery code
+                  </CustomText>
+                  <CustomText fontSize={11} style={{ color: T.inkMuted, marginTop: 2 }}>
+                    Sent by SMS once a rider takes your parcel, with the rider's name and number
+                  </CustomText>
+                </View>
+              </TouchableOpacity>
+            ) : null}
+
             <View ref={optionsRef} collapsable={false} style={styles.section}>
-              {isParcelFlow ? (
-                <CustomText fontFamily="SemiBold" fontSize={14} style={styles.sectionTitle}>
-                  Courier options
-                </CustomText>
-              ) : null}
-              {displayOptions.map((ride) => {
+              {/* Parcels pick the vehicle through the size tiles above. */}
+              {(isParcelFlow ? [] : displayOptions).map((ride) => {
                 const isSelected = selectedOption === ride.type;
                 const isFastest = !isParcelFlow && fastestVehicle && ride.vehicle === fastestVehicle;
                 const isBusy =
@@ -820,6 +875,17 @@ const RideBooking = () => {
 };
 
 const styles = StyleSheet.create({
+  notifyRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    padding: 12,
+    marginBottom: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: T.border,
+    backgroundColor: T.sheetBg,
+  },
   container: {
     flex: 1,
     backgroundColor: "#F4F7FB",
