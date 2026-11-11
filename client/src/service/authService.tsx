@@ -9,6 +9,10 @@ import { ensureApiBaseUrl, getApiBaseUrl, getPhysicalDeviceNetworkHelp } from ".
 import { clearSession } from "./session";
 import { getReviewAccount } from "@/utils/reviewLogin";
 
+const isAppRole = (role?: string) => role === "customer" || role === "rider";
+const NOT_APP_ACCOUNT =
+  "This number is registered as a QareGO vendor, staff or admin account. Use the portal, or sign in with a different number.";
+
 export const signin = async (
   payload: {
     phone: string;
@@ -22,6 +26,11 @@ export const signin = async (
     const base = await ensureApiBaseUrl();
     const res = await axios.post(`${base}/auth/signin`, payload);
     
+    // The app is for customers and riders only (the server refuses other accounts too).
+    if (!isAppRole(res.data.user.role)) {
+      Alert.alert("Can't sign in", NOT_APP_ACCOUNT);
+      return;
+    }
     // Clear the opposite store to avoid conflicts
     if (res.data.user.role === "customer") {
       const { clearRiderData } = useRiderStore.getState();
@@ -105,6 +114,10 @@ export const verifyOtp = async (
       refresh_token: string;
     }>("/auth/verify-otp", payload);
 
+    // The app is for customers and riders only (the server refuses other accounts too).
+    if (!isAppRole(res.user.role)) {
+      throw Object.assign(new Error(NOT_APP_ACCOUNT), { status: 400 });
+    }
     // Clear the opposite store to avoid conflicts
     if (res.user.role === "customer") {
       const { clearRiderData } = useRiderStore.getState();

@@ -125,10 +125,11 @@ export default function OtpVerifyScreen({
     try {
       await verifyOtp({ phone: phone || "", otp: code }, updateAccessToken);
     } catch (error: unknown) {
-      const err = error as { response?: { data?: { msg?: string } } };
+      const err = error as { response?: { data?: { msg?: string } }; status?: number; message?: string };
+      const serverSaid = err?.status && err.status < 500 ? err.message : null;
       Alert.alert(
         "Verification Failed",
-        err?.response?.data?.msg || "Invalid OTP. Please try again."
+        err?.response?.data?.msg || serverSaid || "Invalid OTP. Please try again."
       );
       setOtp(blank(codeLength));
       inputs.current[0]?.focus();

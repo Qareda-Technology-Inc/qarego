@@ -12,6 +12,7 @@ import { normalizePhone } from "../utils/phone.js";
 import { normalizeServicePreferencesInput } from "../utils/riderServicePreferences.js";
 import { sanitizeMediaUrl } from "../utils/mediaStorage.js";
 import { getReviewAccount, ensureReviewUser } from "../utils/reviewLogin.js";
+import { appLoginRefusal } from "../utils/appLogin.js";
 import Ride from "../models/Ride.js";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -47,6 +48,11 @@ export const requestOtp = async (req, res) => {
       codeLength: String(reviewAccount.otp).length,
     });
   }
+
+  // Vendor / staff / admin numbers can't use the app: say so before texting a code.
+  const existing = await User.findOne({ phone }).select("role").lean();
+  const refusal = appLoginRefusal(existing);
+  if (refusal) throw new BadRequestError(refusal);
 
   const wantsLongCode = Number(req.body.codeLength) >= ARKESEL_OTP_LENGTH;
   if (wantsLongCode && isArkeselOtpConfigured()) {
@@ -189,6 +195,8 @@ export const verifyOtp = async (req, res) => {
 
   // Find or create user
   let user = await User.findOne({ phone });
+  const refusal = appLoginRefusal(user);
+  if (refusal) throw new BadRequestError(refusal);
 
   if (!user) {
     // If user does NOT exist, create as CUSTOMER
@@ -221,6 +229,9 @@ export const auth = async (req, res) => {
 
   try {
     let user = await User.findOne({ phone });
+
+    const refusal = appLoginRefusal(user);
+    if (refusal) throw new BadRequestError(refusal);
 
     // If user exists, log them in
     if (user) {

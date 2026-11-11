@@ -66,7 +66,10 @@ const Role = () => {
       }
     } catch (error) {
       console.log("Login Error", error);
-      Alert.alert("Error", "Failed to send OTP. Please try again.");
+      // The server explains refusals (e.g. a vendor's number can't use the app); show that.
+      const err = error as { status?: number; message?: string };
+      const serverSaid = err?.status && err.status < 500 && err.message ? err.message : null;
+      Alert.alert(serverSaid ? "Can't sign in" : "Error", serverSaid || "Failed to send OTP. Please try again.");
     } finally {
       setLoading(false);
     }

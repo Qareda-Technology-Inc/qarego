@@ -32,6 +32,7 @@ Customers can also choose **pickup** (they collect from your counter) or **sched
 1. **Apply.** Go to **qarego.com** and tap "List your store", or WhatsApp **050 177 4210**. Tell us your store's name, type and location.
 2. **Get your sign-in details.** When QareGO approves your application, you receive an SMS with your username and a temporary password.
 3. **Sign in** at **merchant.qarego.com**. You are asked to choose your own password the first time.
+   Your vendor phone number is for the merchant portal only. It can't sign in to the QareGO app; to order or ride yourself, use a different number in the app.
 4. **Set up your store** (next section) and **submit it for review**.
 5. **Go live.** QareGO checks your store. When it's approved you get a notification and customers can see you in the app. If something needs fixing, QareGO tells you what to change.
 
