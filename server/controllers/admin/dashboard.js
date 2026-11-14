@@ -7,6 +7,7 @@ import FoodOrder from "../../models/FoodOrder.js";
 import Restaurant from "../../models/Restaurant.js";
 import VendorApplication from "../../models/VendorApplication.js";
 import { getSettings } from "../../utils/tripSettlement.js";
+import { getOrderAlertConfig } from "../../utils/orderWaitAlerts.js";
 import { OPEN_RIDE_PAYMENT } from "../../utils/ridePayments.js";
 import { storeDebtLimit } from "../../utils/storeDebt.js";
 
@@ -152,10 +153,8 @@ const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 const MINUTE = 60 * 1000;
 /** Orders waiting this long for the store to accept need a nudge. */
 const STORE_ACCEPT_LATE_MIN = 5;
-/** Ready delivery orders with no rider after this long need help. */
-const NO_RIDER_LATE_MIN = 10;
-/** Ride requests still searching after this long. */
-const RIDE_SEARCH_LATE_MIN = 5;
+// Ready deliveries with no rider, and rides/parcels still searching, show here as soon as the
+// team's no-rider alert would go out (admin Settings → Orders and trips nobody has taken).
 
 async function dayTotals(start, end) {
   const [trips] = await Ride.aggregate([
@@ -204,6 +203,9 @@ export const getAdminOverview = async (_req, res) => {
   const yesterdayStart = new Date(todayStart.getTime() - 24 * 60 * MINUTE);
   const settings = await getSettings();
   const debtLimit = settings.debtLimit ?? -100;
+  const alertCfg = getOrderAlertConfig(settings);
+  const NO_RIDER_LATE_MIN = alertCfg.courierNoRiderMinutes;
+  const RIDE_SEARCH_LATE_MIN = Math.min(alertCfg.rideNoRiderMinutes, alertCfg.parcelNoRiderMinutes);
 
   const [today, yesterday] = await Promise.all([
     dayTotals(todayStart, now),

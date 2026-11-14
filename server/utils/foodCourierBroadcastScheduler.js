@@ -9,6 +9,7 @@ import {
 import { isCollectFirstOrder } from "./laundryOrders.js";
 import { cancelStaleUnpaidOrders } from "./unpaidOrders.js";
 import { processWaitingOrders } from "./orderWaitAlerts.js";
+import { processNoRiderJobs } from "./noRiderAlerts.js";
 
 const POLL_MS = 30_000;
 
@@ -105,6 +106,9 @@ export function startFoodCourierBroadcastScheduler(io) {
     });
     processWaitingOrders(io).catch((err) => {
       console.error("[food] waiting order alerts error:", err?.message || err);
+    });
+    processNoRiderJobs().catch((err) => {
+      console.error("[food] no-rider alerts error:", err?.message || err);
     });
   };
 

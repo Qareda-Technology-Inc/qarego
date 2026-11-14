@@ -49,6 +49,8 @@ const rideSchema = new Schema(
     /** Sender asked us to text the receiver the delivery code once a rider accepts. */
     notifyRecipient: { type: Boolean, default: false },
     recipientSmsSentAt: { type: Date, default: null },
+    /** QareGO's team was told no rider had taken this job (utils/noRiderAlerts.js). */
+    noRiderAlertSentAt: { type: Date, default: null },
     /** App-generated id for this booking attempt; makes retries duplicate-safe. */
     clientRequestId: { type: String, default: null },
     /** Parcel only: recipient handoff code (pickup uses `otp`). Secret: see RIDE_CODE_FIELDS. */

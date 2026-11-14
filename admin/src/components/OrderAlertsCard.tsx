@@ -8,12 +8,25 @@ import { Label } from "@/components/ui/Label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { BellRing, Loader2, Mail, Save } from "lucide-react";
 
-type OrderAlerts = { storeReminderMinutes: number; teamAlertMinutes: number; phones: string[] };
+type OrderAlerts = {
+  storeReminderMinutes: number;
+  teamAlertMinutes: number;
+  rideNoRiderMinutes?: number;
+  parcelNoRiderMinutes?: number;
+  courierNoRiderMinutes?: number;
+  phones: string[];
+};
 
-/** Orders a store hasn't accepted: remind the store, then text QareGO's team. */
+/**
+ * Orders a store hasn't accepted (remind the store, then text QareGO's team) and jobs no rider has
+ * taken (text the team).
+ */
 export function OrderAlertsCard() {
   const [reminder, setReminder] = useState("3");
   const [teamAfter, setTeamAfter] = useState("5");
+  const [rideAfter, setRideAfter] = useState("3");
+  const [parcelAfter, setParcelAfter] = useState("2");
+  const [courierAfter, setCourierAfter] = useState("5");
   const [phones, setPhones] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -28,6 +41,9 @@ export function OrderAlertsCard() {
         if (!cfg) return;
         setReminder(String(cfg.storeReminderMinutes));
         setTeamAfter(String(cfg.teamAlertMinutes));
+        if (cfg.rideNoRiderMinutes) setRideAfter(String(cfg.rideNoRiderMinutes));
+        if (cfg.parcelNoRiderMinutes) setParcelAfter(String(cfg.parcelNoRiderMinutes));
+        if (cfg.courierNoRiderMinutes) setCourierAfter(String(cfg.courierNoRiderMinutes));
         setPhones((cfg.phones || []).join("\n"));
       })
       .catch((e) => console.error(e))
@@ -44,6 +60,9 @@ export function OrderAlertsCard() {
           orderAlerts: {
             storeReminderMinutes: Number(reminder),
             teamAlertMinutes: Number(teamAfter),
+            rideNoRiderMinutes: Number(rideAfter),
+            parcelNoRiderMinutes: Number(parcelAfter),
+            courierNoRiderMinutes: Number(courierAfter),
             phones: phones.split(/[\n,]+/).map((p) => p.trim()).filter(Boolean),
           },
         }),
@@ -76,12 +95,13 @@ export function OrderAlertsCard() {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <BellRing className="h-5 w-5 text-red-500" />
-          Orders nobody has accepted
+          Orders and trips nobody has taken
         </CardTitle>
         <CardDescription>
-          A store is told about a new order by SMS and on its orders screen. If nobody accepts it, the
-          store gets a reminder, then your team gets an SMS with the store&apos;s and customer&apos;s
-          numbers so someone can call.
+          If a store doesn&apos;t accept an order, the store gets a reminder, then your team gets an SMS
+          with the store&apos;s and customer&apos;s numbers so someone can call. If no rider takes a
+          ride, parcel or store delivery, your team gets an SMS with the pickup, the customer&apos;s
+          number and how many riders are online, so someone can assign a rider.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -114,6 +134,23 @@ export function OrderAlertsCard() {
               </div>
             </div>
             <div>
+              <p className="mb-2 text-sm font-medium text-gray-700">No rider yet: text the team after (minutes)</p>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div>
+                  <Label htmlFor="alert-ride">Ride</Label>
+                  <Input id="alert-ride" type="number" min="1" max="60" value={rideAfter} onChange={(e) => setRideAfter(e.target.value)} />
+                </div>
+                <div>
+                  <Label htmlFor="alert-parcel">Parcel</Label>
+                  <Input id="alert-parcel" type="number" min="1" max="60" value={parcelAfter} onChange={(e) => setParcelAfter(e.target.value)} />
+                </div>
+                <div>
+                  <Label htmlFor="alert-courier">Store delivery, once ready</Label>
+                  <Input id="alert-courier" type="number" min="1" max="60" value={courierAfter} onChange={(e) => setCourierAfter(e.target.value)} />
+                </div>
+              </div>
+            </div>
+            <div>
               <Label htmlFor="alert-phones">Team phone numbers (one per line, up to 5)</Label>
               <textarea
                 id="alert-phones"
@@ -124,7 +161,7 @@ export function OrderAlertsCard() {
               />
               {noPhones ? (
                 <p className="mt-1 text-xs text-amber-700">
-                  No numbers yet. Add at least one so your team hears about stuck orders by SMS.
+                  No numbers yet. Add at least one so your team hears about stuck orders and trips by SMS.
                 </p>
               ) : null}
               <p className="mt-1 text-xs text-gray-500">

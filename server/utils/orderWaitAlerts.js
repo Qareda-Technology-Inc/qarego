@@ -21,8 +21,16 @@ const LOOKBACK_MINUTES = 120;
 export const DEFAULT_ORDER_ALERTS = {
   storeReminderMinutes: 3,
   teamAlertMinutes: 5,
+  /** No rider has taken it (utils/noRiderAlerts.js): ride, parcel, store delivery ready to go. */
+  rideNoRiderMinutes: 3,
+  parcelNoRiderMinutes: 2,
+  courierNoRiderMinutes: 5,
   phones: [],
 };
+
+const NO_RIDER_KEYS = ["rideNoRiderMinutes", "parcelNoRiderMinutes", "courierNoRiderMinutes"];
+const noRiderMinutes = (raw) =>
+  Object.fromEntries(NO_RIDER_KEYS.map((k) => [k, clampMinutes(raw?.[k], DEFAULT_ORDER_ALERTS[k])]));
 
 function clampMinutes(value, fallback) {
   const n = Math.round(Number(value));
@@ -35,6 +43,7 @@ export function getOrderAlertConfig(settings) {
   return {
     storeReminderMinutes: clampMinutes(raw.storeReminderMinutes, DEFAULT_ORDER_ALERTS.storeReminderMinutes),
     teamAlertMinutes: clampMinutes(raw.teamAlertMinutes, DEFAULT_ORDER_ALERTS.teamAlertMinutes),
+    ...noRiderMinutes(raw),
     phones: Array.isArray(raw.phones) ? raw.phones.filter(Boolean) : [],
   };
 }
@@ -53,6 +62,7 @@ export function normalizeOrderAlertsInput(input) {
   const config = {
     storeReminderMinutes: clampMinutes(input?.storeReminderMinutes, DEFAULT_ORDER_ALERTS.storeReminderMinutes),
     teamAlertMinutes: clampMinutes(input?.teamAlertMinutes, DEFAULT_ORDER_ALERTS.teamAlertMinutes),
+    ...noRiderMinutes(input),
     phones,
   };
   if (config.teamAlertMinutes < config.storeReminderMinutes) {
@@ -117,7 +127,7 @@ async function remindStore(order, now) {
 }
 
 /** Super admins (and admins from before roles existed) with an email on their account. */
-async function superAdminEmails() {
+export async function superAdminEmails() {
   const admins = await User.find({
     role: "admin",
     adminRole: { $in: ["super", null] },
@@ -144,32 +154,49 @@ async function alertTeam(order, { phones, emails }, now) {
     `Order ${String(order._id).slice(-6)}.`
   ).slice(0, 320);
 
+  const adminBase = adminOrigins()[0];
+  await sendTeamAlert(
+    { phones, emails },
+    {
+      sms: message,
+      subject: `Order not accepted: ${name} (${minutesWaiting(order, now)} min)`,
+      emailLines: [
+        `${name} hasn't accepted an order for ${minutesWaiting(order, now)} minutes.`,
+        "",
+        `Order: ${String(order._id).slice(-6)} (${itemSummary(order)})`,
+        `Total: GH₵${Number(order.total || 0).toFixed(2)}, ${order.paymentMethod === "CASH" ? "cash" : "paid by mobile money"}`,
+        `Store: ${name}, ${storePhone || "no phone on file"}`,
+        `Customer: ${customer?.name || "Customer"}, ${normalizePhone(customer?.phone) || "no phone on file"}`,
+        "",
+        "Please call the store, or the customer if the store can't take it.",
+      ],
+      link: adminBase ? `${adminBase.replace(/\/$/, "")}/food-orders/${order._id}` : null,
+      pushTitle: "Order not accepted",
+      data: { type: "admin_order_alert", orderId: String(order._id) },
+      logTag: `order ${order._id}`,
+    }
+  );
+}
+
+/**
+ * Tell QareGO's team: SMS to the Settings phones, email to super admins, push to admins with the
+ * app. Used for orders a store hasn't accepted and for jobs no rider has taken (noRiderAlerts.js).
+ */
+export async function sendTeamAlert({ phones, emails }, { sms, subject, emailLines, link, pushTitle, data, logTag }) {
+  const message = String(sms).slice(0, 320);
   if (emails.length) {
-    const adminBase = adminOrigins()[0];
-    const link = adminBase ? `${adminBase.replace(/\/$/, "")}/food-orders/${order._id}` : null;
-    const lines = [
-      `${name} hasn't accepted an order for ${minutesWaiting(order, now)} minutes.`,
-      "",
-      `Order: ${String(order._id).slice(-6)} (${itemSummary(order)})`,
-      `Total: GH₵${Number(order.total || 0).toFixed(2)}, ${order.paymentMethod === "CASH" ? "cash" : "paid by mobile money"}`,
-      `Store: ${name}, ${storePhone || "no phone on file"}`,
-      `Customer: ${customer?.name || "Customer"}, ${normalizePhone(customer?.phone) || "no phone on file"}`,
-      "",
-      "Please call the store, or the customer if the store can't take it.",
-      ...(link ? ["", `Open the order: ${link}`] : []),
-    ];
     const result = await sendEmail({
       to: emails,
-      subject: `Order not accepted: ${name} (${minutesWaiting(order, now)} min)`,
-      text: lines.join("\n"),
+      subject,
+      text: [...emailLines, ...(link ? ["", `Open it: ${link}`] : [])].join("\n"),
     });
-    if (result.success) console.log(`[order-alert] email → ${emails.join(", ")} for order ${order._id}`);
+    if (result.success) console.log(`[order-alert] email → ${emails.join(", ")} for ${logTag}`);
   }
 
   for (const phone of phones) {
     try {
       const result = await sendSMS(phone, message);
-      if (result?.success) console.log(`[order-alert] team sms → ${phone} for order ${order._id}`);
+      if (result?.success) console.log(`[order-alert] team sms → ${phone} for ${logTag}`);
       else console.warn(`[order-alert] team sms failed → ${phone}`, result?.error || result);
     } catch (err) {
       console.warn(`[order-alert] team sms failed → ${phone}:`, err?.message || err);
@@ -181,9 +208,9 @@ async function alertTeam(order, { phones, emails }, now) {
     const admins = await User.find({ role: "admin", "pushTokens.0": { $exists: true } }).select("_id").lean();
     for (const admin of admins) {
       void sendPushToUserId(admin._id, {
-        title: "Order not accepted",
+        title: pushTitle,
         body: message.replace(/^QareGO alert: /, ""),
-        data: { type: "admin_order_alert", orderId: String(order._id) },
+        data,
       }).catch(() => {});
     }
   }
