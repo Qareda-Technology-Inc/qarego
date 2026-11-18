@@ -28,6 +28,10 @@ export default function PharmacyPriceCard({ order, onAnswered, onApprovedPayNow,
   const photos = (order.prescriptionUrls ?? []).map((u) => resolveMediaUrl(u)).filter(Boolean) as string[];
   const toAnswer = quote.priceStatus === "awaiting_customer" && order.status === "PLACED";
   const isMomo = order.paymentMethod === "MOBILE_MONEY";
+  const answerBy = toAnswer && quote.answerBy ? new Date(quote.answerBy) : null;
+  const answerByText = answerBy
+    ? answerBy.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+    : null;
 
   const answer = async (decision: "approve" | "decline") => {
     setBusy(decision);
@@ -149,6 +153,14 @@ export default function PharmacyPriceCard({ order, onAnswered, onApprovedPayNow,
           <CustomText fontSize={11} color="#64748b" style={{ textAlign: "center", marginTop: 6 }}>
             {isMomo ? "You pay by MoMo, then the pharmacy packs it." : "You pay cash when it arrives."}
           </CustomText>
+          {answerByText ? (
+            <View style={styles.deadline}>
+              <Ionicons name="time-outline" size={14} color="#92400e" />
+              <CustomText fontSize={12} color="#92400e" style={{ marginLeft: 6, flex: 1 }}>
+                Approve by {answerByText}. After that the request closes and you can send it again.
+              </CustomText>
+            </View>
+          ) : null}
           <TouchableOpacity style={styles.secondary} disabled={!!busy} onPress={confirmDecline} accessibilityRole="button">
             {busy === "decline" ? (
               <ActivityIndicator color={ACCENT} />
@@ -201,5 +213,14 @@ const styles = StyleSheet.create({
     marginTop: 14,
   },
   secondary: { paddingVertical: 12, alignItems: "center" },
+  deadline: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fef3c7",
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    marginTop: 10,
+  },
   disabled: { opacity: 0.6 },
 });

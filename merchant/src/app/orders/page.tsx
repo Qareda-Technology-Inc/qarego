@@ -699,6 +699,13 @@ function OrderCard({
               <Clock className="h-4 w-4" /> Waiting for the customer to approve {formatCurrency(order.subtotal)}
             </p>
             <p className="mt-0.5 text-xs">Don&apos;t pack it yet. It moves to Preparing once they approve.</p>
+            {rx?.answerBy ? (
+              <p className="mt-0.5 text-xs">
+                They have until{" "}
+                {new Date(rx.answerBy).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}. After that the
+                request closes on its own. Changing the price gives them more time.
+              </p>
+            ) : null}
             <button onClick={onQuote} className="mt-1 text-xs font-medium text-brand hover:underline">
               Change price
             </button>

@@ -31,9 +31,11 @@ export type FoodOrderRow = {
   } | null;
   /** Prescription requests: the pharmacist prices the photo, the customer approves. */
   pharmacyQuote?: {
-    priceStatus: "awaiting_pharmacy" | "awaiting_customer" | "approved" | "declined";
+    priceStatus: "awaiting_pharmacy" | "awaiting_customer" | "approved" | "declined" | "expired";
     request?: string | null;
     quotedAt?: string | null;
+    /** The customer must approve by then, or the request closes. */
+    answerBy?: string | null;
     unavailable?: string[];
     pharmacistNote?: string | null;
     decidedAt?: string | null;

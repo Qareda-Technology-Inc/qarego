@@ -1,9 +1,14 @@
 import React from "react";
 import { Stack } from "expo-router";
 
-const FoodLayout = () => (
+/**
+ * Store, cart, checkout and order screens. They sit on the customer stack above the commerce
+ * tabs (not inside the Stores tab), so Back from a store always returns to the screen that
+ * opened it (Home, a module list, search, orders) and never to a module page visited earlier.
+ * The module lists themselves (Groceries, Pharmacy, Laundry) are the Stores tab: (commerce)/stores.tsx.
+ */
+const StoreScreensLayout = () => (
   <Stack screenOptions={{ headerShown: false }}>
-    <Stack.Screen name="index" options={{ title: "Shops" }} />
     <Stack.Screen name="[id]" options={{ title: "Store" }} />
     <Stack.Screen name="cart" options={{ title: "Cart" }} />
     <Stack.Screen name="checkout" options={{ title: "Checkout" }} />
@@ -13,4 +18,4 @@ const FoodLayout = () => (
   </Stack>
 );
 
-export default FoodLayout;
+export default StoreScreensLayout;

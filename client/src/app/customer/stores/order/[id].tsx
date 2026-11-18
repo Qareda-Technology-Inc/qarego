@@ -585,7 +585,7 @@ const FoodOrderTracking = () => {
     return (
       <View style={[styles.container, styles.center, { paddingTop: insets.top }]}>
         <CustomText>Order not found</CustomText>
-        <TouchableOpacity onPress={() => router.replace(shopHome as any)} style={{ marginTop: 16 }}>
+        <TouchableOpacity onPress={() => router.dismissTo(shopHome as any)} style={{ marginTop: 16 }}>
           <CustomText color={verticalTheme.accent}>{copy.customerBackToShop}</CustomText>
         </TouchableOpacity>
       </View>
@@ -627,7 +627,7 @@ const FoodOrderTracking = () => {
           )}
 
           <TouchableOpacity
-            onPress={() => router.replace(shopHome as any)}
+            onPress={() => router.dismissTo(shopHome as any)}
             style={[styles.closeBtn, { top: insets.top + 8 }]}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
@@ -681,7 +681,7 @@ const FoodOrderTracking = () => {
           style={[styles.fallbackHeader, { paddingTop: insets.top + 8 }]}
           onLayout={(e) => setFallbackHeaderH(e.nativeEvent.layout.height)}
         >
-          <TouchableOpacity onPress={() => router.replace(shopHome as any)} style={styles.closeBtnPlain}>
+          <TouchableOpacity onPress={() => router.dismissTo(shopHome as any)} style={styles.closeBtnPlain}>
             <MaterialIcons name="close" size={22} color={FOOD_THEME.text} />
           </TouchableOpacity>
           <View style={styles.fallbackHero}>
@@ -913,7 +913,7 @@ const FoodOrderTracking = () => {
             {isTerminal ? (
               <CustomButton
                 title={copy.customerOrderMore}
-                onPress={() => router.replace(shopHome as any)}
+                onPress={() => router.dismissTo(shopHome as any)}
               />
             ) : !canRateRestaurant ? (
               <CustomText fontSize={12} color={FOOD_THEME.textMuted} style={styles.notifyHint}>

@@ -2,8 +2,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import FoodOrder from "../models/FoodOrder.js";
 import {
+  PHARMACY_PRICE_HOURS,
   applyPharmacyDecision,
   applyPharmacyQuote,
+  pharmacyAnswerBy,
+  pharmacyPriceExpired,
   pharmacyQuotePending,
   readPharmacyQuote,
 } from "../utils/pharmacyQuote.js";
@@ -71,4 +74,44 @@ test("pharmacy quote: the price fills in fees and total; approve, or decline", (
 
   const other = request();
   assert.throws(() => applyPharmacyDecision(other, "approve"), /no price/);
+});
+
+test("pharmacy quote: the customer has a set time to approve; a new price restarts it", () => {
+  const HOUR = 3_600_000;
+  const t0 = new Date("2026-11-18T10:00:00Z");
+  const order = request();
+  const quote = readPharmacyQuote({ items: [{ name: "Paracetamol", quantity: 1, price: 8 }] });
+  applyPharmacyQuote(order, quote, SETTINGS, t0);
+  assert.equal(order.pharmacyQuote.answerBy.getTime(), t0.getTime() + PHARMACY_PRICE_HOURS * HOUR);
+
+  const justBefore = new Date(t0.getTime() + PHARMACY_PRICE_HOURS * HOUR - 1000);
+  const after = new Date(t0.getTime() + PHARMACY_PRICE_HOURS * HOUR + 1000);
+  assert.equal(pharmacyPriceExpired(order, justBefore), false);
+  assert.equal(pharmacyPriceExpired(order, after), true);
+
+  // Too late to approve…
+  assert.throws(() => applyPharmacyDecision(order, "approve", after), /expired/);
+  assert.equal(order.pharmacyQuote.priceStatus, "awaiting_customer");
+
+  // …but the pharmacist changing the price gives a fresh window.
+  const t1 = new Date(t0.getTime() + 90 * 60_000);
+  applyPharmacyQuote(order, quote, SETTINGS, t1);
+  assert.equal(pharmacyPriceExpired(order, after), false);
+  applyPharmacyDecision(order, "approve", after);
+  assert.equal(order.pharmacyQuote.priceStatus, "approved");
+  assert.equal(pharmacyPriceExpired(order, new Date(t1.getTime() + 10 * HOUR)), false); // answered
+});
+
+test("pharmacy quote: declining late is still allowed; older prices without answerBy use quotedAt", () => {
+  const HOUR = 3_600_000;
+  const t0 = new Date("2026-11-18T10:00:00Z");
+  const order = request();
+  applyPharmacyQuote(order, readPharmacyQuote({ items: [{ name: "ORS", quantity: 4, price: 3 }] }), SETTINGS, t0);
+  applyPharmacyDecision(order, "decline", new Date(t0.getTime() + 5 * HOUR));
+  assert.equal(order.pharmacyQuote.priceStatus, "declined");
+
+  const old = { priceStatus: "awaiting_customer", quotedAt: t0, answerBy: null };
+  assert.equal(pharmacyAnswerBy(old).getTime(), t0.getTime() + PHARMACY_PRICE_HOURS * HOUR);
+  assert.equal(pharmacyPriceExpired({ pharmacyQuote: old }, new Date(t0.getTime() + 3 * HOUR)), true);
+  assert.equal(pharmacyPriceExpired({ pharmacyQuote: { priceStatus: "awaiting_pharmacy" } }), false);
 });

@@ -203,15 +203,20 @@ const foodOrderSchema = new Schema(
     pharmacyQuote: {
       type: new Schema(
         {
-          /** awaiting_pharmacy → awaiting_customer → approved | declined (declined = cancelled). */
+          /**
+           * awaiting_pharmacy → awaiting_customer → approved | declined | expired
+           * (declined and expired both cancel the order; expired = not answered by answerBy).
+           */
           priceStatus: {
             type: String,
-            enum: ["awaiting_pharmacy", "awaiting_customer", "approved", "declined"],
+            enum: ["awaiting_pharmacy", "awaiting_customer", "approved", "declined", "expired"],
             default: "awaiting_pharmacy",
           },
           /** What the customer wrote with the photo. */
           request: { type: String, default: null },
           quotedAt: { type: Date, default: null },
+          /** The customer must approve the price by then, or the request closes (pharmacyRequests.js). */
+          answerBy: { type: Date, default: null },
           /** Medicines on the prescription the pharmacy doesn't have. */
           unavailable: { type: [String], default: [] },
           pharmacistNote: { type: String, default: null },

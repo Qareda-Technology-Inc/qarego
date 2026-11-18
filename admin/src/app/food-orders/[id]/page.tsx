@@ -56,9 +56,10 @@ type OrderDetail = {
   } | null;
   /** Prescription request: priced by the pharmacist, approved by the customer. */
   pharmacyQuote?: {
-    priceStatus: "awaiting_pharmacy" | "awaiting_customer" | "approved" | "declined";
+    priceStatus: "awaiting_pharmacy" | "awaiting_customer" | "approved" | "declined" | "expired";
     request?: string | null;
     quotedAt?: string | null;
+    answerBy?: string | null;
     unavailable?: string[];
     pharmacistNote?: string | null;
     decidedAt?: string | null;
@@ -161,6 +162,7 @@ const PHARMACY_PRICE: Record<string, { label: string; tone: string }> = {
   awaiting_customer: { label: "Waiting for customer to approve", tone: "bg-amber-100 text-amber-800" },
   approved: { label: "Price approved", tone: "bg-green-100 text-green-800" },
   declined: { label: "Customer declined the price", tone: "bg-red-100 text-red-800" },
+  expired: { label: "Customer didn't answer in time (closed)", tone: "bg-red-100 text-red-800" },
 };
 
 const PAYOUT_LEG: Record<string, { label: string; tone: string }> = {
@@ -435,6 +437,9 @@ export default function StoreOrderDetailPage() {
                 ) : null}
                 {order.pharmacyQuote.quotedAt ? (
                   <p className="text-xs text-gray-500">Priced {new Date(order.pharmacyQuote.quotedAt).toLocaleString()}</p>
+                ) : null}
+                {order.pharmacyQuote.answerBy && order.pharmacyQuote.priceStatus === "awaiting_customer" ? (
+                  <p className="text-xs text-gray-500">Customer must answer by {new Date(order.pharmacyQuote.answerBy).toLocaleString()}</p>
                 ) : null}
                 {order.pharmacyQuote.decidedAt ? (
                   <p className="text-xs text-gray-500">Answered {new Date(order.pharmacyQuote.decidedAt).toLocaleString()}</p>

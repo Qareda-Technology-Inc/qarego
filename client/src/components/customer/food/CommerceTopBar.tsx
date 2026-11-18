@@ -3,6 +3,7 @@ import { View, TouchableOpacity, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import CustomText from "@/components/shared/CustomText";
+import { leaveCommerce } from "@/utils/commerceNavigation";
 import { FOOD_THEME } from "@/styles/foodStyles";
 
 type Props = {
@@ -24,7 +25,7 @@ const CommerceTopBar: FC<Props> = ({
     {leftAction ?? (
       showServicesButton ? (
         <TouchableOpacity
-          onPress={() => router.replace("/customer")}
+          onPress={leaveCommerce}
           style={styles.iconBtn}
           hitSlop={12}
           accessibilityLabel="All services"

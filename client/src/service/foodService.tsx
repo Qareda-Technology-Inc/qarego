@@ -136,9 +136,11 @@ export type FoodOrder = {
   } | null;
   /** Prescription request: the pharmacist prices the photo, then the customer approves. */
   pharmacyQuote?: {
-    priceStatus: "awaiting_pharmacy" | "awaiting_customer" | "approved" | "declined";
+    priceStatus: "awaiting_pharmacy" | "awaiting_customer" | "approved" | "declined" | "expired";
     request?: string | null;
     quotedAt?: string | null;
+    /** The customer must approve by then, or the request closes. */
+    answerBy?: string | null;
     unavailable?: string[];
     pharmacistNote?: string | null;
     decidedAt?: string | null;

@@ -73,7 +73,7 @@ iOS native build notes:
 Rooms: `onDuty`, `rider_<id>`, `ride_<id>`, `food_order_<id>`, `customer_<id>`, `restaurant_<id>`, `chat_<rideId>`. Riders send `goOnDuty` / `goOffDuty` / `updateLocation`. Clients subscribe with `subscribeRide`, `subscribeFoodOrder`, `subscribeRestaurant`, `subscribeToriderLocation`. In-ride chat uses `joinChat` / `sendChatMessage`.
 
 ### Mobile client (`client/src/`)
-- Expo Router lives in `src/app/`. `role.tsx` picks a role, which leads to `customer/*` or `rider/*`. Commerce screens are in the `customer/(commerce)/` group.
+- Expo Router lives in `src/app/`. `role.tsx` picks a role, which leads to `customer/*` or `rider/*`. Commerce tabs (Home, the Groceries/Pharmacy/Laundry list `stores.tsx`, search, orders, account) are in the `customer/(commerce)/` group, with `backBehavior="history"`. Store, cart, checkout, prescription, laundry booking and order tracking are in `customer/stores/` on the customer stack above the tabs, so Back returns to whichever screen opened them. Enter a module with `openCommerceModule` and leave with `leaveCommerce` (`utils/commerceNavigation.ts`); the navigation tests are in `src/utils/__tests__/commerceNavigation.test.tsx`.
 - `service/`: `apiClient.ts` + `apiInterceptors.tsx` (axios, token refresh), `WSProvider.tsx` (socket), and one file per domain (`rideService`, `foodService`, `commerceService`, …).
 - State: zustand stores in `store/`, persisted with MMKV (`storage.tsx`).
 - API target comes from `service/appEnvironment.ts`. `EXPO_PUBLIC_APP_ENV` sets dev or prod, and when unset it follows `__DEV__`. Dev auto-discovers the local API over USB/LAN.

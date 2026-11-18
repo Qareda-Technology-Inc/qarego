@@ -15,7 +15,24 @@ const MAX_NOTE_CHARS = 300;
 const MAX_LINE_PRICE = 10_000;
 const MAX_LINE_QTY = 99;
 
+/** How long the customer has to approve a price. Stock and prices move, so it isn't held for ever. */
+export const PHARMACY_PRICE_HOURS = 2;
+const HOUR = 3_600_000;
+
 export const isPharmacyQuoteOrder = (order) => !!order?.pharmacyQuote;
+
+/** When the customer must answer by: set with the price, or worked out for older orders. */
+export function pharmacyAnswerBy(quote) {
+  if (quote?.answerBy) return new Date(quote.answerBy);
+  return quote?.quotedAt ? new Date(new Date(quote.quotedAt).getTime() + PHARMACY_PRICE_HOURS * HOUR) : null;
+}
+
+/** A price sent to the customer and not answered in time. */
+export function pharmacyPriceExpired(order, now = new Date()) {
+  if (order?.pharmacyQuote?.priceStatus !== "awaiting_customer") return false;
+  const by = pharmacyAnswerBy(order.pharmacyQuote);
+  return !!by && now.getTime() > by.getTime();
+}
 
 /** Still waiting on the pharmacist or the customer, so the store can't start it or take payment. */
 export const pharmacyQuotePending = (order) =>
@@ -59,7 +76,7 @@ export function readPharmacyQuote(body) {
 }
 
 /** Put the pharmacist's price on the order: fees and the store/rider split follow the new subtotal. */
-export function applyPharmacyQuote(order, quote, settings) {
+export function applyPharmacyQuote(order, quote, settings, now = new Date()) {
   const status = order.pharmacyQuote?.priceStatus;
   if (!["awaiting_pharmacy", "awaiting_customer"].includes(status)) {
     throw new Error("The customer has already answered this price");
@@ -67,20 +84,29 @@ export function applyPharmacyQuote(order, quote, settings) {
   order.items = quote.items;
   refreshOrderTotals(order, settings);
   order.pharmacyQuote.priceStatus = "awaiting_customer";
-  order.pharmacyQuote.quotedAt = new Date();
+  // A new or changed price gives the customer a fresh window to answer.
+  order.pharmacyQuote.quotedAt = now;
+  order.pharmacyQuote.answerBy = new Date(now.getTime() + PHARMACY_PRICE_HOURS * HOUR);
   order.pharmacyQuote.unavailable = quote.unavailable;
   order.pharmacyQuote.pharmacistNote = quote.note;
   order.markModified("pharmacyQuote");
 }
 
 /** The customer's answer. Declining cancels the order (nothing has been paid yet). */
-export function applyPharmacyDecision(order, decision) {
+export function applyPharmacyDecision(order, decision, now = new Date()) {
   if (order.pharmacyQuote?.priceStatus !== "awaiting_customer") {
     throw new Error("There's no price to answer yet");
   }
-  order.pharmacyQuote.decidedAt = new Date();
+  // Too late to approve (the sweep may not have closed it yet). Declining is still fine.
+  if (decision === "approve" && pharmacyPriceExpired(order, now)) {
+    throw new Error(PHARMACY_EXPIRED_MESSAGE);
+  }
+  order.pharmacyQuote.decidedAt = now;
   order.pharmacyQuote.priceStatus = decision === "approve" ? "approved" : "declined";
   order.markModified("pharmacyQuote");
 }
 
 export const PHARMACY_DECLINED_REASON = "You declined the pharmacy's price, so nothing was charged.";
+export const PHARMACY_EXPIRED_MESSAGE =
+  "This price has expired. Send your prescription again to get a new price.";
+export const PHARMACY_EXPIRED_REASON = `The pharmacy's price wasn't approved within ${PHARMACY_PRICE_HOURS} hours, so this request was closed. You weren't charged. Send your prescription again any time.`;

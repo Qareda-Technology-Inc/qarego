@@ -10,6 +10,7 @@ import { isCollectFirstOrder } from "./laundryOrders.js";
 import { cancelStaleUnpaidOrders } from "./unpaidOrders.js";
 import { processWaitingOrders } from "./orderWaitAlerts.js";
 import { processNoRiderJobs } from "./noRiderAlerts.js";
+import { expireStalePharmacyPrices } from "./pharmacyRequests.js";
 
 const POLL_MS = 30_000;
 
@@ -109,6 +110,9 @@ export function startFoodCourierBroadcastScheduler(io) {
     });
     processNoRiderJobs().catch((err) => {
       console.error("[food] no-rider alerts error:", err?.message || err);
+    });
+    expireStalePharmacyPrices(io).catch((err) => {
+      console.error("[food] pharmacy price expiry error:", err?.message || err);
     });
   };
 

@@ -1,5 +1,5 @@
 import React from "react";
-import { Tabs, router, usePathname } from "expo-router";
+import { Tabs, usePathname } from "expo-router";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -23,6 +23,9 @@ export default function CustomerCommerceTabsLayout() {
 
   return (
     <Tabs
+      // Back goes through the tabs the customer actually visited, then leaves the module. With the
+      // default ("first tab"), Back from Laundry/Groceries/Pharmacy stopped on the restaurants Home.
+      backBehavior="history"
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: COMMERCE_TAB_ACTIVE,
@@ -69,19 +72,6 @@ export default function CustomerCommerceTabsLayout() {
             />
           ),
         }}
-        listeners={({ navigation }) => ({
-          tabPress: () => {
-            const state = navigation.getState();
-            const storesRoute = state.routes.find((r: { name: string }) => r.name === "stores");
-            const nestedIndex =
-              storesRoute?.state && "index" in storesRoute.state
-                ? (storesRoute.state.index as number)
-                : 0;
-            if (nestedIndex > 0) {
-              router.replace("/customer/stores");
-            }
-          },
-        })}
       />
       <Tabs.Screen
         name="search"

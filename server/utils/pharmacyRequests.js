@@ -5,6 +5,8 @@ import { sendPushToUserId } from "./pushNotifications.js";
 import { applyRestaurantAction, emitFoodOrderUpdated } from "./foodOrderFlow.js";
 import {
   PHARMACY_DECLINED_REASON,
+  PHARMACY_EXPIRED_REASON,
+  PHARMACY_PRICE_HOURS,
   applyPharmacyDecision,
   applyPharmacyQuote,
   readPharmacyQuote,
@@ -44,7 +46,7 @@ export async function applyPharmacyCustomerDecision(orderId, customerId, decisio
   try {
     applyPharmacyDecision(order, decision);
   } catch (err) {
-    return { error: "invalid_transition", message: err.message };
+    return { error: "price_expired_or_answered", message: err.message };
   }
   await order.save();
 
@@ -64,4 +66,45 @@ export async function startPaidPharmacyOrder(orderId, io) {
   if (!order?.pharmacyQuote || order.pharmacyQuote.priceStatus !== "approved") return null;
   if (order.status !== "PLACED" || order.paymentStatus !== "PAID") return null;
   return applyRestaurantAction(orderId, "accept", io);
+}
+
+/**
+ * Prices the customer didn't answer in time: the request is closed (cancelled by the system,
+ * nothing was paid) and both the customer and the pharmacy see why. Runs on the food scheduler.
+ */
+export async function expireStalePharmacyPrices(io, now = new Date()) {
+  const cutoff = new Date(now.getTime() - PHARMACY_PRICE_HOURS * 3_600_000);
+  const stale = await FoodOrder.find({
+    status: "PLACED",
+    "pharmacyQuote.priceStatus": "awaiting_customer",
+    $or: [
+      { "pharmacyQuote.answerBy": { $lt: now } },
+      // Priced before answerBy existed.
+      { "pharmacyQuote.answerBy": null, "pharmacyQuote.quotedAt": { $lt: cutoff } },
+    ],
+  })
+    .select("_id")
+    .limit(20)
+    .lean();
+
+  let expired = 0;
+  for (const { _id } of stale) {
+    try {
+      // Claim it, so an approval or a second tick can't race the cancel.
+      const claimed = await FoodOrder.findOneAndUpdate(
+        { _id, status: "PLACED", "pharmacyQuote.priceStatus": "awaiting_customer" },
+        { $set: { "pharmacyQuote.priceStatus": "expired", "pharmacyQuote.decidedAt": now } }
+      );
+      if (!claimed) continue;
+      const result = await applyRestaurantAction(_id, "reject", io, {
+        cancelledBy: "SYSTEM",
+        cancelReason: PHARMACY_EXPIRED_REASON,
+      });
+      if (!result.error) expired += 1;
+      else console.warn("[pharmacy] could not close expired price", String(_id), result.error);
+    } catch (err) {
+      console.error("[pharmacy] expire error", String(_id), err?.message || err);
+    }
+  }
+  return expired;
 }
