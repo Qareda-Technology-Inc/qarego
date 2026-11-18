@@ -105,11 +105,11 @@ Every new order also comes to the store's phone numbers by **SMS**, so you hear 
 
 You earn the **price of the items** in each order, minus QareGO's commission.
 
-- **Commission** is a percentage of the item price. The default is **15%**; gas stations pay **5%** of the gas price. Your rate is in your partner agreement, and the portal shows the commission on every order.
+- **Commission** is a percentage of the item price. The default is **8%**; gas stations pay **5%** of the gas price. Your rate is in your partner agreement, and the portal shows the commission on every order.
 - The **delivery fee** and the customer's **service fee** are paid by the customer and are not taken from your price.
 - In the portal you only see the item price (your sales), never the delivery or service fee.
 
-*Example:* GH₵100 of food at 15% commission → **you get GH₵85**.
+*Example:* GH₵100 of food at 8% commission → **you get GH₵92**.
 
 ### Free period for new stores
 

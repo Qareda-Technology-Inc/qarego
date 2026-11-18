@@ -51,7 +51,7 @@ It covers the store(s) listed in Schedule 1.
 4.1 **Your prices.** You set the price of each item. Customers pay your listed price for items, plus a delivery fee (for deliveries) and a service fee, both set by QareGO.
 
 4.2 **Commission.** For each completed order, QareGO earns a commission on the item price (the order subtotal, after any discount you set):
-- **[15]%** for restaurants, grocery shops, pharmacies and laundries;
+- **[8]%** for restaurants, grocery shops, pharmacies and laundries;
 - **[5]%** of the gas price for gas stations.
 
 QareGO may change the commission by giving you at least **[30] days'** notice in writing (including by SMS, email or in the portal). Orders placed before the change keep the old rate.

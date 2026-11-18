@@ -35,11 +35,11 @@ QareGO works for **restaurants and kitchens, grocery shops, pharmacies, gas stat
 |---|---|
 | Joining | Free |
 | Monthly fee | None |
-| Commission | A percentage of the food or item price of each order, shown in your agreement and on your Transactions page. Default: **15%** (gas stations: **5%** of the gas price). |
+| Commission | A percentage of the food or item price of each order, shown in your agreement and on your Transactions page. Default: **8%** (gas stations: **5%** of the gas price). |
 | Free period | New stores: **no commission** for the period QareGO gives you when you go live. |
 | Delivery | Paid by the customer. Not taken from your price. |
 
-*Example:* a customer orders GH₵100 of food. With 15% commission you get **GH₵85**. During your free period you get the full **GH₵100**.
+*Example:* a customer orders GH₵100 of food. With 8% commission you get **GH₵92**. During your free period you get the full **GH₵100**.
 
 ## How to join
 
