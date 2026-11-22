@@ -1,3 +1,4 @@
+import { withAccount } from "@/components/shared/SignInPrompt";
 import {
   View,
   FlatList,
@@ -429,4 +430,5 @@ const styles = StyleSheet.create({
   },
 });
 
-export default CustomerOrders;
+// Guests (browsing without an account) see a sign-in prompt instead.
+export default withAccount(CustomerOrders, { title: "Your orders", body: "Sign in to see your orders and track them live.", icon: "receipt-outline" });

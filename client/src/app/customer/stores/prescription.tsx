@@ -1,3 +1,4 @@
+import { requireAccount } from "@/utils/guest";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -121,6 +122,7 @@ export default function SendPrescriptionScreen() {
   );
 
   const addPhoto = async () => {
+    if (!requireAccount("add your prescription")) return;
     if (photos.length >= MAX_PRESCRIPTION_PHOTOS) return;
     const uri = await pickPrescriptionImage();
     if (!uri) return;
@@ -137,6 +139,7 @@ export default function SendPrescriptionScreen() {
 
   const send = async () => {
     if (!ready || !selected) return;
+    if (!requireAccount("send your prescription")) return;
     setSending(true);
     try {
       const r = selected.r;

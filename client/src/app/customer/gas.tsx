@@ -1,3 +1,4 @@
+import { requireAccount } from "@/utils/guest";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   View,
@@ -149,6 +150,7 @@ export default function GasRequestScreen() {
 
   const place = async () => {
     if (!canPlace || !point || sizeKg == null || !online) return;
+    if (!requireAccount("order gas")) return;
     setPlacing(true);
     try {
       const order = await createGasOrder({

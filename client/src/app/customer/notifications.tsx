@@ -1,3 +1,4 @@
+import { withAccount } from "@/components/shared/SignInPrompt";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   View,
@@ -189,4 +190,5 @@ const styles = StyleSheet.create({
   ctaText: { color: Colors.primary },
 });
 
-export default CustomerNotifications;
+// Guests (browsing without an account) see a sign-in prompt instead.
+export default withAccount(CustomerNotifications, { title: "Notifications", body: "Sign in to get updates on your orders and offers.", icon: "notifications-outline", showBack: true });

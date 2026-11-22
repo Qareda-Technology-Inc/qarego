@@ -7,9 +7,12 @@ import {
   KeyboardAvoidingView,
   Platform,
   Text,
+  Pressable,
 } from "react-native";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { router } from "expo-router";
+import { cancelReturnAfterSignIn, startGuestBrowsing } from "@/utils/guest";
+import { resetAndNavigate } from "@/utils/Helpers";
 import Animated, { FadeInDown, FadeInUp } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
@@ -38,6 +41,19 @@ const Role = () => {
   const [loading, setLoading] = useState(false);
 
   const phoneReady = phone.length === 9 || isReviewPhone(phone);
+
+  // Left without signing in (back or "Browse without an account"): don't jump anywhere later.
+  useEffect(() => () => cancelReturnAfterSignIn(), []);
+
+  /** Look around first; ordering and booking ask to sign in (Apple 5.1.1(v)). */
+  const browseAsGuest = () => {
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+    startGuestBrowsing();
+    resetAndNavigate("/customer");
+  };
 
   const handleLogin = async () => {
     if (!phoneReady) {
@@ -170,6 +186,17 @@ const Role = () => {
               >
                 Privacy Policy
               </Text>
+            </CustomText>
+          </Animated.View>
+
+          <Animated.View entering={FadeInUp.delay(180).duration(420)} style={styles.browseWrap}>
+            <Pressable onPress={browseAsGuest} hitSlop={10} accessibilityRole="button" style={styles.browseBtn}>
+              <CustomText fontFamily="SemiBold" fontSize={15} style={styles.browseText}>
+                {router.canGoBack() ? "Not now, keep browsing" : "Browse without an account"}
+              </CustomText>
+            </Pressable>
+            <CustomText fontSize={12} style={styles.browseHint}>
+              See services, stores, menus and prices. Sign in when you order.
             </CustomText>
           </Animated.View>
 
@@ -309,6 +336,17 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     marginTop: 8,
   },
+  browseWrap: { alignItems: "center", marginTop: 18 },
+  browseBtn: {
+    borderWidth: 1.5,
+    borderColor: "#1e88e5",
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 22,
+    backgroundColor: "#fff",
+  },
+  browseText: { color: "#1565c0" },
+  browseHint: { color: "#64748b", marginTop: 8, textAlign: "center" },
   sponsorRow: {
     alignItems: "center",
     marginTop: 22,

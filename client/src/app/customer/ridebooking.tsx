@@ -1,3 +1,4 @@
+import { requireAccount } from "@/utils/guest";
 import {
   View,
   TouchableOpacity,
@@ -306,6 +307,7 @@ const RideBooking = () => {
   );
 
   const handlePickParcelPhoto = useCallback(async () => {
+    if (!requireAccount("add a photo")) return;
     const uri = await pickParcelImage();
     if (!uri) return;
     setParcelPhotoUri(uri);
@@ -388,6 +390,7 @@ const RideBooking = () => {
     if (!pickup || !drop || !online) {
       return;
     }
+    if (!requireAccount(serviceType === "RIDE" ? "book a ride" : "send a parcel")) return;
     if (serviceType === "RIDE" && !selectedOption) {
       return;
     }

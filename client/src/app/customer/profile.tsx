@@ -1,3 +1,4 @@
+import { withAccount } from "@/components/shared/SignInPrompt";
 import {
   View,
   StyleSheet,
@@ -379,4 +380,5 @@ const styles = StyleSheet.create({
   },
 });
 
-export default CustomerProfile;
+// Guests (browsing without an account) see a sign-in prompt instead.
+export default withAccount(CustomerProfile, { title: "Your profile", body: "Sign in to set up your profile.", icon: "person-circle-outline", showBack: true });

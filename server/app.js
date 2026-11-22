@@ -27,6 +27,7 @@ import notificationsRouter from './routes/notifications.js';
 import appVersionRouter from './routes/appVersion.js';
 import serviceZoneRouter from './routes/serviceZone.js';
 import parcelPointRouter from './routes/parcelPoints.js';
+import publicBrowseRouter from './routes/publicBrowse.js';
 import { initCloudinary, isCloudinaryConfigured } from './utils/cloudinary.js';
 import { getFirebaseConfigSource, isFirebaseConfigured } from './utils/firebaseAdmin.js';
 import { clearDemoFoodSeed } from './seedFood.js';
@@ -218,6 +219,8 @@ app.get("/features", (_req, res) => {
 // Routes
 // Public: the website's "List your store" form (reached through the website's /api rewrite).
 app.post("/vendor-applications", express.json({ limit: "20kb" }), submitVendorApplication);
+// Read-only browsing for guests (no account): stores, menus, prices. Before the authed routers.
+app.use(publicBrowseRouter);
 app.use("/auth", authRouter);
 app.use("/ride", authMiddleware, rideRouter);
 app.use("/drivers", driverRouter);

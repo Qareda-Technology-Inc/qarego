@@ -1,3 +1,4 @@
+import { requireAccount } from "@/utils/guest";
 import {
   View,
   ScrollView,
@@ -362,6 +363,7 @@ const FoodCart = () => {
 
   const placeOrder = async () => {
     if (!restaurantId || items.length === 0 || !readyToOrder || !online) return;
+    if (!requireAccount("place your order")) return;
     if (isPharmacy && requiresPrescription && prescriptionUrls.length === 0) {
       Alert.alert(
         "Prescription needed",
@@ -434,6 +436,7 @@ const FoodCart = () => {
   };
 
   const handlePickPrescription = async () => {
+    if (!requireAccount("add your prescription")) return;
     if (prescriptions.length >= MAX_PRESCRIPTION_PHOTOS) {
       Alert.alert(
         "Limit reached",

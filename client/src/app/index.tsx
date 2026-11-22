@@ -34,6 +34,7 @@ import { refresh_tokens } from "@/service/apiInterceptors";
 import { isNoResponseError } from "@/service/connectivity";
 import { logout } from "@/service/authService";
 import { resumeCustomerSession } from "@/service/rideService";
+import { isGuestBrowsing } from "@/utils/guest";
 
 interface DecodedToken {
   exp: number;
@@ -108,7 +109,7 @@ const Main = () => {
   }, [loaded, fontError]);
 
   const goToLogin = () => {
-    resetAndNavigate("/role");
+    resetAndNavigate(isGuestBrowsing() ? "/customer" : "/role");
   };
 
   const tokenCheck = async () => {

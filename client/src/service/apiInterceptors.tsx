@@ -56,7 +56,9 @@ appAxios.interceptors.response.use(
   async (error) => {
     if (isNoResponseError(error)) markOffline();
     else if (error.response) markOnline();
-    if (error.response && error.response.status === 401) {
+    // Guests (no account) get 401 on account-only routes: that's not an expired session, so
+    // don't try to refresh (which would clear storage and send them to the sign-in screen).
+    if (error.response && error.response.status === 401 && tokenStorage.getString("refresh_token")) {
       try {
         const newAccessToken = await refresh_tokens();
         if (newAccessToken) {

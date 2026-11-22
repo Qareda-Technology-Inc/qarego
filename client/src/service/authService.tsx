@@ -8,6 +8,8 @@ import { apiPost } from "./apiClient";
 import { ensureApiBaseUrl, getApiBaseUrl, getPhysicalDeviceNetworkHelp } from "./config";
 import { clearSession } from "./session";
 import { getReviewAccount } from "@/utils/reviewLogin";
+import { router } from "expo-router";
+import { consumeReturnAfterSignIn, endGuestBrowsing } from "@/utils/guest";
 
 const isAppRole = (role?: string) => role === "customer" || role === "rider";
 const NOT_APP_ACCOUNT =
@@ -45,8 +47,11 @@ export const signin = async (
     tokenStorage.set("access_token", res.data.access_token);
     tokenStorage.set("refresh_token", res.data.refresh_token);
 
+    endGuestBrowsing();
     if (res.data.user.role === "customer") {
-        resetAndNavigate("/customer");
+      // Signed in from a guest screen (e.g. Place order): go back to it, not the start.
+      if (consumeReturnAfterSignIn() && router.canDismiss()) router.dismiss(2);
+      else resetAndNavigate("/customer");
     } else {
       resetAndNavigate("/rider/home");
     }
@@ -132,8 +137,10 @@ export const verifyOtp = async (
     tokenStorage.set("access_token", res.access_token);
     tokenStorage.set("refresh_token", res.refresh_token);
 
+    endGuestBrowsing();
     if (res.user.role === "customer") {
-      resetAndNavigate("/customer");
+      if (consumeReturnAfterSignIn() && router.canDismiss()) router.dismiss(2);
+      else resetAndNavigate("/customer");
     } else {
       resetAndNavigate("/rider/home");
     }

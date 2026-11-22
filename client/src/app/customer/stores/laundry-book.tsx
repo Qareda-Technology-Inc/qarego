@@ -1,3 +1,4 @@
+import { requireAccount } from "@/utils/guest";
 import React, { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, TextInput, TouchableOpacity, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
@@ -138,6 +139,7 @@ export default function LaundryBookScreen() {
 
   const book = async () => {
     if (!ready || !shop) return;
+    if (!requireAccount("book a pickup")) return;
     setBooking(true);
     try {
       const res = await createFoodOrder({

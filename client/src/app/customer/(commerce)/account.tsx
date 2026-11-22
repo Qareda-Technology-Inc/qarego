@@ -1,3 +1,4 @@
+import { withAccount } from "@/components/shared/SignInPrompt";
 import { View, ScrollView, TouchableOpacity, StyleSheet, Alert, Image } from "react-native";
 import React from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -269,4 +270,5 @@ const styles = StyleSheet.create({
   deleteLink: { alignSelf: "center", paddingVertical: 8, marginTop: 4 },
 });
 
-export default CustomerAccount;
+// Guests (browsing without an account) see a sign-in prompt instead.
+export default withAccount(CustomerAccount, { title: "Your account", body: "Sign in to manage your profile, addresses and payments. You can keep browsing without an account.", icon: "person-circle-outline" });
